@@ -9,3 +9,6 @@
 
 -r rag-service/requirements-e.txt
 -r voice-service/requirements.txt
+
+# 약속 확인 테스트 (rag-service/tests)
+pytest>=8,<9
