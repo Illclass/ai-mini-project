@@ -1,6 +1,55 @@
+# ===== Secrets (API 키 · JWT 비밀키 · DB 비밀번호) =====
 .env
-.venv/
+.env.*
+!.env.example
+
+# ===== Python =====
 __pycache__/
-*.bak
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ===== Java / Gradle =====
+.gradle/
+build/
+bin/
+out/
+*.class
+!gradle/wrapper/gradle-wrapper.jar
+
+# ===== Node / Vue.js (프론트 추가 시) =====
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+yarn-error.log*
+
+# ===== 실행 중 생성되는 파일 =====
+# 음성 서비스 녹음/합성 결과물
+*.webm
+*.wav
+*.mp3
+# 업로드 임시 파일
+uploads/
+tmp/
+*.log
+# dev.sh 실행 로그
+logs/
+
+# ===== 벡터 DB =====
+# 적재 스크립트로 재생성 가능하면 제외. 인덱스를 공유하려면 아래 줄을 주석 처리
 faiss_db/
+
+# ===== OS / IDE =====
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# 백업 파일
+*.bak
