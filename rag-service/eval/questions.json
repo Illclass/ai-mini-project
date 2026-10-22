@@ -1,0 +1,12 @@
+[
+  {
+    "id": "Q06",
+    "question": "중대재해법의 기준은?",
+    "language": "ko",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
+    "expected_sources": [{"doc_id": "L2", "section": "제2조 제2호"}],
+    "expected_behavior": "answer"
+  }
+]
