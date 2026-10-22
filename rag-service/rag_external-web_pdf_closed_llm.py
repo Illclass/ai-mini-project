@@ -12,6 +12,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from pypdf import PdfReader
 from langchain_core.messages import HumanMessage
+from rag.retriever import retrieve
 
 # 패키지는 저자 업데이트에 맞춰 해당 버전으로 맞추는 것을 권장
 # 직접 저자의 site-packages/패키지명/을 직접 수정하는 것은 추천하지 않음
@@ -345,22 +346,20 @@ async def rag_query(rag_request: RAGRequest = Body(...)):
             # [Q04] 질문과 유사 문서 검색 연결
             # [설계 판단] 사용자 질문을 기준으로 선택된 벡터 저장소에서 상위 top_k개 문서와 거리 점수를 가져오세요.
             # [TODO Q04] 아래 ... 부분을 적절한 코드로 교체하세요.
-            docs_scores = vectorstore.similarity_search_with_score(rag_request.prompt, k=top_k)
-            print(f"[PDF 검색] 질문={rag_request.prompt!r}, 검색 문서 수={len(docs_scores)}")
-            for i, (doc, score) in enumerate(docs_scores, start=1):
-                print(f"[PDF 검색 {i}] 거리={score:.5f}, 내용={doc.page_content[:300]!r}")
+            hits = retrieve(rag_request.prompt, vectorstore, k=top_k)
+            print(f"[PDF 검색] 질문={rag_request.prompt!r}, 검색 문서 수={len(hits)}")
+            for i, h in enumerate(hits, start=1):
+                print(f"[PDF 검색 {i}] 거리={h['score']:.5f}, 출처={h['metadata'].get('article_no', '')}, 내용={h['text'][:300]!r}")
 
-            if not docs_scores:
+            if not hits:
                 return AnswerResponse(prompt=rag_request.prompt, response="PDF 지식베이스에서 검색 결과를 찾을 수 없습니다.")
 
             # 임의의 거리 임계값을 제거하고 상위 검색 결과를 사용합니다.
             # 기존 로직은 0.12 마진으로 문서를 과도하게 배제할 수 있었습니다.
             MAX_CONTEXT_CHARS = 12000
             chunks, total = [], 0
-            for i, (doc, _) in enumerate(docs_scores, start=1):
-                content = (doc.page_content or "").strip()
-                if not content:
-                    continue
+            for i, h in enumerate(hits, start=1):
+                content = h["text"]
                 remaining = MAX_CONTEXT_CHARS - total
                 if remaining <= 0:
                     break
