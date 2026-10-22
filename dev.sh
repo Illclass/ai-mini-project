@@ -5,6 +5,9 @@
 #   ./dev.sh --voice   음성 서비스까지 실행
 #   Ctrl + C           이 스크립트가 띄운 서버를 모두 종료 (DB 컨테이너는 계속 실행)
 #
+#   RAG 앱 선택 (기본: 새 구조 app.main)
+#     RAG_APP=rag_external-web_pdf_closed_llm:app ./dev.sh   # 기존 템플릿 (/upload-paper 등)
+#
 # 로그: logs/auth.log · logs/rag.log · logs/voice.log
 
 set -u
@@ -14,12 +17,13 @@ LOG_DIR="$ROOT/logs"
 DB_CONTAINER="ai-mini-db"
 DB_PORT=53301
 PY=python3.11
+RAG_APP="${RAG_APP:-app.main:app}"
 
 WITH_VOICE=0
 for arg in "$@"; do
   case "$arg" in
     --voice) WITH_VOICE=1 ;;
-    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
     *) echo "알 수 없는 옵션: $arg (./dev.sh --help)"; exit 1 ;;
   esac
 done
@@ -164,8 +168,8 @@ ok "인증서버 준비 완료 (http://localhost:8080/login)"
 
 # ---------- 3) RAG ----------
 ensure_venv
-info "RAG: 실행"
-(cd "$ROOT/rag-service" && exec "$VENV_PY" -m uvicorn rag_external-web_pdf_closed_llm:app --port 8001) \
+info "RAG: 실행 ($RAG_APP)"
+(cd "$ROOT/rag-service" && exec "$VENV_PY" -m uvicorn "$RAG_APP" --port 8001) \
   > "$LOG_DIR/rag.log" 2>&1 &
 RAG_PID=$!; PIDS="$PIDS $RAG_PID"
 wait_for_port 8001 "RAG" "$RAG_PID" "$LOG_DIR/rag.log" 60

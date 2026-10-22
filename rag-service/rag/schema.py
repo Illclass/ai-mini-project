@@ -124,10 +124,14 @@ class RagResponse(BaseModel):
 
 
 def source_from_meta(meta: ChunkMeta) -> Source:
-    """검색 결과 메타데이터 → 응답 sources 항목."""
+    """검색 결과 메타데이터 → 응답 sources 항목.
+    공통 키(title·section)가 없으면 법령 전용 키(law_name·article_no·paragraph)로 채운다."""
+    section = meta.get("section") or meta.get("article_no", "")
+    if not meta.get("section") and meta.get("paragraph"):
+        section = f"{section} 제{meta['paragraph']}항"
     return Source(
         doc_id=meta.get("doc_id", ""),
-        section=meta.get("section", ""),
-        title=meta.get("title", ""),
+        section=section,
+        title=meta.get("title") or meta.get("law_name", ""),
         url=meta.get("source_url", ""),
     )

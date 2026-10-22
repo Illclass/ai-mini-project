@@ -107,12 +107,49 @@ AI-mini/
 
 | 서비스 | 위치 | 변수 |
 |---|---|---|
-| rag-service | `rag-service/.env` | `OPENAI_API_KEY`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`, (`ASYNC_DB_URL`) |
+| rag-service | `rag-service/.env` | `OPENAI_API_KEY`, `JWT_SECRET`(Java와 같은 값), (`LLM_MODEL`, `EMBEDDING_MODEL`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`) |
 | voice-service | `voice-service/app/.env` | `OPENAI_API_KEY`, (`WHISPER_MODEL`, 기본 `small`) |
 | auth-server | 셸 환경변수 (`export`) | `JWT_SECRET`, `DB_PASSWORD` |
 
 > ⚠️ **JWT 비밀키 불일치**: `voice-service/app/main.py`는 `SECRET_KEY = "RANDOM_SECRET_KEY"`로 하드코딩되어 있고,
 > Java는 `JWT_SECRET` 환경변수를 읽습니다. 두 값이 같아야 토큰 검증이 통과합니다.
+> `./dev.sh` 로 실행하면 `auth-server/.env` 의 `JWT_SECRET` 이 RAG 에도 그대로 전달됩니다.
+
+---
+
+## 🧩 rag-service 구조와 담당
+
+공통 이름(요청·응답 필드, 메타데이터 키, topic·language 값)은 **`rag/schema.py` 에서만 정의**하고 모두 import 해서 씁니다.
+지금은 끝까지 한 번 동작하도록 임시 구현이 들어 있고, 각자 자기 파일을 다듬으면 됩니다.
+
+| 파일 | 담당 | 하는 일 | 지금 상태 |
+|---|---|---|---|
+| `app/main.py` | 정지우 | `/health`, `/rag-query`, CORS, 503 처리 | 동작 (로그 TODO) |
+| `app/auth.py` | 정지우 | `ACCESS_TOKEN` 쿠키 JWT 검증 → 401 | 임시 구현 (검토 필요) |
+| `rag/schema.py` | 전원 | 공통 이름 · 요청/응답 모델 | 완료 |
+| `rag/chain.py` | 김규빈 · 박진근 | 비상 질문 확인 → 검색 → 생성 → `latency_ms` | 동작 (zh·vi 비상 표현 TODO) |
+| `rag/stores.py` | 김규빈 | topic 별 FAISS 로드 (`faiss_db/law`, `faiss_db/msds`) | 동작 |
+| `rag/query.py` | 김규빈 | 다국어 → 한국어, 동의어 확장 | 동의어 일부, 번역 TODO |
+| `rag/retriever.py` | 김규빈 | `retrieve(question, topic, product_id, k)` | 동작 |
+| `rag/prompt.py` | 박진근 | 프롬프트 규칙 | 임시 구현 |
+| `rag/llm.py` | 박진근 | LLM 호출 · 타임아웃 · 재시도 | 동작 |
+| `rag/generator.py` | 박진근 | 답변 · `sources` · `needs_review` · `handoff` | 임시 구현 |
+| `ingest_law.py` | 윤서진 | 법령 조문 단위 적재 (`--out faiss_db/law`) | 동작 (`doc_id`·`topic`·`title`·`section` 추가 필요) |
+| `ingest/ingest_msds.py` | 윤서진 | MSDS 16개 항목 단위 적재 → `faiss_db/msds` | 뼈대 |
+| `eval/questions.json` · `eval/run_eval.py` | 김규빈 · 박진근 | 평가셋 · 검색 적중률 · 생성 판정 | 형식 예시 · 뼈대 |
+| `rag_external-web_pdf_closed_llm.py` | — | 기존 템플릿 (참고용, `/upload-paper` 등) | 그대로 |
+
+**흐름:** `RagRequest` → `chain.answer()` → `query.normalize_question()` → `retriever.retrieve()` → `generator.generate()` → `RagResponse`
+
+**법령 인덱스 만들기** (rag-service/ 에서):
+
+```bash
+python ingest_law.py --input laws/sapa.pdf --law-name "중대재해 처벌 등에 관한 법률" --abbr sapa \
+  --effective-date 2022-01-27 --source-url "https://www.law.go.kr/" --out faiss_db/law
+```
+
+> ⚠️ 브라우저(프론트)는 RAG 를 **`http://localhost:8001`** 로 불러야 합니다. 로그인 쿠키가 `localhost` 이름으로 발급되므로
+> `127.0.0.1:8001` 로 부르면 쿠키가 전달되지 않아 401 이 납니다.
 
 ---
 

@@ -8,7 +8,9 @@
 """
 from typing import List, Optional
 
+from rag.query import normalize_question
 from rag.schema import DEFAULT_TOP_K, Hit
+from rag.stores import get_store
 
 
 def search_store(question: str, vectorstore, k: int = DEFAULT_TOP_K) -> List[Hit]:
@@ -29,11 +31,27 @@ def search_store(question: str, vectorstore, k: int = DEFAULT_TOP_K) -> List[Hit
 
 def filter_hits(hits: List[Hit], product_id: Optional[str] = None) -> List[Hit]:
     """product_id 가 있으면 그 제품 MSDS 청크만 남긴다."""
-    # TODO
-    raise NotImplementedError
+    if not product_id:
+        return hits
+    return [h for h in hits if h["metadata"].get("product_id") == product_id]
 
 
-def retrieve(question: str, topic: str, product_id: Optional[str] = None, k: int = DEFAULT_TOP_K) -> List[Hit]:
+def retrieve(question: str, topic: str, product_id: Optional[str] = None,
+             k: int = DEFAULT_TOP_K, language: str = "ko") -> List[Hit]:
     """stores.get_store(topic) → query.normalize_question 결과마다 search_store → 중복 제거 → filter_hits → 상위 k."""
-    # TODO
-    raise NotImplementedError
+    store = get_store(topic)
+    if store is None:
+        return []
+
+    # product_id 필터로 걸러질 것을 감안해 넉넉히 가져온다
+    fetch_k = k * 4 if product_id else k
+
+    best = {}
+    for q in normalize_question(question, language):
+        for h in search_store(q, store, k=fetch_k):
+            key = h["metadata"].get("chunk_id") or h["text"]
+            if key not in best or h["score"] < best[key]["score"]:
+                best[key] = h
+
+    hits = sorted(best.values(), key=lambda h: h["score"])
+    return filter_hits(hits, product_id)[:k]
