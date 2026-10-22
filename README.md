@@ -9,6 +9,107 @@ Vue(:5174) ─로그인─▶ Java 인증서버(:8080) ─▶ MariaDB(:53301)
     └─/rag-query─▶ RAG FastAPI(:8001) ─▶ FAISS(law · msds) + OpenAI
 ```
 
+---
+
+## 👋 팀원은 여기부터 — 순서대로 따라 하면 됩니다
+
+### 1단계. 내 작업 카드 열기 (1분)
+
+| 이름 | 파트 | 작업 카드 |
+|---|---|---|
+| 윤서진 | 데이터 파이프라인 | [docs/tasks/윤서진_데이터.md](docs/tasks/윤서진_데이터.md) |
+| 박진근 | LLM(생성) | [docs/tasks/박진근_생성.md](docs/tasks/박진근_생성.md) |
+| 정지우 | 인증 연동 · API | [docs/tasks/정지우_API.md](docs/tasks/정지우_API.md) |
+| 강지훈 | 프론트엔드 · 배포 | [docs/tasks/강지훈_프론트배포.md](docs/tasks/강지훈_프론트배포.md) |
+| 김규빈 | Retriever(검색) · 평가 | (본인) |
+
+카드에 **할 일 · 고칠 파일 · 완료 기준 · AI 에게 붙여 넣을 프롬프트**가 있습니다.
+
+### 2단계. 내 컴퓨터에 준비하기 (처음 한 번, 10~15분)
+
+1. 설치되어 있어야 하는 것: **Git, Docker Desktop(실행 중), Java 17 이상, Python 3.11**
+2. 저장소 받기
+   ```bash
+   cd ~/workspace
+   git clone https://github.com/Illclass/ai-mini-project.git
+   cd ai-mini-project
+   ```
+3. 파이썬 가상환경 + 패키지 설치 (torch 때문에 몇 분 걸림)
+   ```bash
+   python3.11 -m venv .venv
+   source .venv/bin/activate
+   pip install -U pip setuptools wheel
+   pip install -r requirements.txt
+   ```
+4. **`.env` 파일 3개 만들기** — 값은 **김규빈에게 DM 으로 받으세요** (Git·단톡방에 올리지 않기)
+   - `auth-server/.env` → `DB_PASSWORD=...`, `JWT_SECRET=...`
+   - `rag-service/.env` → `OPENAI_API_KEY=...`
+   - `voice-service/app/.env` → `OPENAI_API_KEY=...` (음성 담당만)
+5. 법령 인덱스 만들기 (`faiss_db/` 는 Git 에 없어서 각자 한 번 만들어야 함)
+   ```bash
+   cd rag-service
+   ../.venv/bin/python ingest_law.py --input laws/sapa.pdf --law-name "중대재해 처벌 등에 관한 법률" \
+     --abbr sapa --effective-date 2022-01-27 --source-url "https://www.law.go.kr/" --out faiss_db/law
+   cd ..
+   ```
+
+### 3단계. 전체 실행해 보기 (2분)
+
+```bash
+./dev.sh
+```
+
+- `✔ 모두 실행 중` 이 나오면 성공. 끌 때는 `Ctrl + C`
+- 브라우저에서 확인:
+  1. http://localhost:8080/signup → 가입 → 로그인 (로그인 후 "연결 거부" 화면이 떠도 **정상**)
+  2. http://localhost:8001/docs → `POST /rag-query` → **Try it out** → 아래를 붙여 넣고 **Execute**
+     ```json
+     {"question": "중대재해법의 기준은?", "topic": "serious_accident_law", "language": "ko"}
+     ```
+  3. 아래 Response 에 `answer` 와 `sources` 가 나오면 끝
+
+### 4단계. 내 브랜치에서 작업하기
+
+```bash
+git switch main
+git pull origin main
+git switch -c feat/내이름-작업내용        # 예: feat/jinkeun-prompt
+```
+
+**AI(ChatGPT 등)로 작업할 때**
+1. 작업 카드 맨 아래 **"AI 에게 붙여 넣을 프롬프트"** 를 복사
+2. `(여기에 ... 붙여 넣기)` 자리에 해당 파일 내용을 붙여 넣기
+3. AI 가 준 코드로 **내 담당 파일만** 바꾸기
+4. Cursor · Copilot 을 쓰면 [`AGENTS.md`](AGENTS.md) 규칙을 AI 가 자동으로 읽습니다
+
+### 5단계. 확인하고 올리기
+
+```bash
+cd rag-service && ../.venv/bin/python -m pytest -q tests && cd ..   # "10 passed" 가 나와야 함
+git add 내가-고친-파일
+git commit -m "무엇을 했는지 한 줄"
+git push -u origin feat/내이름-작업내용
+```
+
+- GitHub → **Pull requests → New pull request** → `main` ← 내 브랜치 → **Create**
+- PR 화면에 ✅ 가 뜨면 병합, ❌ 면 고친 뒤 다시 push (❌ 인 PR 은 병합하지 않기)
+- `git add .` 대신 **고친 파일만** add 하세요 (`.env` 실수 방지)
+
+### 막히면
+
+| 증상 | 해결 |
+|---|---|
+| `Address already in use` | 이미 서버가 켜져 있음 → 켜 둔 터미널에서 `Ctrl + C`, 또는 `lsof -iTCP:8080 -sTCP:LISTEN` 으로 PID 확인 후 `kill <PID>` |
+| `docker ... not running` | Docker Desktop 앱을 먼저 실행 |
+| `/rag-query` 가 401 | 로그인을 안 했거나, `127.0.0.1` 로 접속함 → 주소를 **`localhost`** 로 |
+| `/health` 가 503 | 법령 인덱스가 없음 → 2단계 5번 다시 |
+| `OPENAI_API_KEY` 오류 | `rag-service/.env` 가 없거나 비어 있음 |
+| `pip install` 실패 | Python 버전 확인 `python3.11 --version` (3.14 등 다른 버전 금지) |
+| 테스트 ❌ | 에러 메시지를 통째로 AI 에 붙여 넣고 "이 테스트가 통과하게 고쳐 줘" |
+| 그래도 안 되면 | 에러 화면 캡처해서 김규빈에게 |
+
+---
+
 ## 현재 상태 (2026-10-22, Day 1)
 
 | 구분 | 상태 |
@@ -68,40 +169,13 @@ POST /rag-query   (쿠키 ACCESS_TOKEN 필요)
 - `GET /health` → 200 준비 · 503 미준비, topic 별 인덱스 상태 포함
 - Swagger: http://localhost:8001/docs
 
-## 시작하기
+## 실행 참고
 
-**준비물:** Docker Desktop · Java 17+ · Python 3.11 · (음성은 ffmpeg)
-
-```bash
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -U pip setuptools wheel && pip install -r requirements.txt   # 처음 한 번 (torch 포함, 수 분)
-```
-
-`.env` 는 서비스마다 위치가 다릅니다 (`.env.example` 참고, **Git 에 올리지 않음** — 값은 팀 DM 으로 공유).
-
-| 위치 | 변수 |
-|---|---|
-| `auth-server/.env` | `DB_PASSWORD`, `JWT_SECRET` |
-| `rag-service/.env` | `OPENAI_API_KEY` (+ 선택 `LLM_MODEL`, `EMBEDDING_MODEL`) |
-| `voice-service/app/.env` | `OPENAI_API_KEY` |
-
-```bash
-./dev.sh            # DB · 인증서버(:8080) · RAG(:8001) — Ctrl+C 로 모두 종료, 로그는 logs/
-./dev.sh --voice    # 음성 서비스(:8008)까지
-```
-
-- 회원가입 http://localhost:8080/signup → 로그인 → RAG 질의 http://localhost:8001/docs
-- DB 컨테이너 `ai-mini-db` 와 `users` 테이블은 `dev.sh` 가 자동으로 만듭니다.
-- 로그인하면 원본 코드대로 `localhost:8008` 로 이동합니다. 음성을 안 띄웠으면 "연결 거부"가 정상입니다.
-- ⚠ 프론트·테스트에서 RAG 는 **`localhost:8001`** 로 부르세요. `127.0.0.1` 이면 쿠키가 안 가서 401 입니다.
+- 설치·실행 순서는 위 **"팀원은 여기부터"** 2~3단계를 따릅니다.
+- `./dev.sh --voice` → 음성 서비스(:8008)까지 실행 (ffmpeg, `voice-service/app/.env` 필요)
 - 기존 템플릿 서버로 띄우기: `RAG_APP=rag_external-web_pdf_closed_llm:app ./dev.sh`
-
-**법령 인덱스 만들기** (rag-service/ 에서):
-
-```bash
-python ingest_law.py --input laws/sapa.pdf --law-name "중대재해 처벌 등에 관한 법률" --abbr sapa \
-  --effective-date 2022-01-27 --source-url "https://www.law.go.kr/" --out faiss_db/law
-```
+- DB 컨테이너 `ai-mini-db` 와 `users` 테이블은 `dev.sh` 가 자동으로 만듭니다. 로그는 `logs/` 에 쌓입니다.
+- 선택 환경변수 (`rag-service/.env`): `LLM_MODEL`(기본 gpt-4o), `EMBEDDING_MODEL` — 적재와 검색에 **같은 값**을 써야 합니다.
 
 ## 테스트 · CI
 
@@ -123,16 +197,6 @@ cd rag-service && ../.venv/bin/python -m pytest -q tests
 3. 비밀값은 `.env` 에만 둡니다.
 4. 법률 판단(처벌·책임 단정)을 하지 않습니다 → `handoff: true`.
 5. 자기 브랜치(`feat/이름-작업`)에서 작업하고 PR 로 `main` 에 합칩니다.
-
-## 팀
-
-| 파트 | 담당 |
-|---|---|
-| 데이터 파이프라인 | 윤서진 |
-| Retriever(검색) · 평가 | 김규빈 |
-| LLM(생성) | 박진근 |
-| 인증 연동 · API | 정지우 |
-| 프론트엔드 · 배포 | 강지훈 |
 
 ## 데이터 출처 (기획서 기준)
 
