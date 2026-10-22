@@ -1,145 +1,100 @@
-# AI 서비스 개발 Mini-project
+# ChemBridge
 
-SKALA「AI 서비스 개발 Mini-project」(3일 과정) 조별 프로젝트 저장소입니다.
-강의 제공 압축파일(`ai-practice.zip`)을 기반으로 폴더를 정리했습니다.
+반도체 공정(소부장 포함) **외국인 근로자**를 위한 **화학물질 안전 · 중대재해 법령 다국어(ko · zh · vi) RAG 안내 서비스**
+— SKALA AI 서비스 개발 Mini-project
 
 ```
-Vue.js 프론트 → Java 인증서버(:8080, JWT 발급) → FastAPI AI 서비스
-                                              ├─ RAG 서비스(:8001)  PDF·웹 → FAISS → OpenAI
-                                              └─ 음성 서비스(:8008) Whisper STT → GPT → TTS
+Vue(:5174) ─로그인─▶ Java 인증서버(:8080) ─▶ MariaDB(:53301)
+    │                 (ACCESS_TOKEN 쿠키 발급)
+    └─/rag-query─▶ RAG FastAPI(:8001) ─▶ FAISS(law · msds) + OpenAI
 ```
 
----
+## 현재 상태 (2026-10-22, Day 1)
 
-## 📌 원본 압축파일에서 바뀐 점
-
-> 압축파일을 받은 팀원은 아래 표를 보고 경로를 맞춰 주세요.
-
-### 1. 폴더 이름 변경
-
-교재 Day 3 `docker-compose.yml` 예시의 `build` 경로(`./auth-server`, `./rag-service`, `./frontend`)에 맞췄습니다.
-
-| 원본 (`share/…`) | 변경 후 | 내용 |
-|---|---|---|
-| `workplace/` | **`auth-server/`** | Java 인증서버 (회원가입·로그인·JWT) |
-| `rag-code-template_ext/` | **`rag-service/`** | External RAG 서비스 템플릿 (조별 직접 구현 대상) |
-| `voice-ai_code/` | **`voice-service/`** | 음성 서비스 (STT → GPT → TTS, Day1 데모·확장 트랙) |
-| `intro_main.html` 외 2개 (루트) | **`consoles/`** | RAG API 테스트용 콘솔 페이지 |
-| — | `frontend/` (예정) | Vue.js 프론트 — 압축파일에 없음, 추후 추가 |
-
-- 코드 안에서 폴더명을 경로로 참조하는 곳은 없어서 **이름 변경으로 동작이 바뀌지 않습니다.**
-- Java 패키지명 `workplace`, Gradle 프로젝트명 `java-server`, 서비스 안의 파일명은 원본 그대로입니다.
-  (주석에 `workplace % ./gradlew build`라고 나오면 `auth-server`로 읽으면 됩니다.)
-
-### 2. 파일 수정
-
-| 파일 | 변경 내용 | 이유 |
-|---|---|---|
-| `voice-service/requirements.txt` | UTF-16 → **UTF-8**, CRLF → LF (패키지 내용 동일) | UTF-16이면 `pip install -r` 이 실패할 수 있음 |
-
-### 3. 실습 빈칸(TODO) 채움
-
-원본 코드는 **빈칸 채우기 실습** 형태라 그대로는 회원가입·로그인·PDF 질의가 동작하지 않았습니다. 모두 채워 두었습니다.
-
-| 서비스 | TODO | 채운 내용 |
-|---|---|---|
-| `auth-server` `SimpleAuthServer.java` | ① 로그인 검증 | `authService.login(username, password)` |
-| | ② 세션 조회 | `SESSION_STORE.get(sessionId)` |
-| | ③ JWT 검증 | `JwtUtil.verifyToken(token)` |
-| | ④ 인증 실패 조건 | `sessionUser == null && !jwtOk` |
-| | ⑤-A 비밀번호 해시 | `BCrypt.hashpw(rawPassword, BCrypt.gensalt(12))` |
-| | ⑤-B 비밀번호 검증 | `BCrypt.checkpw(rawPassword, u.getPassword())` |
-| `rag-service` `rag_external-web_pdf_closed_llm.py` | Q01 청크 설정 | `chunk_size=500, chunk_overlap=80` |
-| | Q02 PDF 벡터화 | `FAISS.from_documents(docs, OpenAIEmbeddings())` |
-| | Q03 저장소 선택 | `VECTORSTORE_PDF` |
-| | Q04 유사도 검색 | `similarity_search_with_score(prompt, k=top_k)` |
-| | Q05 LLM 호출 | `llm.invoke([HumanMessage(content=full_prompt)]).content` |
-| `voice-service` `main.py` · `routers/stt_tts_router.py` | Q01 JWT 검증 · Q02 페이지 보호 | `jwt.decode(...)` · `Depends(get_current_user)` |
-| | Q03 STT · Q04 번역 · Q05 TTS | `transcribe_audio_file_local` · `get_llm_response` · `text_to_speech` |
-
-- 검증: 회원가입 → 로그인(401/200) → JWT·세션 쿠키 검증 → 위조 토큰 401, PDF 업로드 → 질의 → 문서에 없는 질문은 "찾을 수 없습니다" 까지 확인.
-- `voice-service` 는 코드만 채웠고 **실행 검증은 아직** 하지 않았습니다.
-
-### 4. 새로 추가
-
-| 파일 | 내용 |
+| 구분 | 상태 |
 |---|---|
-| `dev.sh` | DB · 인증서버 · RAG(· 음성)를 한 번에 실행하는 개발용 스크립트 |
-| `.gitignore` | `.env`, 빌드 산출물(`.gradle/`, `build/`, `bin/`), `__pycache__`, 가상환경, `node_modules`, 음성 파일, `faiss_db/`, `logs/` 등 제외 |
-| `.env.example` | 필요한 환경변수 목록 (값은 비워 둠) |
-| `README.md` | 이 문서 |
+| 인증서버 (회원가입 · 로그인 · JWT) | ✅ 동작 |
+| RAG API `/health` · `/rag-query` | ✅ 끝까지 동작 — 검색·생성은 **임시 구현**, 각 담당이 다듬는 중 |
+| 법령 인덱스 (중대재해처벌법, 조문 단위) | ✅ `faiss_db/law` |
+| MSDS 인덱스 | ⬜ `ingest/ingest_msds.py` 뼈대만 |
+| 다국어 질문 → 한국어 변환 | ⬜ TODO (답변은 요청 언어로 나옴) |
+| 평가셋 · 검색 적중률 | ⬜ 형식 예시 1개 |
+| Vue 프론트 · Docker Compose | ⬜ 예정 |
+| 약속 확인 테스트 · CI | ✅ 10개 통과, PR 마다 자동 실행 |
 
-### 5. 제외한 것
-
-- `__pycache__/`, `.DS_Store` 는 복사하지 않았습니다.
-- `rag-service/.env`(원본에 API 키 포함)와 `rag-service/faiss_db/`(미리 만든 벡터 인덱스)는 폴더에는 있지만 **Git에서는 무시**됩니다.
-  인덱스를 팀원과 공유하려면 `.gitignore`의 `faiss_db/` 줄을 주석 처리하세요.
-
----
-
-## 📁 폴더 구조
+## 폴더 구조
 
 ```
-AI-mini/
-├── auth-server/        Java 17 · Gradle · 순수 HttpServer · MariaDB · BCrypt · JWT
-│   └── app/src/main/
-│       ├── java/workplace/SimpleAuthServer.java
-│       └── resources/web/   login.html · signup.html · app.js · style.css
-├── rag-service/        FastAPI · LangChain 1.x · FAISS · OpenAI(gpt-4o)
-│   ├── rag_external-web_pdf_closed_llm.py
-│   ├── requirements-e.txt
-│   └── faiss_db/{pdf,web}/
-├── voice-service/      FastAPI · faster-whisper · OpenAI GPT(gpt-4o-mini) · TTS(tts-1, nova)
-│   ├── app/{main.py, routers/, services/, static/}
-│   ├── Dockerfile · docker-compose.yml
-│   └── requirements.txt
-├── consoles/           intro_main.html · external_index.html · internal_index.html
-├── dev.sh              통합 실행 스크립트 (로그는 logs/)
-├── .env.example
-└── .gitignore
+ai-mini-project/
+├── rag-service/          RAG API (FastAPI) — 아래 표 참고
+├── auth-server/          Java 인증서버 (Gradle · MariaDB · BCrypt · JWT)
+├── voice-service/        음성 서비스 (Whisper STT → GPT → TTS) — 확장 트랙
+├── consoles/             RAG 테스트용 HTML 콘솔 (기존 템플릿용)
+├── docs/tasks/           팀원별 작업 카드 (할 일 · 완료 기준 · AI 프롬프트)
+├── .github/workflows/    CI (약속 확인 테스트)
+├── AGENTS.md · CLAUDE.md AI 코딩 도구용 규칙
+├── dev.sh                DB · 인증 · RAG 한 번에 실행
+├── requirements.txt      Python 패키지 전체 (루트 .venv 하나)
+└── .env.example          환경변수 목록
 ```
 
----
+### rag-service
 
-## 🔑 환경변수
-
-서비스마다 `.env`를 읽는 위치가 다릅니다. `.env.example`을 참고해 각 위치에 만들어 주세요.
-
-| 서비스 | 위치 | 변수 |
+| 파일 | 담당 | 역할 |
 |---|---|---|
-| rag-service | `rag-service/.env` | `OPENAI_API_KEY`, `JWT_SECRET`(Java와 같은 값), (`LLM_MODEL`, `EMBEDDING_MODEL`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`) |
-| voice-service | `voice-service/app/.env` | `OPENAI_API_KEY`, (`WHISPER_MODEL`, 기본 `small`) |
-| auth-server | 셸 환경변수 (`export`) | `JWT_SECRET`, `DB_PASSWORD` |
+| `rag/schema.py` | 전원 | **공통 이름** — 요청·응답 필드, 메타데이터 키, topic · language 값 |
+| `app/main.py` · `app/auth.py` | 정지우 | `/health`, `/rag-query`, JWT 쿠키 검증, 오류 처리 |
+| `rag/chain.py` | 김규빈 · 박진근 | 비상 질문 확인 → 검색 → 생성 → `latency_ms` |
+| `rag/stores.py` · `rag/query.py` · `rag/retriever.py` | 김규빈 | 인덱스 로드, 질문 다듬기(동의어 · 번역), 검색 |
+| `rag/prompt.py` · `rag/llm.py` · `rag/generator.py` | 박진근 | 프롬프트, LLM 호출, `sources` · `needs_review` · `handoff` |
+| `ingest_law.py` · `ingest/` · `data/` | 윤서진 | 법령 · MSDS 적재 |
+| `eval/` | 김규빈 · 박진근 | 평가셋, 검색 적중률 · 생성 판정 |
+| `tests/` | 전원 | 약속 확인 테스트 |
+| `rag_external-web_pdf_closed_llm.py` | — | 기존 템플릿 (참고용, `/upload-paper` 등) |
 
-> ⚠️ **JWT 비밀키 불일치**: `voice-service/app/main.py`는 `SECRET_KEY = "RANDOM_SECRET_KEY"`로 하드코딩되어 있고,
-> Java는 `JWT_SECRET` 환경변수를 읽습니다. 두 값이 같아야 토큰 검증이 통과합니다.
-> `./dev.sh` 로 실행하면 `auth-server/.env` 의 `JWT_SECRET` 이 RAG 에도 그대로 전달됩니다.
+흐름: `RagRequest` → `chain.answer()` → `query.normalize_question()` → `retriever.retrieve()` → `generator.generate()` → `RagResponse`
 
----
+## API 계약
 
-## 🧩 rag-service 구조와 담당
+```json
+POST /rag-query   (쿠키 ACCESS_TOKEN 필요)
+요청 {"question": "중대재해법의 기준은?", "topic": "serious_accident_law", "product_id": null, "language": "ko"}
+응답 {"answer": "...", "sources": [{"doc_id": "L2", "section": "제2조 제2호", "title": "...", "url": "..."}],
+      "needs_review": false, "handoff": false, "latency_ms": 1250}
+```
 
-공통 이름(요청·응답 필드, 메타데이터 키, topic·language 값)은 **`rag/schema.py` 에서만 정의**하고 모두 import 해서 씁니다.
-지금은 끝까지 한 번 동작하도록 임시 구현이 들어 있고, 각자 자기 파일을 다듬으면 됩니다.
+- `topic`: `chemical_safety` · `serious_accident_law` / `language`: `ko` · `zh` · `vi`
+- 401 토큰 없음·만료·위조 / 422 형식 오류 / 503 LLM·인덱스 문제
+- `GET /health` → 200 준비 · 503 미준비, topic 별 인덱스 상태 포함
+- Swagger: http://localhost:8001/docs
 
-| 파일 | 담당 | 하는 일 | 지금 상태 |
-|---|---|---|---|
-| `app/main.py` | 정지우 | `/health`, `/rag-query`, CORS, 503 처리 | 동작 (로그 TODO) |
-| `app/auth.py` | 정지우 | `ACCESS_TOKEN` 쿠키 JWT 검증 → 401 | 임시 구현 (검토 필요) |
-| `rag/schema.py` | 전원 | 공통 이름 · 요청/응답 모델 | 완료 |
-| `rag/chain.py` | 김규빈 · 박진근 | 비상 질문 확인 → 검색 → 생성 → `latency_ms` | 동작 (zh·vi 비상 표현 TODO) |
-| `rag/stores.py` | 김규빈 | topic 별 FAISS 로드 (`faiss_db/law`, `faiss_db/msds`) | 동작 |
-| `rag/query.py` | 김규빈 | 다국어 → 한국어, 동의어 확장 | 동의어 일부, 번역 TODO |
-| `rag/retriever.py` | 김규빈 | `retrieve(question, topic, product_id, k)` | 동작 |
-| `rag/prompt.py` | 박진근 | 프롬프트 규칙 | 임시 구현 |
-| `rag/llm.py` | 박진근 | LLM 호출 · 타임아웃 · 재시도 | 동작 |
-| `rag/generator.py` | 박진근 | 답변 · `sources` · `needs_review` · `handoff` | 임시 구현 |
-| `ingest_law.py` | 윤서진 | 법령 조문 단위 적재 (`--out faiss_db/law`) | 동작 (`doc_id`·`topic`·`title`·`section` 추가 필요) |
-| `ingest/ingest_msds.py` | 윤서진 | MSDS 16개 항목 단위 적재 → `faiss_db/msds` | 뼈대 |
-| `eval/questions.json` · `eval/run_eval.py` | 김규빈 · 박진근 | 평가셋 · 검색 적중률 · 생성 판정 | 형식 예시 · 뼈대 |
-| `rag_external-web_pdf_closed_llm.py` | — | 기존 템플릿 (참고용, `/upload-paper` 등) | 그대로 |
+## 시작하기
 
-**흐름:** `RagRequest` → `chain.answer()` → `query.normalize_question()` → `retriever.retrieve()` → `generator.generate()` → `RagResponse`
+**준비물:** Docker Desktop · Java 17+ · Python 3.11 · (음성은 ffmpeg)
+
+```bash
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -U pip setuptools wheel && pip install -r requirements.txt   # 처음 한 번 (torch 포함, 수 분)
+```
+
+`.env` 는 서비스마다 위치가 다릅니다 (`.env.example` 참고, **Git 에 올리지 않음** — 값은 팀 DM 으로 공유).
+
+| 위치 | 변수 |
+|---|---|
+| `auth-server/.env` | `DB_PASSWORD`, `JWT_SECRET` |
+| `rag-service/.env` | `OPENAI_API_KEY` (+ 선택 `LLM_MODEL`, `EMBEDDING_MODEL`) |
+| `voice-service/app/.env` | `OPENAI_API_KEY` |
+
+```bash
+./dev.sh            # DB · 인증서버(:8080) · RAG(:8001) — Ctrl+C 로 모두 종료, 로그는 logs/
+./dev.sh --voice    # 음성 서비스(:8008)까지
+```
+
+- 회원가입 http://localhost:8080/signup → 로그인 → RAG 질의 http://localhost:8001/docs
+- DB 컨테이너 `ai-mini-db` 와 `users` 테이블은 `dev.sh` 가 자동으로 만듭니다.
+- 로그인하면 원본 코드대로 `localhost:8008` 로 이동합니다. 음성을 안 띄웠으면 "연결 거부"가 정상입니다.
+- ⚠ 프론트·테스트에서 RAG 는 **`localhost:8001`** 로 부르세요. `127.0.0.1` 이면 쿠키가 안 가서 401 입니다.
+- 기존 템플릿 서버로 띄우기: `RAG_APP=rag_external-web_pdf_closed_llm:app ./dev.sh`
 
 **법령 인덱스 만들기** (rag-service/ 에서):
 
@@ -148,140 +103,51 @@ python ingest_law.py --input laws/sapa.pdf --law-name "중대재해 처벌 등�
   --effective-date 2022-01-27 --source-url "https://www.law.go.kr/" --out faiss_db/law
 ```
 
-> ⚠️ 브라우저(프론트)는 RAG 를 **`http://localhost:8001`** 로 불러야 합니다. 로그인 쿠키가 `localhost` 이름으로 발급되므로
-> `127.0.0.1:8001` 로 부르면 쿠키가 전달되지 않아 401 이 납니다.
-
----
-
-## ▶️ 실행 방법
-
-### 처음 한 번: 가상환경 (루트에서 한 번에)
-
-모든 Python 서비스(RAG · 음성 · 적재 스크립트)가 **루트의 `.venv` 하나**를 같이 씁니다.
+## 테스트 · CI
 
 ```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -U pip setuptools wheel
-pip install -r requirements.txt     # rag-service + voice-service 패키지 (torch 포함, 수 분)
+cd rag-service && ../.venv/bin/python -m pytest -q tests
 ```
 
-> `voice-service/requirements.txt` 의 `requests` 는 langchain-community 와 맞추려고 `>=2.32.5,<3.0` 으로 풀었습니다.
+- 검색·LLM 을 가짜로 바꿔 돌리므로 비용·키가 필요 없습니다 (1초 내외).
+- 확인하는 것: 401 · 422, 응답 필드 · 출처 형식, 근거 없으면 LLM 미호출 + handoff, 판단 요구 · 비상 질문 handoff, `/health` 형식
+- PR 을 올리거나 `main` 에 병합하면 GitHub Actions(`contract-test`)가 자동 실행합니다. **❌ 가 뜬 PR 은 병합하지 않습니다.**
+- 답의 **정확도**는 이 테스트가 아니라 `eval/` 평가셋으로 측정합니다.
 
-### 한 번에 실행 (권장): `./dev.sh`
+## 작업 규칙
 
-```bash
-./dev.sh            # DB · 인증서버(:8080) · RAG(:8001)
-./dev.sh --voice    # 음성 서비스(:8008)까지
-```
+자세한 규칙은 [`AGENTS.md`](AGENTS.md), 각자 할 일은 [`docs/tasks/`](docs/tasks) 를 보세요.
 
-**준비물**: Docker Desktop 실행 중 · Java 17+ · Python 3.11 · `auth-server/.env` · `rag-service/.env`
-(`--voice` 는 추가로 `ffmpeg` · `voice-service/app/.env`)
+1. `rag/schema.py` 의 이름은 바꾸지 않고 import 해서 씁니다. 바꿔야 하면 팀에 먼저 공유합니다.
+2. 담당 파일만 고치고, 함수 이름·입출력은 그대로 둔 채 `TODO` 를 채웁니다.
+3. 비밀값은 `.env` 에만 둡니다.
+4. 법률 판단(처벌·책임 단정)을 하지 않습니다 → `handoff: true`.
+5. 자기 브랜치(`feat/이름-작업`)에서 작업하고 PR 로 `main` 에 합칩니다.
 
-스크립트가 하는 일:
+## 팀
 
-1. 포트(8080·8001·8008)가 비어 있는지 확인 — 사용 중이면 PID를 알려 주고 멈춤
-2. MariaDB 컨테이너 `ai-mini-db` 생성/시작 → `users` 테이블이 없으면 생성
-3. 인증서버 빌드(`installDist`) 후 실행
-4. 루트 `.venv` 가 없거나 패키지가 없으면 `requirements.txt` 로 자동 설치 후 RAG 실행
-5. 서버가 준비될 때까지 기다렸다가 다음 단계로 진행
-6. **`Ctrl + C` 한 번으로 띄운 서버 모두 종료** (DB 컨테이너는 계속 실행 — `docker stop ai-mini-db`)
+| 파트 | 담당 |
+|---|---|
+| 데이터 파이프라인 | 윤서진 |
+| Retriever(검색) · 평가 | 김규빈 |
+| LLM(생성) | 박진근 |
+| 인증 연동 · API | 정지우 |
+| 프론트엔드 · 배포 | 강지훈 |
 
-로그는 `logs/auth.log`, `logs/rag.log`, `logs/voice.log` 에 쌓입니다 (`tail -f logs/*.log`).
+## 데이터 출처 (기획서 기준)
 
-> 💡 로그인에 성공하면 원본 코드대로 `localhost:8008` 로 이동합니다. 음성 서비스를 안 띄웠으면 "연결 거부"가 정상이며,
-> 로그인 상태는 http://localhost:8080/api/auth/check 로 확인할 수 있습니다.
-
-### 따로 실행하기
-
-#### 0. MariaDB 준비
-
-인증서버는 `jdbc:mariadb://localhost:53301/sql_db` (user `root`)에 접속합니다. `users` 테이블을 미리 만들어 둡니다.
-(`./dev.sh` 를 한 번 실행했다면 이미 만들어져 있습니다.)
-
-```sql
-CREATE TABLE `users` (
-  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `username` varchar(100) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_users_username` (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
-
-#### 1. 인증서버 (:8080)
-
-```bash
-cd auth-server
-set -a && source .env && set +a
-./gradlew :app:run --no-configuration-cache
-```
-
-→ http://localhost:8080/signup · http://localhost:8080/login
-
-#### 2. RAG 서비스 (:8001)
-
-```bash
-source .venv/bin/activate        # 루트에서
-cd rag-service
-python -m uvicorn rag_external-web_pdf_closed_llm:app --port 8001 --reload
-```
-
-→ http://127.0.0.1:8001/docs (Swagger) · 엔드포인트: `/upload-paper`, `/upload-topic`, `/rag-query`
-(`localhost` 로 연결이 거부되면 `127.0.0.1` 로 접속 — RAG는 IPv4 에만 열립니다)
-
-#### 3. 음성 서비스 (:8008)
-
-```bash
-brew install ffmpeg
-source .venv/bin/activate        # 루트에서
-cd voice-service
-python -m uvicorn app.main:app --port 8008
-```
-
-→ 인증서버에서 로그인한 뒤 http://localhost:8008/index.html, http://localhost:8008/stt-tts.html
-(Docker로 실행하려면 `docker compose up -d --build`)
-
-#### 4. 콘솔 페이지
-
-콘솔은 http 로 열어야 합니다 (RAG 서버 CORS 허용 포트가 5174).
-
-```bash
-cd consoles && python3.11 -m http.server 5174
-```
-
-→ http://localhost:5174/intro_main.html 에서 BASE_URL 을 `http://127.0.0.1:8001` 로 설정
-
----
-
-## ✅ 조별로 해야 할 일 (교재 기준)
-
-실습 빈칸(TODO)은 채워져 동작하지만, `rag-service` 의 **API 형태는 아직 템플릿 그대로**라 교재 요구사항과 다음이 다릅니다.
-
-| 항목 | 현재 템플릿 | 교재 목표 |
+| ID | 출처 | 상태 |
 |---|---|---|
-| 인증 | 없음 | `Depends(verify_jwt)` — 토큰 없으면 **401** |
-| 요청 | `{prompt, source, top_k}` | `{question, source}` |
-| 응답 | `{prompt, response}` | `{answer, sources, needs_review, handoff, latency_ms}` |
-| 근거 없음 | LLM 호출 | 검색 0건이면 LLM 호출 안 함 → `"찾을 수 없습니다"`, `handoff: true` |
-| 임베딩 | `OpenAIEmbeddings` | 교재 예시는 `BAAI/bge-m3` (선택) |
+| L1 | 국가법령정보센터 — 산업안전보건법 114조, 안전보건규칙 422조 | 적재 전 |
+| L2 | 국가법령정보센터 — 중대재해 처벌 등에 관한 법률 (법률 제17907호, 시행 2022.1.27.) | ✅ 적재 (`faiss_db/law`) |
+| D1 | Sigma-Aldrich Korea — Sulfuric acid 339741 MSDS | 적재 전 |
+| K1 | 안전보건공단 화학물질정보 | 참고용 |
 
-그 외:
+법령 원문은 안내용이며 공식 해석이 아닙니다. MSDS 는 참고용이며 현장 공급자 MSDS 를 따릅니다.
 
-- [ ] `frontend/` — Vue.js 화면 (로딩·오류·출처·handoff·401 처리)
-- [ ] 루트 `docker-compose.yml` — `db`, `auth`, `rag`, `web` 일괄 기동
-- [ ] 평가셋 20쌍 이상 (예외 질문 3개 이상 포함) + 개선 전후 비교
-- [ ] 지연·토큰 로그 미들웨어
-- [ ] (확장 +5) 음성 연동 / Internal RAG / Fine-tuning·Agent 중 1개
+## 참고: 원본 골격(`ai-practice.zip`)에서 바뀐 점
 
-### 체크포인트
-
-| # | 시점 | 내용 |
-|---|---|---|
-| ① | Day1 | 1장 기획서 (사용자 가치·데이터·아키텍처/API·역할 분담) |
-| ② | Day1 | 로그인 → JWT → `/rag-query` 호출 1회 성공 |
-| ③ | Day2 | Swagger로 API 시연 (401/200, 근거 답변, 예외 질문) |
-| ④ | Day2 | End-to-End 데모 |
-| ⑤ | Day3 | 최종 제출물 (데모·아키텍처·발표·README·평가셋) |
+- 폴더 이름: `workplace` → `auth-server`, `rag-code-template_ext` → `rag-service`, `voice-ai_code` → `voice-service`, HTML → `consoles/`
+- 실습 빈칸(TODO) 채움: 인증서버 ①~⑤, RAG Q01~Q05, 음성 Q01~Q05
+- `voice-service/requirements.txt`: UTF-16 → UTF-8, `requests` 를 `>=2.32.5,<3.0` 으로 (langchain-community 호환)
+- 새 구조: `rag-service/app`, `rag/`, `ingest/`, `eval/`, `tests/` (기존 템플릿 파일은 그대로 둠)
