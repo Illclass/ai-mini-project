@@ -1,12 +1,13 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from './components/Icon.vue'
+import LanguagePicker from './components/LanguagePicker.vue'
 import LoginView from './views/LoginView.vue'
 import HomeView from './views/HomeView.vue'
 import SceneBackground from './components/SceneBackground.vue'
 import { spring as vSpring } from './directives/spring'
 import './chat-glass.css'
-import { copy, languages } from './locales'
+import { copy } from './locales'
 import * as api from './api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false)
@@ -54,7 +55,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
 <header v-if="page !== 'login'" class="clear-chat-header">
   <button v-spring class="home-brand" aria-label="ChemBridge" @click="navigate('home')"><span class="home-brand-mark"><Icon name="bridge" :size="24" /></span><span>ChemBridge</span></button>
   <div class="home-controls">
-    <label class="home-language"><Icon name="globe" :size="18" /><select v-model="language" aria-label="Language"><option v-for="(name,code) in languages" :value="code" :key="code">{{name}}</option></select><svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="m3 4.5 3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg></label>
+    <LanguagePicker v-model="language" />
     <button v-spring class="home-logout" :aria-label="t.logout" @click="logout"><Icon name="logout" :size="19" /></button>
   </div>
 </header>

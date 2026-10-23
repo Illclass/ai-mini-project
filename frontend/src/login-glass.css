@@ -67,7 +67,25 @@
 .liquid-field input { width: 100%; padding: 15px 0; border: 0; background: transparent; outline: none; color: #fff; font-size: 14px; line-height: 1.5; box-shadow: none; }
 .liquid-login .liquid-field input:focus, .liquid-login .liquid-field input:focus-visible { outline: none; outline-offset: 0; box-shadow: none; }
 .liquid-field input::placeholder { color: #ffffffb8; }
-.liquid-field input:-webkit-autofill { -webkit-text-fill-color: #fff; -webkit-box-shadow: 0 0 0 1000px #878bb1 inset; border-radius: 5px; }
+/* Clip Chrome's mandatory autofill paint to the glyphs, not the field.
+   Retain password-manager autofill and the transparent glass field. */
+.liquid-login .liquid-field input:-webkit-autofill,
+.liquid-login .liquid-field input:-webkit-autofill:hover,
+.liquid-login .liquid-field input:-webkit-autofill:focus,
+.liquid-login .liquid-field input:-webkit-autofill:active {
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff;
+  -webkit-box-shadow: none !important;
+  box-shadow: none !important;
+  transition: background-color 86400s ease-out 0s;
+}
+.liquid-login .liquid-field input:autofill {
+  background-clip: text !important;
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff;
+}
 .liquid-eye { display: grid; place-items: center; position: relative; min-width: 32px; min-height: 34px; margin-right: -6px; color: #ffffffc4; padding: 0; border-radius: 50%; }
 .liquid-eye:hover { background: #ffffff1c; }
 .eye-slash { position: absolute; height: 1px; width: 22px; transform: rotate(45deg); background: #fff; box-shadow: 0 1px #8b8aa2; }

@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
 import Icon from '../components/Icon.vue'
-import { copy, languages } from '../locales'
+import { copy } from '../locales'
+import LanguagePicker from '../components/LanguagePicker.vue'
 import { spring as vSpring } from '../directives/spring'
 import '../login-glass.css'
 
@@ -50,13 +51,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frame))
         <div ref="glass" class="liquid-card" @pointermove="reflect" @pointerleave="resetLight">
           <div class="card-specular" aria-hidden="true"></div>
     <div class="liquid-card-language">
-      <label class="liquid-language">
-        <Icon name="globe" :size="17" />
-        <select :value="language" aria-label="Language" @change="emit('update:language', $event.target.value)">
-          <option v-for="(label, code) in languages" :key="code" :value="code">{{ label }}</option>
-        </select>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="m3 4.5 3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-      </label>
+      <LanguagePicker :model-value="language" @update:model-value="emit('update:language', $event)" />
     </div>
           <div class="liquid-card-heading">
             <span class="liquid-app-icon"><Icon name="bridge" :size="36" /></span>
