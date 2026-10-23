@@ -253,4 +253,31 @@ class AuthApiTest {
                 .doesNotContain(sensitive, PASSWORD, HASH);
         assertThat(output.getErr()).doesNotContain(sensitive, PASSWORD, HASH);
     }
+
+    @Test
+    void unexpectedFailurePreservesCorsAndSanitizesResponseAndLogs(CapturedOutput output) throws Exception {
+        String sensitive = "private-exception-" + UUID.randomUUID();
+        when(users.findByUsername(anyString())).thenThrow(new RuntimeException(sensitive));
+        mvc.perform(post("/api/login").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .header(HttpHeaders.ORIGIN, "http://localhost:8001")
+                        .param("username", "mvc-user").param("password", PASSWORD))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("internal server error"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:8001"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+        assertThat(output.getOut()).contains("path=/api/login status=500 latency_ms=")
+                .doesNotContain(sensitive, PASSWORD, HASH);
+        assertThat(output.getErr()).doesNotContain(sensitive, PASSWORD, HASH);
+    }
+
+    @Test
+    void wrongMethodIs405AndUnknownPathsAreRedacted(CapturedOutput output) throws Exception {
+        mvc.perform(get("/api/login").header(HttpHeaders.ORIGIN, "http://localhost:8001"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:8001"));
+        mvc.perform(get("/private-path-marker").queryParam("secret", "private-query-marker"))
+                .andExpect(status().isNotFound());
+        assertThat(output.getOut()).contains("path=/<unmatched> status=404 latency_ms=")
+                .doesNotContain("private-path-marker", "private-query-marker");
+    }
 }
