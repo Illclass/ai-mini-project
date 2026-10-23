@@ -1,0 +1,19 @@
+{
+  "fixture_kind": "real_public_us_regulation_excerpt",
+  "retrieved_on": "2026-10-22",
+  "use_note": "Short excerpt from official US federal regulatory text, public domain. For generation/provenance evaluation only; not a Korean workplace rule or a supplier MSDS. No logo or third-party material included. This is not a full statement of the provision or verification of current applicability.",
+  "document": {
+    "page_content": "The employer shall maintain in the workplace copies of the required safety data sheets for each hazardous chemical,",
+    "metadata": {
+      "doc_id": "EVAL-US-OSHA-1910.1200",
+      "doc_type": "law",
+      "topic": "serious_accident_law",
+      "title": "US OSHA 29 CFR 1910.1200 — Hazard Communication (excerpt)",
+      "section": "1910.1200(g)(8)",
+      "law_name": "29 CFR 1910.1200 — Hazard Communication",
+      "article_no": "1910.1200(g)(8)",
+      "source_url": "https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.1200",
+      "chunk_id": "EVAL-US-OSHA-1910.1200-g8-excerpt"
+    }
+  }
+}
