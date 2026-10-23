@@ -24,27 +24,30 @@ logging.basicConfig(level=logging.INFO)
 request_log = logging.getLogger("chembridge.requests")
 # 기본 접근 로그에는 쿼리 문자열이 포함되므로 아래 미들웨어로 대체한다.
 logging.getLogger("uvicorn.access").disabled = True
+CORS_OPTIONS = {
+    "allow_origins": ["http://localhost:5174", "http://127.0.0.1:5174"],
+    "allow_credentials": True,
+    "allow_methods": ["GET", "POST", "OPTIONS"],
+    "allow_headers": ["Authorization", "Content-Type"],
+}
 
 app = FastAPI(
     title="ChemBridge RAG API",
     description=(
         "화학물질 안전·중대재해 법령 다국어 안내 API입니다. "
         f"지원 언어: {', '.join(LANGUAGES)}.\n\n"
-        "인증은 Java 서버가 발급한 HttpOnly ACCESS_TOKEN 쿠키를 사용합니다. "
-        "http://localhost:8080/signup 에서 가입하고 /login 에서 로그인한 뒤 "
-        "http://localhost:8001/docs 에서 요청하세요. 모든 주소의 호스트를 localhost로 맞추세요. "
-        "Swagger의 쿠키 입력칸 대신 브라우저에 저장된 로그인 쿠키가 전송됩니다.\n\n"
+        "Java POST http://localhost:8080/api/login 에 username/password를 "
+        "application/x-www-form-urlencoded 형식으로 보내면 accessToken이 반환됩니다. "
+        "Swagger의 Authorize에 토큰 값만 입력하거나 Authorization: Bearer <JWT> 헤더로 요청하세요. "
+        "로그인 화면은 http://localhost:8080/login, 로그인 후 이동 주소는 "
+        "Vue 개발 서버 http://localhost:5174/ 입니다.\n\n"
+        "기존 HttpOnly ACCESS_TOKEN 쿠키도 호환합니다. Bearer 헤더가 있으면 우선 검증하며, "
+        "잘못된 Bearer를 쿠키로 우회하지 않습니다. 쿠키 사용 시 호스트는 localhost로 맞추세요.\n\n"
         "답변은 참고 안내이며, 개별 법률 판단·비상 상황은 담당자에게 연결합니다."
     ),
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5174", "http://127.0.0.1:5174"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, **CORS_OPTIONS)
 
 
 class RequestLogMiddleware:
@@ -78,7 +81,8 @@ class RequestLogMiddleware:
                 status_code=500,
                 content={"detail": "요청 처리 중 오류가 발생했습니다."},
             )
-            await response(scope, receive, capture_status)
+            # 예외로 만든 응답에도 일반 응답과 같은 CORS 정책을 적용한다.
+            await CORSMiddleware(response, **CORS_OPTIONS)(scope, receive, capture_status)
         finally:
             # 등록되지 않은 경로의 사용자 입력도 로그에 남기지 않는다.
             path = getattr(scope.get("route"), "path", "/unmatched")
@@ -143,9 +147,9 @@ def health():
             ).model_dump()}},
         },
         401: {
-            "description": "ACCESS_TOKEN 쿠키 없음·만료·위조 또는 발급자 불일치.",
+            "description": "Bearer/쿠키 토큰 없음·만료·위조 또는 발급자 불일치. 잘못된 Bearer는 쿠키로 우회하지 않습니다.",
             "content": {"application/json": {"example": {
-                "detail": "토큰이 만료되었거나 올바르지 않습니다.",
+                "detail": "토큰이 없거나 만료되었거나 올바르지 않습니다.",
             }}},
         },
         422: {"description": "질문 길이, topic, language 등 요청 형식 오류."},
