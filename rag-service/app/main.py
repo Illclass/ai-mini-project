@@ -12,6 +12,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # rag-service/.env
 
 from fastapi import Depends, FastAPI, HTTPException  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.openapi.utils import get_openapi  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from starlette.types import ASGIApp, Message, Receive, Scope, Send  # noqa: E402
 
@@ -24,27 +25,41 @@ logging.basicConfig(level=logging.INFO)
 request_log = logging.getLogger("chembridge.requests")
 # 기본 접근 로그에는 쿼리 문자열이 포함되므로 아래 미들웨어로 대체한다.
 logging.getLogger("uvicorn.access").disabled = True
+CORS_OPTIONS = {
+    "allow_origins": ["http://localhost:5174", "http://127.0.0.1:5174"],
+    "allow_credentials": True,
+    "allow_methods": ["GET", "POST", "OPTIONS"],
+    "allow_headers": ["Authorization", "Content-Type"],
+}
 
 app = FastAPI(
     title="ChemBridge RAG API",
+    openapi_tags=[
+        {"name": "Java 인증", "description": "Java 인증서버(:8080)의 회원가입·로그인·인증 확인·로그아웃 API입니다."},
+        {"name": "RAG 안내", "description": "발급받은 Bearer 토큰으로 근거 기반 안내를 요청합니다."},
+        {"name": "서비스 상태", "description": "RAG 서비스와 인덱스 준비 상태를 확인합니다."},
+    ],
+    swagger_ui_parameters={"withCredentials": True, "docExpansion": "list"},
     description=(
         "화학물질 안전·중대재해 법령 다국어 안내 API입니다. "
         f"지원 언어: {', '.join(LANGUAGES)}.\n\n"
-        "인증은 Java 서버가 발급한 HttpOnly ACCESS_TOKEN 쿠키를 사용합니다. "
-        "http://localhost:8080/signup 에서 가입하고 /login 에서 로그인한 뒤 "
-        "http://localhost:8001/docs 에서 요청하세요. 모든 주소의 호스트를 localhost로 맞추세요. "
-        "Swagger의 쿠키 입력칸 대신 브라우저에 저장된 로그인 쿠키가 전송됩니다.\n\n"
+        "**이 화면에서 테스트하는 순서**\n\n"
+        "1. **Java 인증 → POST /api/signup**에서 회원가입합니다. 기존 회원은 건너뜁니다.\n"
+        "2. **POST /api/login → Try it out → Execute**로 로그인합니다. "
+        "응답 본문의 **accessToken 값만 복사**하세요. 페이지는 이동하지 않습니다.\n"
+        "3. 상단 **Authorize**에 토큰 값만 붙여 넣고 **RAG 안내 → POST /rag-query**를 실행합니다.\n"
+        "4. 종료 시 **POST /api/logout**을 실행하고 **Authorize → Logout**으로 토큰도 지웁니다.\n\n"
+        "Java 인증 항목은 `http://localhost:8080`, RAG 항목은 현재 서버(:8001)를 호출합니다. "
+        "외부 클라이언트는 `Authorization: Bearer <JWT>` 헤더로 요청하세요. "
+        "로그인 화면은 http://localhost:8080/login, 로그인 후 이동 주소는 "
+        "Vue 개발 서버 http://localhost:5174/ 입니다.\n\n"
+        "기존 HttpOnly ACCESS_TOKEN 쿠키도 호환합니다. Bearer 헤더가 있으면 우선 검증하며, "
+        "잘못된 Bearer를 쿠키로 우회하지 않습니다. 쿠키 사용 시 호스트는 localhost로 맞추세요.\n\n"
         "답변은 참고 안내이며, 개별 법률 판단·비상 상황은 담당자에게 연결합니다."
     ),
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5174", "http://127.0.0.1:5174"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, **CORS_OPTIONS)
 
 
 class RequestLogMiddleware:
@@ -78,7 +93,8 @@ class RequestLogMiddleware:
                 status_code=500,
                 content={"detail": "요청 처리 중 오류가 발생했습니다."},
             )
-            await response(scope, receive, capture_status)
+            # 예외로 만든 응답에도 일반 응답과 같은 CORS 정책을 적용한다.
+            await CORSMiddleware(response, **CORS_OPTIONS)(scope, receive, capture_status)
         finally:
             # 등록되지 않은 경로의 사용자 입력도 로그에 남기지 않는다.
             path = getattr(scope.get("route"), "path", "/unmatched")
@@ -102,6 +118,7 @@ def _load_indexes() -> None:
 
 @app.get(
     "/health",
+    tags=["서비스 상태"],
     summary="서비스·인덱스 준비 상태",
     responses={
         200: {
@@ -128,6 +145,7 @@ def health():
 
 @app.post(
     "/rag-query",
+    tags=["RAG 안내"],
     response_model=RagResponse,
     summary="근거 기반 다국어 안전 안내",
     responses={
@@ -143,9 +161,9 @@ def health():
             ).model_dump()}},
         },
         401: {
-            "description": "ACCESS_TOKEN 쿠키 없음·만료·위조 또는 발급자 불일치.",
+            "description": "Bearer/쿠키 토큰 없음·만료·위조 또는 발급자 불일치. 잘못된 Bearer는 쿠키로 우회하지 않습니다.",
             "content": {"application/json": {"example": {
-                "detail": "토큰이 만료되었거나 올바르지 않습니다.",
+                "detail": "토큰이 없거나 만료되었거나 올바르지 않습니다.",
             }}},
         },
         422: {"description": "질문 길이, topic, language 등 요청 형식 오류."},
@@ -171,3 +189,100 @@ def rag_query(req: RagRequest, user: dict = Depends(get_current_user)) -> RagRes
         return answer(req)
     except Exception as e:
         raise HTTPException(status_code=503, detail="잠시 후 다시 시도해 주세요.") from e
+
+
+def _java_auth_paths() -> dict:
+    """Java API를 같은 명세에 표시하고 실제 요청은 Java 서버로 직접 보낸다."""
+    credentials = {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+            "username": {"type": "string", "minLength": 1, "description": "회원 아이디"},
+            "password": {"type": "string", "format": "password", "minLength": 1, "description": "비밀번호"},
+        },
+    }
+    success = {"type": "object", "required": ["ok"], "properties": {"ok": {"type": "boolean"}}}
+    login = {
+        "type": "object",
+        "required": ["ok", "redirect", "accessToken", "tokenType", "expiresIn"],
+        "properties": {
+            "ok": {"type": "boolean"},
+            "redirect": {"type": "string", "example": "http://localhost:5174/"},
+            "accessToken": {"type": "string", "description": "이 값을 복사해 상단 Authorize에 붙여 넣습니다."},
+            "tokenType": {"type": "string", "example": "Bearer"},
+            "expiresIn": {"type": "integer", "example": 3600},
+        },
+    }
+
+    def operation(operation_id, summary, description, responses, *, form=False, protected=False):
+        result = {
+            "operationId": operation_id,
+            "tags": ["Java 인증"],
+            "summary": summary,
+            "description": description,
+            "servers": [{"url": "http://localhost:8080", "description": "Java 인증서버"}],
+            "security": [{"BearerAuth": []}] if protected else [],
+            "responses": responses,
+        }
+        if form:
+            result["requestBody"] = {
+                "required": True,
+                "content": {"application/x-www-form-urlencoded": {"schema": credentials}},
+            }
+        return result
+
+    return {
+        "/api/signup": {"post": operation(
+            "java_signup", "회원가입", "새 회원을 등록합니다. 성공 후 아래 로그인 API를 실행하세요.",
+            {
+                "201": {"description": "회원가입 완료", "content": {"application/json": {"schema": success}}},
+                "400": {"description": "아이디·비밀번호 누락 또는 이미 존재하는 아이디"},
+                "500": {"description": "회원 저장 실패"},
+            }, form=True,
+        )},
+        "/api/login": {"post": operation(
+            "java_login", "로그인 · Bearer 토큰 발급",
+            "회원 아이디와 비밀번호를 입력하고 Execute를 누르세요. "
+            "200 응답 본문의 accessToken 값만 복사해 상단 Authorize에 붙여 넣습니다. "
+            "redirect 필드는 웹 화면용이며 Swagger에서는 페이지를 이동하지 않습니다.",
+            {
+                "200": {"description": "로그인 성공 · accessToken 복사", "content": {"application/json": {"schema": login}}},
+                "400": {"description": "아이디·비밀번호 누락"},
+                "401": {"description": "로그인 정보 불일치"},
+                "500": {"description": "인증서버 처리 실패"},
+            }, form=True,
+        )},
+        "/api/auth/check": {"get": operation(
+            "java_auth_check", "현재 인증 확인", "Authorize에 입력한 Bearer 토큰 또는 기존 로그인 쿠키의 인증 상태를 확인합니다.",
+            {
+                "200": {"description": "인증 성공", "content": {"application/json": {"schema": {
+                    "type": "object",
+                    "properties": {
+                        "ok": {"type": "boolean"}, "via": {"type": "string"},
+                        "username": {"type": "string"}, "sub": {"type": "string"},
+                    },
+                }}}},
+                "401": {"description": "토큰 없음·만료·위조 또는 잘못된 Bearer"},
+            }, protected=True,
+        )},
+        "/api/logout": {"post": operation(
+            "java_logout", "로그아웃",
+            "로그인 쿠키와 서버 세션을 삭제합니다. 실행 후 상단 Authorize → Logout으로 "
+            "Swagger에 보관한 Bearer도 직접 지우세요. 이미 복사한 JWT는 만료 전까지 유효합니다.",
+            {"200": {"description": "쿠키·세션 로그아웃 완료", "content": {"application/json": {"schema": success}}}},
+        )},
+    }
+
+
+def _combined_openapi() -> dict:
+    if app.openapi_schema is None:
+        schema = get_openapi(
+            title=app.title, version=app.version, openapi_version=app.openapi_version,
+            description=app.description, routes=app.routes, tags=app.openapi_tags,
+        )
+        schema["paths"].update(_java_auth_paths())
+        app.openapi_schema = schema
+    return app.openapi_schema
+
+
+app.openapi = _combined_openapi

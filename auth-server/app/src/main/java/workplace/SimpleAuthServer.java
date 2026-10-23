@@ -52,7 +52,9 @@ import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import com.sun.net.httpserver.Filter;
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import workplace.SimpleAuthServer.AuthService;
@@ -88,6 +90,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -95,14 +99,9 @@ import java.util.concurrent.Executors;
 /*
 Pure Java + HttpServer + MariaDB + Session + JWT Example
 
-Modification history:
-  1) Applied username/password trim on login/signup (prevents invalid_credentials caused by whitespace)
-  2) Unified cookie creation/deletion attributes (cookie() helper)
-     - Prevents missing cookie deletion or attribute mismatch on logout
-  3) Added CORS + credentials support for /api/auth/check
-  4) Maintained redirect to http://localhost:8008/index.html on successful login
-  5) Added DEBUG logs to identify login failure causes
-     - Outputs raw params / username/password / bcrypt matches result to console
+Authentication: Bearer JWT, with existing cookie/session compatibility.
+CORS: README Vue origin, Java login pages, and the existing voice frontend.
+Request logs contain path, status, and duration only.
  */
 
 public class SimpleAuthServer {
@@ -122,12 +121,17 @@ public class SimpleAuthServer {
     // ==== (Optional) Cookie name for login status check in Vue ==== //
     private static final String APP_AUTH_COOKIE_NAME = "APP_AUTH";
 
-    // ==== CORS (dev) ==== //
-    // In case frontend (8008) calls Java API (8080)
-    private static final String DEV_FRONTEND_ORIGIN = "http://localhost:8008";
-
-    // ==== DEBUG ==== //
-    private static final boolean DEBUG = true;
+    // README의 Vue 개발 포트와 기존 Java·음성 페이지를 허용한다.
+    private static final String DEV_FRONTEND_ORIGIN = "http://localhost:5174";
+    private static final String LOGIN_REDIRECT = DEV_FRONTEND_ORIGIN + "/";
+    private static final Set<String> CORS_ORIGINS = Set.of(
+            DEV_FRONTEND_ORIGIN, "http://127.0.0.1:5174",
+            "http://localhost:8080", "http://127.0.0.1:8080",
+            "http://localhost:8001", "http://127.0.0.1:8001",
+            "http://localhost:8008"
+    );
+    private static final Set<String> CORS_METHODS = Set.of("GET", "POST", "OPTIONS");
+    private static final Set<String> CORS_HEADERS = Set.of("content-type", "authorization", "accept");
 
     public static void main(String[] args) throws Exception {
         // Load JDBC Driver
@@ -145,7 +149,7 @@ public class SimpleAuthServer {
         server.setExecutor(Executors.newFixedThreadPool(10));
 
         // GET / -> /login redirect
-        server.createContext("/", exchange -> {
+        createContext(server, "/", exchange -> {
             if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 redirect(exchange, "/login");
             } else {
@@ -154,7 +158,7 @@ public class SimpleAuthServer {
         });
 
         // GET /login -> login.html
-        server.createContext("/login", exchange -> {
+        createContext(server, "/login", exchange -> {
             if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 serveResource(exchange, "web/login.html", "text/html; charset=utf-8");
             } else {
@@ -163,7 +167,7 @@ public class SimpleAuthServer {
         });
 
         // GET /signup -> signup.html
-        server.createContext("/signup", exchange -> {
+        createContext(server, "/signup", exchange -> {
             if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 serveResource(exchange, "web/signup.html", "text/html; charset=utf-8");
             } else {
@@ -172,7 +176,7 @@ public class SimpleAuthServer {
         });
 
         // GET /static/* -> CSS/JS
-        server.createContext("/static", exchange -> {
+        createContext(server, "/static", exchange -> {
             if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 methodNotAllowed(exchange);
                 return;
@@ -197,7 +201,7 @@ public class SimpleAuthServer {
         });
 
         // POST /api/signup -> Sign up
-        server.createContext("/api/signup", exchange -> {
+        createContext(server, "/api/signup", exchange -> {
             if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
                 methodNotAllowed(exchange);
                 return;
@@ -208,12 +212,6 @@ public class SimpleAuthServer {
             String password = params.get("password");
             if (password != null) password = password.trim();
 
-            if (DEBUG) {
-                System.out.println("=== SIGNUP HIT ===");
-                System.out.println("[SIGNUP] request received (credentials omitted)");
-                System.out.println("[SIGNUP] username=" + username + ", pwLen=" + (password == null ? "null" : password.length()));
-            }
-
             if (isBlank(username) || isBlank(password)) {
                 writeText(exchange, 400, "username and password are required");
                 return;
@@ -221,18 +219,22 @@ public class SimpleAuthServer {
 
             try {
                 //  회원가입 요청을 어떤 계층으로 위임해야 하는가?
-                authService.signUp(username, password);redirect(exchange, "/login");
+                authService.signUp(username, password);
+                if (acceptsJson(exchange)) {
+                    writeJson(exchange, 201, "{\"ok\":true}");
+                } else {
+                    redirect(exchange, "/login");
+                }
             } catch (SQLIntegrityConstraintViolationException dup) {
                 writeText(exchange, 400, "username already exists");
             } catch (Exception e) {
-                e.printStackTrace();
                 writeText(exchange, 500, "signup error");
             }
         });
 
         // POST /api/login
         // Login + Session + JWT issuance + (Important) No 302 redirect → Return 200 JSON
-        server.createContext("/api/login", exchange -> {
+        createContext(server, "/api/login", exchange -> {
             if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
                 methodNotAllowed(exchange);
                 return;
@@ -242,10 +244,6 @@ public class SimpleAuthServer {
                 Map<String, String> params = parseFormBody(exchange);
                 String username = params.get("username");
                 String password = params.get("password");
-
-                System.out.println("[LOGIN] content-type=" + exchange.getRequestHeaders().getFirst("Content-Type"));
-                System.out.println("[LOGIN] username(trim)=" + (username == null ? "null" : username.trim())
-                        + ", pwLen=" + (password == null ? -1 : password.length()));
 
                 if (isBlank(username) || isBlank(password)) {
                     writeJson(exchange, 400, "{\"ok\":false,\"error\":\"username and password are required\"}");
@@ -284,11 +282,13 @@ public class SimpleAuthServer {
                 // 4) (Most important) Do not redirect here — end with 200 JSON response
                 //    → In fetch/XHR environments, 302 redirects easily cause HTTP 0/cancellation
                 //  fetch 호출에서는 서버 302 대신 성공 JSON으로 이동 경로를 알립니다.
-                writeJson(exchange, 200, "{\"ok\":true,\"redirect\":\"http://localhost:8008/index.html\"}");System.out.println("[LOGIN] SUCCESS -> 200 JSON (no redirect)");
+                exchange.getResponseHeaders().set("Cache-Control", "no-store");
+                writeJson(exchange, 200, "{\"ok\":true,\"redirect\":\"" + LOGIN_REDIRECT
+                        + "\",\"accessToken\":\"" + escapeJson(jwt)
+                        + "\",\"tokenType\":\"Bearer\",\"expiresIn\":3600}");
                 return;
 
             } catch (Exception e) {
-                e.printStackTrace();
                 // Respond with JSON so fetch receives 500 instead of HTTP 0
                 writeJson(exchange, 500, "{\"ok\":false,\"error\":\"login error\"}");
                 return;
@@ -296,21 +296,26 @@ public class SimpleAuthServer {
         });
 
         // GET /api/auth/check -> // Check login status (Session or JWT)
-        server.createContext("/api/auth/check", exchange -> {
-            // CORS Preflight
-            if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
-                //  브라우저의 사전 요청은 인증 전에 CORS 헤더를 붙이고 본문 없이 종료해야 합니다.
-                addCorsHeaders(exchange);exchange.sendResponseHeaders(204, -1);
-                exchange.close();
-                return;
-            }
-
+        createContext(server, "/api/auth/check", exchange -> {
             if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 methodNotAllowed(exchange);
                 return;
             }
 
-            addCorsHeaders(exchange);
+            // 명시한 Bearer가 잘못되면 기존 쿠키·세션으로 우회하지 않는다.
+            if (exchange.getRequestHeaders().containsKey("Authorization")) {
+                try {
+                    DecodedJWT decoded = JwtUtil.verifyToken(getBearerToken(exchange));
+                    String body = "{\"ok\":true,\"via\":\"bearer\",\"username\":\""
+                            + escapeJson(decoded.getClaim("username").asString())
+                            + "\",\"sub\":\"" + escapeJson(decoded.getSubject()) + "\"}";
+                    writeJson(exchange, 200, body);
+                } catch (Exception ex) {
+                    exchange.getResponseHeaders().set("WWW-Authenticate", "Bearer");
+                    writeJson(exchange, 401, "{\"ok\":false,\"reason\":\"UNAUTHORIZED\"}");
+                }
+                return;
+            }
 
             // (A) Session validation
             String sessionId = getCookieValue(exchange, SESSION_COOKIE_NAME);
@@ -343,6 +348,7 @@ public class SimpleAuthServer {
             // Policy: pass if either session OR JWT is valid
             // [④ 인증 정책] Session OR JWT: 두 방식 모두 실패한 경우에만 거부하도록 조건을 작성하세요.
             if (sessionUser == null && !jwtOk) {
+                exchange.getResponseHeaders().set("WWW-Authenticate", "Bearer");
                 writeJson(exchange, 401, "{\"ok\":false,\"reason\":\"UNAUTHORIZED\"}");
                 return;
             }
@@ -360,7 +366,7 @@ public class SimpleAuthServer {
         });
 
         // (Optional) GET /home -> for session testing within 8080
-        server.createContext("/home", exchange -> {
+        createContext(server, "/home", exchange -> {
             if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 methodNotAllowed(exchange);
                 return;
@@ -397,7 +403,7 @@ public class SimpleAuthServer {
         });
 
         // POST /api/logout -> Log out
-        server.createContext("/api/logout", exchange -> {
+        createContext(server, "/api/logout", exchange -> {
             if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
                 methodNotAllowed(exchange);
                 return;
@@ -413,7 +419,11 @@ public class SimpleAuthServer {
             exchange.getResponseHeaders().add("Set-Cookie", cookie(JWT_COOKIE_NAME, "", true, 0));
             exchange.getResponseHeaders().add("Set-Cookie", cookie(APP_AUTH_COOKIE_NAME, "", false, 0));
 
-            redirect(exchange, "/login");
+            if (acceptsJson(exchange)) {
+                writeJson(exchange, 200, "{\"ok\":true}");
+            } else {
+                redirect(exchange, "/login");
+            }
         });
 
         server.start();
@@ -421,12 +431,86 @@ public class SimpleAuthServer {
 
     // ========= CORS =========
 
+    private static boolean acceptsJson(HttpExchange exchange) {
+        String accept = exchange.getRequestHeaders().getFirst("Accept");
+        return accept != null && accept.toLowerCase(Locale.ROOT).contains("application/json");
+    }
+
+    private static void createContext(HttpServer server, String path, HttpHandler handler) {
+        server.createContext(path, handler).getFilters().add(new Filter() {
+            @Override
+            public String description() {
+                return "CORS and request metadata";
+            }
+
+            @Override
+            public void doFilter(HttpExchange exchange, Chain chain) throws IOException {
+                long started = System.nanoTime();
+                try {
+                    String origin = exchange.getRequestHeaders().getFirst("Origin");
+                    if (origin != null && !CORS_ORIGINS.contains(origin)) {
+                        writeJson(exchange, 403, "{\"ok\":false,\"error\":\"origin not allowed\"}");
+                        return;
+                    }
+                    addCorsHeaders(exchange);
+                    if (path.startsWith("/api/")) {
+                        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+                    }
+                    if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                        String method = exchange.getRequestHeaders().getFirst("Access-Control-Request-Method");
+                        String headers = exchange.getRequestHeaders().getFirst("Access-Control-Request-Headers");
+                        if (method != null && !CORS_METHODS.contains(method)) {
+                            writeJson(exchange, 403, "{\"ok\":false,\"error\":\"method not allowed\"}");
+                            return;
+                        }
+                        if (headers != null) {
+                            for (String header : headers.split(",")) {
+                                if (!CORS_HEADERS.contains(header.trim().toLowerCase(Locale.ROOT))) {
+                                    writeJson(exchange, 403, "{\"ok\":false,\"error\":\"header not allowed\"}");
+                                    return;
+                                }
+                            }
+                        }
+                        exchange.sendResponseHeaders(204, -1);
+                        exchange.close();
+                        return;
+                    }
+                    chain.doFilter(exchange);
+                } catch (Exception ex) {
+                    if (exchange.getResponseCode() < 0) {
+                        writeJson(exchange, 500, "{\"ok\":false,\"error\":\"internal server error\"}");
+                    } else {
+                        exchange.close();
+                    }
+                } finally {
+                    System.out.printf(Locale.ROOT, "path=%s status=%d latency_ms=%.2f%n",
+                            path, exchange.getResponseCode(), (System.nanoTime() - started) / 1_000_000.0);
+                }
+            }
+        });
+    }
+
     private static void addCorsHeaders(HttpExchange exchange) {
-        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", DEV_FRONTEND_ORIGIN);
-        exchange.getResponseHeaders().set("Access-Control-Allow-Credentials", "true");
-        exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-        exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
         exchange.getResponseHeaders().set("Vary", "Origin");
+        String origin = exchange.getRequestHeaders().getFirst("Origin");
+        if (origin != null && CORS_ORIGINS.contains(origin)) {
+            exchange.getResponseHeaders().set("Access-Control-Allow-Origin", origin);
+            exchange.getResponseHeaders().set("Access-Control-Allow-Credentials", "true");
+            exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+            exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type,Authorization,Accept");
+        }
+    }
+
+    private static String getBearerToken(HttpExchange exchange) {
+        List<String> headers = exchange.getRequestHeaders().get("Authorization");
+        if (headers == null || headers.size() != 1) {
+            throw new JWTVerificationException("Invalid authorization");
+        }
+        String value = headers.get(0);
+        if (!value.regionMatches(true, 0, "Bearer ", 0, 7) || value.substring(7).isBlank()) {
+            throw new JWTVerificationException("Invalid authorization");
+        }
+        return value.substring(7);
     }
 
     // ========= Resource/Reponse Helper =========
@@ -666,18 +750,11 @@ public class SimpleAuthServer {
 
             User u = userRepository.findByUsername(username);
             if (u == null) {
-                if (DEBUG) System.out.println("[AUTH] user not found: " + username);
                 return null;
-            }
-            if (DEBUG) {
-                System.out.println("[AUTH] user found: " + username);
-                String hash = u.getPassword();
-                System.out.println("[AUTH] dbHash prefix: " + (hash == null ? "null" : hash.substring(0, Math.min(7, hash.length()))));
             }
 
             // [⑤-B 비밀번호 검증] 입력 평문과 저장된 BCrypt 해시를 검증하세요. ⑤-A와 한 묶음입니다.
             boolean ok = BCrypt.checkpw(rawPassword, u.getPassword());
-            if (DEBUG) System.out.println("[AUTH] bcrypt matches=" + ok);
 
             if (!ok) return null;
             return u;
@@ -707,7 +784,11 @@ public class SimpleAuthServer {
                     .withIssuer(ISSUER)
                     .build();
             //  JWT 파싱만 하지 말고 검증기의 검증 결과를 반환하세요.
-            return verifier.verify(token);
+            DecodedJWT decoded = verifier.verify(token);
+            if (decoded.getExpiresAt() == null || isBlank(decoded.getSubject())) {
+                throw new JWTVerificationException("Required claims missing");
+            }
+            return decoded;
         }
     }
 }
