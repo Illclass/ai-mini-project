@@ -147,3 +147,5 @@ a.clear-source { text-decoration:none; }
 
 .chat-product-required {display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:14px;padding:14px 17px;border-radius:16px;background:#fff0a9f5;color:#493509;font-size:16px;font-weight:550;}
 .chat-product-required button {padding:10px 14px;border-radius:11px;background:#493509;color:#fff9de;font-size:15px;}
+
+.clear-source>.clear-source-number { flex-shrink:0; overflow:visible; font-weight:650; font-variant-numeric:tabular-nums; color:#fff; }
