@@ -182,7 +182,7 @@ def test_unknown_doc_id_is_not_replaced_with_chunk_id():
     assert not llm.calls
 
 
-@pytest.mark.parametrize("kwargs", [{"language": "en"}, {"mode": "approve"}, {"product_id": ""}])
+@pytest.mark.parametrize("kwargs", [{"language": "ja"}, {"mode": "approve"}, {"product_id": ""}])
 def test_invalid_internal_options_raise(kwargs):
     with pytest.raises(ValueError): generate_answer("자료 설명", [], **kwargs)
 

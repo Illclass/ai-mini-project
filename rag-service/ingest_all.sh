@@ -4,7 +4,10 @@
 #
 #   cd rag-service
 #   ./ingest_all.sh --dry-run   # 청크 수만 확인 (임베딩·저장 안 함, 비용 없음)
-#   ./ingest_all.sh             # faiss_db/law, faiss_db/msds 를 지우고 새로 적재 (OpenAI 임베딩 비용 발생)
+#   ./ingest_all.sh             # faiss_db/law, faiss_db/msds 를 지우고 새로 적재 (bge-m3 로컬 임베딩, 약 6분)
+#
+# 하나라도 실패하면 즉시 멈춘다 (인덱스가 불완전하므로 원인을 고친 뒤 다시 실행).
+# 같은 폴더에서 두 개를 동시에 실행하면 인덱스가 섞이므로 잠금(faiss_db/.ingest.lock)으로 막는다.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -15,6 +18,14 @@ MODE="--append"
 if [[ "${1:-}" == "--dry-run" ]]; then
   MODE="--dry-run"
 else
+  mkdir -p faiss_db
+  LOCK=faiss_db/.ingest.lock
+  if ! mkdir "$LOCK" 2>/dev/null; then
+    echo "다른 ingest_all.sh 가 이미 실행 중입니다. 끝난 뒤 다시 실행하세요." >&2
+    echo "(실행 중인 것이 없는데 이 메시지가 나오면: rmdir $LOCK)" >&2
+    exit 1
+  fi
+  trap 'rmdir "$LOCK"' EXIT
   rm -rf faiss_db/law faiss_db/msds
 fi
 
@@ -22,18 +33,26 @@ LAW_URL="https://www.law.go.kr"
 KOSHA_URL="https://www.kosha.or.kr"
 SIGMA_URL="https://www.sigmaaldrich.com/KR/ko"
 
+run() {   # run <문서ID> <명령...> — 요약 줄만 보여 주고, 실패하면 오류를 보여 준 뒤 전체를 멈춘다
+  local doc="$1" out; shift
+  if ! out=$("$@" 2>&1); then
+    echo "$out" | grep -av "Warning\|warn(" | tail -5 >&2
+    echo "❌ $doc 적재 실패 — 인덱스가 불완전합니다. 원인을 고친 뒤 ./ingest_all.sh 를 다시 실행하세요." >&2
+    exit 1
+  fi
+  echo "$out" | grep -aE "^\[(law|guide|msds)\]|^\[경고\]|^\[알림\]" | sed -E 's/ → (topic|인덱스)=.*//' || true
+}
 law() {   # law <파일> <문서ID> <법령명> <시행일> [조 범위]
-  "$PY" ingest_law.py --mode law --input "data/laws/$1" --doc-id "$2" --law-name "$3" \
-    --effective-date "$4" --source-url "$LAW_URL" ${5:+--only "$5"} $MODE | grep -aE "^\[(law|guide)\]|^\[경고\]|^\[알림\]|^저장 완료" || true
+  run "$2" "$PY" ingest_law.py --mode law --input "data/laws/$1" --doc-id "$2" --law-name "$3" \
+    --effective-date "$4" --source-url "$LAW_URL" ${5:+--only "$5"} $MODE
 }
 guide() { # guide <파일> <문서ID> <지침명> <날짜> [URL]
-  "$PY" ingest_law.py --mode guide --input "$1" --doc-id "$2" --law-name "$3" \
-    --effective-date "$4" --source-url "${5:-$KOSHA_URL}" $MODE | grep -aE "^\[(law|guide)\]|^\[경고\]|^\[알림\]|^저장 완료" || true
+  run "$2" "$PY" ingest_law.py --mode guide --input "$1" --doc-id "$2" --law-name "$3" \
+    --effective-date "$4" --source-url "${5:-$KOSHA_URL}" $MODE
 }
 msds() {  # msds <파일> <문서ID> <product_id> <물질명> <공급사> <CAS> <개정일> <제목>
-  "$PY" ingest/ingest_msds.py --input "data/msds/$1" --doc-id "$2" --product-id "$3" --substance "$4" \
-    --supplier "$5" --cas-no "$6" --revision-date "$7" --title "$8" --source-url "$SIGMA_URL" $MODE 2>&1 \
-    | grep -aE "^\[msds\]|^\[경고\]|^저장 완료" || true
+  run "$2" "$PY" ingest/ingest_msds.py --input "data/msds/$1" --doc-id "$2" --product-id "$3" --substance "$4" \
+    --supplier "$5" --cas-no "$6" --revision-date "$7" --title "$8" --source-url "$SIGMA_URL" $MODE
 }
 
 echo "== 법령 → faiss_db/law"
@@ -73,5 +92,13 @@ msds D13_수산화나트륨.pdf D13 sigma-221465  수산화나트륨  "$SA" 1310
 if [[ "$MODE" == "--dry-run" ]]; then
   echo "(dry-run 끝: 저장하지 않았습니다)"
 else
+  "$PY" - <<'EOF'
+import pickle
+from collections import Counter
+for name in ("law", "msds"):
+    docs = pickle.load(open(f"faiss_db/{name}/index.pkl", "rb"))[0]._dict.values()
+    ids = Counter(d.metadata["doc_id"] for d in docs)
+    print(f"  faiss_db/{name}: 청크 {sum(ids.values())}개, 문서 {len(ids)}개 ({', '.join(sorted(ids))})")
+EOF
   echo "적재 완료. RAG 서버를 재시작하고 /health 에서 indexes 가 모두 true 인지 확인하세요."
 fi

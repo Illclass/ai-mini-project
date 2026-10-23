@@ -38,6 +38,13 @@ def is_emergency(question: str) -> bool:
     zh = r"溅[到入进].{0,8}(?:眼|皮肤)|(?:眼睛|皮肤).{0,8}(?:溅|接触)|接触.{0,8}(?:皮肤|眼)|吸入了|误吸|误服|吞下|昏倒|失去意识|无法呼吸|呼吸困难|正在泄漏|泄漏了|发生泄漏|发生火灾|起火了|紧急|(?:化学品|气体)泄漏"
     vi = r"(?:ban|dinh|vang).{0,15}(?:vao|len).{0,4}(?:mat|da)|hit phai|nuot phai|bat tinh|kho tho|bi phoi nhiem|dang ro ri|bi ro ri|hoa hoan|khan cap|bi bong"
     en = r"(?:chemical|gas|acid).{0,30}(?:leak|spill)|(?:splashed|got).{0,15}(?:eyes|skin)|inhaled|swallowed|unconscious|cannot breathe"
+    # en · km 사고 신호 (김규빈 추가, ko · zh · vi 규칙과 같은 범위). 크메르어는 normalized() 가 결합 문자를 지워 원문으로 검사한다.
+    en_incident = (
+        r"(?:splash|spill|spatter|got).{0,20}(?:on|onto).{0,10}(?:my )?(?:clothes|clothing|uniform|coverall)"
+        r"|(?:gas|leak).{0,15}(?:alarm|alert).{0,15}(?:went off|is sounding|sounded|triggered|is ringing|going off)"
+        r"|(?:strange|unusual|unknown|weird) (?:smell|odor)"
+    )
+    km = r"ចូលភ្នែក|ប្រឡាក់ស្បែក|ប៉ះស្បែក|លេចធ្លាយ|សំឡេងរោទិ៍|ក្លិនចម្លែក|ស្រូបចូល|សន្លប់|ពិបាកដកដង្ហើម"
     # 기존 노출·누출 규칙을 유지하고, 장비 작업 중 보고되는 신호를 추가한다.
     # 단순히 "작업복", "경보", "냄새"가 있다는 이유만으로 비상 처리하지 않는다.
     ko_incident = (
@@ -65,7 +72,8 @@ def is_emergency(question: str) -> bool:
         re.search(ko, compact) or re.search(ko_incident, compact)
         or re.search(zh, text) or re.search(zh_incident, text)
         or re.search(vi, normalized(text)) or re.search(vi_incident, normalized(text))
-        or re.search(en, text)
+        or re.search(en, text) or re.search(en_incident, text)
+        or re.search(km, question)
     )
 
 def is_prohibited_request(question: str) -> bool:
@@ -457,7 +465,7 @@ def preflight_result(question: str, language: str = "ko") -> GenerationOutput | 
     if not isinstance(question, str) or not question.strip():
         raise ValueError("question cannot be blank")
     if language not in LANGUAGES:
-        raise ValueError("language must be ko, zh, or vi")
+        raise ValueError("language must be one of " + ", ".join(LANGUAGES))
     if is_emergency(question):
         return _review_result("emergency", language=language)
     if is_prohibited_request(question) or _is_out_of_scope(question):
@@ -707,6 +715,8 @@ def generate_answer(
             "ko": {"product_name": "자료의 제품명", "product_number": "제품번호", "concentration": "농도", "revision_date": "MSDS 개정일"},
             "zh": {"product_name": "资料中的产品名称", "product_number": "产品编号", "concentration": "浓度", "revision_date": "MSDS修订日期"},
             "vi": {"product_name": "Tên sản phẩm trong tài liệu", "product_number": "Mã sản phẩm", "concentration": "Nồng độ", "revision_date": "Ngày sửa đổi MSDS"},
+            "en": {"product_name": "Product name in the document", "product_number": "Product number", "concentration": "Concentration", "revision_date": "MSDS revision date"},
+            "km": {"product_name": "ឈ្មោះផលិតផលក្នុងឯកសារ", "product_number": "លេខផលិតផល", "concentration": "កំហាប់", "revision_date": "កាលបរិច្ឆេទកែប្រែ MSDS"},
         }
         for fact in draft.product_facts:
             parts.append(f"{product_labels[language][fact.field]}: {fact.value} {markers(fact.citations)}")

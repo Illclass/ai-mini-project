@@ -141,6 +141,14 @@ def incomplete_critical_chunks(documents):
 
 
 
+KHMER_DIGITS = str.maketrans("០១២៣៤៥៦៧៨៩", "0123456789")
+
+
+def _for_match(text: str, language: str) -> str:
+    """금지·제외 표현 검사용 문자열. 크메르어는 normalized() 가 결합 문자(coeng 등)를 지워 원문 그대로 쓴다."""
+    return text if language == "km" else normalized(text)
+
+
 def translation_valid(original: str, translated: str, language: str) -> bool:
     """Check script, numerical tokens and explicit prohibition; not entailment."""
     if not translated.strip():
@@ -149,6 +157,12 @@ def translation_valid(original: str, translated: str, language: str) -> bool:
         return False
     if language == "vi" and (not re.search(r"[a-zA-ZÀ-ỹ]", translated) or re.search(r"[가-힣\u4e00-\u9fff]", translated)):
         return False
+    if language == "en" and (not re.search(r"[a-zA-Z]", translated) or re.search(r"[가-힣\u4e00-\u9fff\u1780-\u17ff]", translated)):
+        return False
+    if language == "km":
+        if not re.search(r"[\u1780-\u17ff]", translated) or re.search(r"[가-힣\u4e00-\u9fff]", translated):
+            return False
+        translated = translated.translate(KHMER_DIGITS)   # ០-៩ → 0-9 (수치 비교용)
     numbers = set(re.findall(r"\d+(?:[.,]\d+)?", original))
     translated_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", translated))
     if language == "zh":
@@ -173,13 +187,15 @@ def translation_valid(original: str, translated: str, language: str) -> bool:
         return False
     prohibition = re.search(r"금지|하지\s*마|안\s*됩니다|must not|do not|禁止|不得|khong duoc", normalized(original), re.I)
     if prohibition:
-        required = {"ko": r"금지|안\s*됩니다|하지\s*마|않", "zh": r"禁止|不得|不应|不要|不可|不能|请勿|切勿", "vi": r"khong|cam"}
-        if not re.search(required[language], normalized(translated), re.I):
+        required = {"ko": r"금지|안\s*됩니다|하지\s*마|않", "zh": r"禁止|不得|不应|不要|不可|不能|请勿|切勿", "vi": r"khong|cam",
+                    "en": r"must not|do not|don't|never|prohibit|not allowed|forbidden", "km": r"កុំ|មិន|ហាម"}
+        if not re.search(required[language], _for_match(translated, language), re.I):
             return False
     exclusion = re.search(r"제외|적용하지\s*않|적용되지\s*않|except|not\s+appl|除外|不适用|khong ap dung", normalized(original), re.I)
     if exclusion:
-        required = {"ko": r"제외|적용하지\s*않|적용되지\s*않", "zh": r"除外|不适用|不包括|不包含", "vi": r"khong ap dung|ngoai tru|loai tru|khong bao gom"}
-        if not re.search(required[language], normalized(translated), re.I):
+        required = {"ko": r"제외|적용하지\s*않|적용되지\s*않", "zh": r"除外|不适用|不包括|不包含", "vi": r"khong ap dung|ngoai tru|loai tru|khong bao gom",
+                    "en": r"except|exclud|not appl|does not apply", "km": r"លើកលែង|មិនអនុវត្ត"}
+        if not re.search(required[language], _for_match(translated, language), re.I):
             return False
     return True
 
@@ -257,10 +273,59 @@ TEXT = {
         "precheck": "Xác nhận thông tin trước công việc: Đây không phải phê duyệt công việc hay danh sách kiểm tra an toàn đã hoàn tất. Hãy cùng đồng nghiệp có kinh nghiệm hoặc nhân viên an toàn kiểm tra điều kiện áp dụng, sự phù hợp của nhãn với MSDS tại cơ sở, yêu cầu đào tạo và giấy phép.",
         "msds_review": "Giải thích chỉ giới hạn cho sản phẩm, nồng độ và phiên bản MSDS được cung cấp. Hãy xác nhận sản phẩm thực tế có phù hợp không và MSDS có phải bản mới nhất không với nhân viên an toàn.",
     },
+    "en": {  # 김규빈 추가 (en·km 지원)
+        "emergency": "Emergency notice: Do not wait for an AI answer or document search. Follow the on-site emergency procedure first and immediately contact 119 (Korea) and the on-site emergency contact person. Do not attempt dangerous actions such as stopping a leak, neutralizing, or re-entering based only on this service's answer.",
+        "out_of_scope": "This service does not determine legal liability, approve work, or explain dangerous on-site operations. Please check with your on-site safety officer, a senior colleague, or a qualified expert.",
+        "no_evidence": "The provided materials do not contain enough evidence to answer this question. Applicability is not determined; please check with a senior colleague or safety officer.",
+        "product_unverified": "Product confirmation is needed. The product name, product number, concentration, MSDS revision date, and match with the actual on-site product could not be verified, so a product-specific explanation is withheld. Check the supplier MSDS and product label with a senior colleague or safety officer. Information from other products is not used as a substitute.",
+        "invalid_translation": "The translation of warnings and conditions of application could not be verified, so the answer is withheld. Please check the original text with a senior colleague or safety officer.",
+        "fallback": "The evidence or answer could not be verified, so judgment is withheld. Please check with a senior colleague or safety officer.",
+        "llm_timeout": "Answer generation timed out. Judgment is withheld; please check with a senior colleague or safety officer.",
+        "llm_error": "Could not connect to the answer generation service. Judgment is withheld; please contact a safety officer.",
+        "configuration_error": "The answer generation settings need to be checked. Please notify the service administrator; judgment is withheld.",
+        "legal_obligation": "Obligation stated in legal materials (current validity and on-site applicability not verified)",
+        "recommendation": "Recommended guideline (not asserted as a legal obligation)",
+        "information": "General information based on the materials",
+        "conditions": "Conditions of application (whether they apply on site must be confirmed separately):",
+        "missing_conditions": "The conditions of application are not sufficiently verified, so whether they actually apply is not determined. Please check with a senior colleague or safety officer.",
+        "law_review": "Legal review: The effective date and conditions of application have not been verified, so this is not confirmed as current law or a current obligation. An old effective date alone does not show that it has been repealed. Check the official original text and the applicable version.",
+        "future": "The materials include a future effective date, so current applicability is not determined.",
+        "versions": "The same article has different effective dates, so the applicable version must be confirmed.",
+        "warnings": "Important warnings and conditions of application (based on the original)",
+        "original": "Original",
+        "learn": "Explanation for new workers — please confirm unfamiliar terms and the scope of application with a senior colleague.",
+        "precheck": "Pre-work information check — this is not work approval or a completed safety checklist. Check the conditions of application below, whether the product label matches the on-site MSDS, and any required training or permits with a senior colleague or safety officer.",
+        "msds_review": "This explanation is limited to the product, concentration, and revision of the provided MSDS. Confirm with a senior colleague or safety officer that it matches the actual on-site product and is the latest revision.",
+    },
+    "km": {  # 김규빈 추가 — 원어민 검수 필요
+        "emergency": "សេចក្តីជូនដំណឹងបន្ទាន់៖ កុំរង់ចាំចម្លើយរបស់ AI ឬការស្វែងរកឯកសារ។ សូមអនុវត្តនីតិវិធីបន្ទាន់នៅកន្លែងការងារជាមុន ហើយទាក់ទងលេខ 119 (កូរ៉េ) និងអ្នកទទួលខុសត្រូវបន្ទាន់នៅកន្លែងការងារភ្លាមៗ។ កុំព្យាយាមបិទការលេចធ្លាយ បន្សាប ឬចូលទៅតំបន់គ្រោះថ្នាក់វិញ ដោយផ្អែកតែលើចម្លើយរបស់សេវានេះ។",
+        "out_of_scope": "សេវានេះមិនកំណត់ការទទួលខុសត្រូវផ្លូវច្បាប់ មិនអនុម័តការងារ និងមិនពន្យល់ពីប្រតិបត្តិការដែលមានគ្រោះថ្នាក់នៅកន្លែងការងារទេ។ សូមពិនិត្យជាមួយមន្ត្រីសុវត្ថិភាព បុគ្គលិកជាន់ខ្ពស់ ឬអ្នកជំនាញ។",
+        "no_evidence": "ឯកសារដែលបានផ្តល់មិនមានភស្តុតាងគ្រប់គ្រាន់ដើម្បីឆ្លើយសំណួរនេះទេ។ មិនទាន់សម្រេចថាអនុវត្តឬអត់ទេ សូមពិនិត្យជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
+        "product_unverified": "ត្រូវការបញ្ជាក់ផលិតផល។ មិនអាចផ្ទៀងផ្ទាត់ឈ្មោះផលិតផល លេខផលិតផល កំហាប់ កាលបរិច្ឆេទកែប្រែ MSDS និងភាពត្រូវគ្នាជាមួយផលិតផលពិតនៅកន្លែងការងារបានទេ ដូច្នេះការពន្យល់សម្រាប់ផលិតផលនេះត្រូវបានផ្អាក។ សូមពិនិត្យ MSDS របស់អ្នកផ្គត់ផ្គង់ និងស្លាកផលិតផលជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។ មិនប្រើព័ត៌មានរបស់ផលិតផលផ្សេងជំនួសទេ។",
+        "invalid_translation": "មិនអាចផ្ទៀងផ្ទាត់ការបកប្រែការព្រមាន និងលក្ខខណ្ឌអនុវត្តបានទេ ដូច្នេះចម្លើយត្រូវបានផ្អាក។ សូមពិនិត្យអត្ថបទដើមជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
+        "fallback": "មិនអាចផ្ទៀងផ្ទាត់ភស្តុតាង ឬចម្លើយបានទេ ដូច្នេះការសម្រេចត្រូវបានផ្អាក។ សូមពិនិត្យជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
+        "llm_timeout": "ការបង្កើតចម្លើយអស់ពេល។ ការសម្រេចត្រូវបានផ្អាក សូមពិនិត្យជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
+        "llm_error": "មិនអាចភ្ជាប់ទៅសេវាបង្កើតចម្លើយបានទេ។ ការសម្រេចត្រូវបានផ្អាក សូមទាក់ទងមន្ត្រីសុវត្ថិភាព។",
+        "configuration_error": "ត្រូវពិនិត្យការកំណត់សេវាបង្កើតចម្លើយ។ សូមជូនដំណឹងដល់អ្នកគ្រប់គ្រងសេវា ការសម្រេចត្រូវបានផ្អាក។",
+        "legal_obligation": "កាតព្វកិច្ចក្នុងឯកសារច្បាប់ (មិនទាន់ផ្ទៀងផ្ទាត់សុពលភាពបច្ចុប្បន្ន និងការអនុវត្តនៅកន្លែងការងារ)",
+        "recommendation": "គោលការណ៍ណែនាំ (មិនកំណត់ថាជាកាតព្វកិច្ចផ្លូវច្បាប់)",
+        "information": "ព័ត៌មានទូទៅដែលផ្អែកលើឯកសារ",
+        "conditions": "លក្ខខណ្ឌអនុវត្ត (ត្រូវបញ្ជាក់ដាច់ដោយឡែកថាត្រូវនឹងកន្លែងការងារឬអត់)៖",
+        "missing_conditions": "លក្ខខណ្ឌអនុវត្តមិនទាន់បានផ្ទៀងផ្ទាត់គ្រប់គ្រាន់ ដូច្នេះមិនសម្រេចថាអនុវត្តពិតឬអត់ទេ។ សូមពិនិត្យជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
+        "law_review": "ការពិនិត្យច្បាប់៖ មិនទាន់ផ្ទៀងផ្ទាត់កាលបរិច្ឆេទចូលជាធរមាន និងលក្ខខណ្ឌអនុវត្តទេ ដូច្នេះមិនបញ្ជាក់ថាជាច្បាប់ ឬកាតព្វកិច្ចបច្ចុប្បន្នទេ។ កាលបរិច្ឆេទចាស់តែមួយមុខក៏មិនបង្ហាញថាត្រូវបានលុបចោលដែរ។ សូមពិនិត្យអត្ថបទដើមផ្លូវការ និងកំណែដែលអនុវត្ត។",
+        "future": "មានឯកសារដែលមានកាលបរិច្ឆេទចូលជាធរមាននាពេលអនាគត ដូច្នេះមិនសម្រេចការអនុវត្តបច្ចុប្បន្នទេ។",
+        "versions": "មាត្រាដដែលមានកាលបរិច្ឆេទចូលជាធរមានខុសគ្នា ត្រូវបញ្ជាក់កំណែដែលអនុវត្ត។",
+        "warnings": "ការព្រមាន និងលក្ខខណ្ឌអនុវត្តសំខាន់ៗ (តាមអត្ថបទដើម)",
+        "original": "អត្ថបទដើម",
+        "learn": "ការពន្យល់សម្រាប់បុគ្គលិកថ្មី — សូមសួរបុគ្គលិកជាន់ខ្ពស់អំពីពាក្យដែលមិនច្បាស់ និងវិសាលភាពអនុវត្ត។",
+        "precheck": "ការពិនិត្យព័ត៌មានមុនការងារ — នេះមិនមែនជាការអនុម័តការងារ ឬបញ្ជីត្រួតពិនិត្យសុវត្ថិភាពដែលបានបញ្ចប់ទេ។ សូមពិនិត្យលក្ខខណ្ឌអនុវត្តខាងក្រោម ភាពត្រូវគ្នានៃស្លាកផលិតផលជាមួយ MSDS នៅកន្លែងការងារ និងការបណ្តុះបណ្តាល ឬលិខិតអនុញ្ញាតដែលត្រូវការ ជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
+        "msds_review": "ការពន្យល់នេះកំណត់តែចំពោះផលិតផល កំហាប់ និងកំណែ MSDS ដែលបានផ្តល់ប៉ុណ្ណោះ។ សូមបញ្ជាក់ជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាពថាវាត្រូវនឹងផលិតផលពិតនៅកន្លែងការងារ និងជាកំណែចុងក្រោយ។",
+    },
 }
 
 
-LANGUAGE_NAMES = dict(zip(LANGUAGES, ("한국어", "중국어(간체)", "베트남어")))
+LANGUAGE_NAMES = {"ko": "한국어", "zh": "중국어(간체)", "vi": "베트남어", "en": "영어", "km": "크메르어(캄보디아어)"}
+assert set(LANGUAGE_NAMES) == set(LANGUAGES)
 
 SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의 외국인 신규 근로자를 위한 자료 기반 안내 도우미입니다.
 이 작업은 일반 정보 검색 보조이며 법적 판단이나 현장 작업 허가가 아닙니다.

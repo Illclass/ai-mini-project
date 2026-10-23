@@ -32,6 +32,8 @@ TRANSLATIONS = {
     "ko": ["경고: 이 자료를 실제 현장 작업에 사용하지 마세요.", "적용 대상은 가상 교육실 2곳입니다.", "실제 작업장은 제외합니다."],
     "zh": ["警告：不要将此资料用于真实现场作业。", "适用对象为2个虚拟培训室。", "实际工作场所不适用。"],
     "vi": ["Cảnh báo: Không sử dụng tài liệu này cho công việc thực tế tại hiện trường.", "Phạm vi áp dụng là 2 phòng đào tạo giả định.", "Không áp dụng cho nơi làm việc thực tế."],
+    "en": ["Warning: Do not use this material for actual on-site work.", "This applies to 2 virtual training rooms.", "Actual workplaces are excluded."],
+    "km": ["ការព្រមាន៖ កុំប្រើឯកសារនេះសម្រាប់ការងារពិតនៅកន្លែងការងារ។", "វិសាលភាពអនុវត្តគឺបន្ទប់បណ្តុះបណ្តាលនិម្មិត 2។", "កន្លែងការងារពិតត្រូវបានលើកលែង។"],
 }
 
 
@@ -39,9 +41,12 @@ def synthetic_draft(doc, language="ko"):
     cid = doc.metadata["chunk_id"]
     descriptions = {"ko": "TrainingLiquid-A는 이 가상 자료의 제품명입니다.",
                     "zh": "这份虚拟资料中的产品名称是TrainingLiquid-A。",
-                    "vi": "Tên sản phẩm trong tài liệu giả định này là TrainingLiquid-A."}
+                    "vi": "Tên sản phẩm trong tài liệu giả định này là TrainingLiquid-A.",
+                    "en": "In this virtual material, the product name is TrainingLiquid-A.",
+                    "km": "ឈ្មោះផលិតផលក្នុងឯកសារនិម្មិតនេះគឺ TrainingLiquid-A។"}
     conditions = {"ko": "가상 교육실 2곳에 한정됩니다.", "zh": "仅限2个虚拟培训室。",
-                  "vi": "Chỉ áp dụng cho 2 phòng đào tạo giả định."}
+                  "vi": "Chỉ áp dụng cho 2 phòng đào tạo giả định.",
+                  "en": "Limited to 2 virtual training rooms.", "km": "កំណត់តែបន្ទប់បណ្តុះបណ្តាលនិម្មិត 2 ប៉ុណ្ណោះ។"}
     passages = critical_passages([doc])
     return {
         "supported": True,
