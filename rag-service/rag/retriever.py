@@ -58,15 +58,18 @@ def search_store(question: str, vectorstore, k: int = DEFAULT_TOP_K,
 
 
 def _search_all(queries: List[str], store, k: int, filter=None) -> List[Hit]:
-    """질문 여러 개(동의어 확장)로 검색 → chunk_id 중복 제거(가장 가까운 점수) → 상위 k.
-    (순위 융합 RRF 도 비교했지만 70문항에서 차이가 1~2문항이라 단순한 쪽을 쓴다)"""
-    best = {}
+    """질문 여러 개(동의어 확장)로 검색 → 청크마다 변형 질문 중 가장 좋은 순위로 정렬(같으면 거리) → 상위 k.
+    거리 최솟값으로 합치면 원문 질문에 조금 더 가까운 청크가 이겨서 동의어 변형이 1위로 찾은 정답이 밀려난다.
+    예) "중대재해법의 기준은?" → 변형 "…정의은?" 에서 제2조 1위인데 거리로 합치면 7위 (70문항 비교: hit@5 96→97%)"""
+    best, best_rank = {}, {}
     for q in queries:
-        for h in search_store(q, store, k=k, filter=filter):
+        for rank, h in enumerate(search_store(q, store, k=k, filter=filter), start=1):
             key = h["metadata"].get("chunk_id") or h["text"]
             if key not in best or h["score"] < best[key]["score"]:
                 best[key] = h
-    return sorted(best.values(), key=lambda h: h["score"])[:k]
+            best_rank[key] = min(best_rank.get(key, rank), rank)
+    ranked = sorted(best, key=lambda key: (best_rank[key], best[key]["score"]))
+    return [best[key] for key in ranked[:k]]
 
 
 def drop_truncated(hits: List[Hit]) -> List[Hit]:

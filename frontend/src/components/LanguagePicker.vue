@@ -12,13 +12,16 @@ const label = computed(() => languages[props.modelValue] || languages.ko)
 function place() {
   const rect = trigger.value?.getBoundingClientRect()
   if (!rect) return
-  const width = Math.min(184, window.innerWidth - 24)
-  position.value = { width: `${width}px`, left: `${Math.min(window.innerWidth - width - 12, Math.max(12, rect.right - width))}px`, top: `${rect.bottom + 8 + 160 > window.innerHeight ? Math.max(12, rect.top - 164) : rect.bottom + 8}px` }
+  const width = Math.min(224, window.innerWidth - 24)
+  const height = Math.min(menu.value?.getBoundingClientRect().height || codes.length * 43 + 12, window.innerHeight - 24)
+  const top = rect.bottom + 8 + height > window.innerHeight - 12 ? Math.max(12, rect.top - height - 8) : rect.bottom + 8
+  position.value = { maxHeight: `${window.innerHeight - 24}px`, width: `${width}px`, left: `${Math.min(window.innerWidth - width - 12, Math.max(12, rect.right - width))}px`, top: `${top}px` }
 }
 async function open() {
   expanded.value = true
   place()
   await nextTick()
+  place()
   menu.value?.querySelectorAll('[role=option]')[Math.max(0, codes.indexOf(props.modelValue))]?.focus()
 }
 async function close(restore = true) {
@@ -67,7 +70,7 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', outside); wi
 .glass-language-trigger[aria-expanded=true]>svg:last-child { transform: rotate(180deg); }
 .glass-language-trigger:hover { background: #ffffff17; }
 .glass-language-trigger:focus-visible { outline: 2px solid #a9c8ef; outline-offset: 4px; }
-.glass-language-menu { position: fixed; z-index: 100; padding: 6px; border: 1px solid #ffffff38; border-radius: 17px; background: linear-gradient(145deg, #354363e8, #29324bd9); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: inset 0 1px 1px #ffffff47, 0 12px 32px #111b3d33; }
+.glass-language-menu { overflow-y: auto; position: fixed; z-index: 100; padding: 6px; border: 1px solid #ffffff38; border-radius: 17px; background: linear-gradient(145deg, #354363e8, #29324bd9); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: inset 0 1px 1px #ffffff47, 0 12px 32px #111b3d33; }
 .glass-language-menu button { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 43px; padding: 10px 12px; border: 0; border-radius: 11px; background: transparent; color: #fff; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
 .glass-language-menu button:hover, .glass-language-menu button:focus-visible { outline: none; background: #ffffff1a; }
 .glass-language-menu button[aria-selected=true] { background: #ffffff12; }
