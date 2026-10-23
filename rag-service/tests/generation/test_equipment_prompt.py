@@ -75,7 +75,8 @@ def test_precheck_preserves_real_source_and_rejects_fabricated_sop_quote(equipme
         "DEMO-E1 안내표 자료에서 확인할 내용을 설명해 주세요.",
         [equipment_guide], mode="precheck", structured_llm=StubLLM(draft),
     )
-    assert result.needs_review and result.handoff
+    assert result.needs_review
+    assert result.handoff is forged_sop
     if forged_sop:
         assert result.review_reasons == ["invalid_evidence"]
         assert result.sources == [] and quote not in result.answer
