@@ -1,6 +1,6 @@
 [
   {
-    "id": "Q06",
+    "id": "LQ01",
     "question": "중대재해법의 기준은?",
     "language": "ko",
     "topic": "serious_accident_law",
@@ -8,5 +8,95 @@
     "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
     "expected_sources": [{"doc_id": "L2", "section": "제2조 제2호"}],
     "expected_behavior": "answer"
+  },
+  {
+    "id": "LQ02",
+    "question": "경영책임자는 어떤 안전 의무가 있나요?",
+    "language": "ko",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "안전보건관리체계 구축·이행, 재해 재발방지 대책, 행정기관 개선·시정명령 이행, 안전·보건 관계 법령 의무이행 관리 조치",
+    "expected_sources": [{"doc_id": "L2", "section": "제4조"}],
+    "expected_behavior": "answer"
+  },
+  {
+    "id": "LQ03",
+    "question": "협력사(하청) 근로자도 이 법으로 보호받나요?",
+    "language": "ko",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "도급·용역·위탁 관계에서도 시설·장비·장소를 실질적으로 지배·운영·관리하는 경우 사업주·경영책임자등이 제3자의 종사자에 대해 안전 및 보건 확보의무를 진다",
+    "expected_sources": [{"doc_id": "L2", "section": "제5조"}, {"doc_id": "L2", "section": "제2조 제7호"}],
+    "expected_behavior": "answer"
+  },
+  {
+    "id": "LQ04",
+    "question": "직원이 5명보다 적은 회사도 적용되나요?",
+    "language": "ko",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "상시 근로자 5명 미만 사업장의 사업주·경영책임자등에게는 중대산업재해 장의 규정을 적용하지 않는다",
+    "expected_sources": [{"doc_id": "L2", "section": "제3조"}],
+    "expected_behavior": "answer"
+  },
+  {
+    "id": "LQ05",
+    "question": "우리 공장에서 사망사고가 났는데 대표이사가 처벌받나요?",
+    "language": "ko",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "개별 사건의 책임·처벌 여부는 판단하지 않고 조문(제4~6조)만 안내한 뒤 안전관리자·전문가에게 연결",
+    "expected_sources": [{"doc_id": "L2", "section": "제6조"}, {"doc_id": "L2", "section": "제4조"}],
+    "expected_behavior": "handoff"
+  },
+  {
+    "id": "LQ06",
+    "question": "중처법 위반으로 사람이 죽으면 벌금 얼마야?",
+    "language": "ko",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "1년 이상의 징역 또는 10억원 이하의 벌금 (병과 가능)",
+    "expected_sources": [{"doc_id": "L2", "section": "제6조 제1항"}],
+    "expected_behavior": "answer"
+  },
+  {
+    "id": "LQ07",
+    "question": "회사(법인)도 따로 벌금을 내나요?",
+    "language": "ko",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "양벌규정: 사망 시 50억원 이하, 부상·질병 시 10억원 이하 벌금. 상당한 주의·감독을 한 경우 제외",
+    "expected_sources": [{"doc_id": "L2", "section": "제7조"}],
+    "expected_behavior": "answer"
+  },
+  {
+    "id": "LQ08",
+    "question": "发生死亡事故时，经营负责人会受到什么处罚？",
+    "language": "zh",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "1년 이상의 징역 또는 10억원 이하의 벌금 (병과 가능)",
+    "expected_sources": [{"doc_id": "L2", "section": "제6조 제1항"}],
+    "expected_behavior": "answer"
+  },
+  {
+    "id": "LQ09",
+    "question": "Tai nạn lao động nghiêm trọng là gì?",
+    "language": "vi",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
+    "expected_sources": [{"doc_id": "L2", "section": "제2조 제2호"}],
+    "expected_behavior": "answer"
+  },
+  {
+    "id": "LQ10",
+    "question": "산업재해가 나면 노동부에 며칠 안에 신고해야 하나요?",
+    "language": "ko",
+    "topic": "serious_accident_law",
+    "product_id": null,
+    "expected_answer": "현재 자료(중대재해처벌법)에 없는 내용 → 찾을 수 없음 안내",
+    "expected_sources": [],
+    "expected_behavior": "not_found"
   }
 ]
