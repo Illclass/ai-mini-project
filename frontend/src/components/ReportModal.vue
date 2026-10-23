@@ -9,7 +9,7 @@ const lang = ref(props.message.language || props.language)
 const cache = { [props.message.language || props.language]: { answer: props.message.response.answer, sources: props.message.response.sources || [] } }
 const data = ref(cache[lang.value]), loading = ref(false), error = ref(false), note = ref('')
 const c = computed(() => clean[lang.value] || clean.ko)
-const date = computed(() => new Date().toLocaleDateString({ ko: 'ko-KR', zh: 'zh-CN', vi: 'vi-VN' }[lang.value] || 'ko-KR'))
+const date = computed(() => new Date().toLocaleDateString({ ko: 'ko-KR', zh: 'zh-CN', vi: 'vi-VN', en: 'en-US', km: 'km-KH' }[lang.value] || 'ko-KR'))
 async function choose(code) {
   lang.value = code; error.value = false; note.value = ''
   if (cache[code]) { data.value = cache[code]; return }

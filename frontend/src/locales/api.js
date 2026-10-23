@@ -1,3 +1,5 @@
+import { apiLocale as en } from './en.js'
+import { apiLocale as km } from './km.js'
 export const apiCopy = {
   ko: {
     signup: '회원가입', signingUp: '가입 중…', loginLink: '로그인으로 돌아가기', confirmPassword: '비밀번호 확인', mismatch: '비밀번호가 일치하지 않습니다.', signupDuplicate: '이미 사용 중인 아이디입니다.', signupSuccess: '가입되었습니다. 로그인해주세요.', passwordFormat: '비밀번호는 앞뒤 공백 없이 72바이트 이내로 입력해주세요.', checking: '로그인 확인 중…', credentials: '아이디 또는 비밀번호를 확인해주세요.', required: '아이디와 비밀번호를 입력해주세요.',
@@ -17,4 +19,5 @@ export const apiCopy = {
     invalid: 'Kiểm tra nội dung. Câu hỏi cần từ 2 đến 500 ký tự.', unavailable: 'Chưa thể trả lời. Hãy thử lại sau.', unexpected: 'Không thể xác nhận phản hồi. Vui lòng thử lại.', logoutFailed: 'Chưa thể đăng xuất. Vui lòng thử lại.', retry: 'Thử lại', handoff: 'Cần người phụ trách xác nhận', noLink: 'Không có liên kết tài liệu gốc.',
     chemical: 'An toàn hóa chất', law: 'Luật tai nạn nghiêm trọng', lawQuestion: 'Tiêu chí tai nạn công nghiệp nghiêm trọng theo luật là gì?', topics: 'Loại câu hỏi', voicePreview: 'Nhập giọng nói · xem trước', listenPreview: 'Nghe trả lời · xem trước',
   },
+  en, km,
 }

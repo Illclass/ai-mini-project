@@ -92,3 +92,15 @@ def test_attach_identity_adds_sections_1_3_16_once():
 
 def test_attach_identity_needs_one_product():
     assert retriever.attach_identity([_hit("D2-s8")], _FakeStore([]), None) == [_hit("D2-s8")]
+
+
+def test_merge_keeps_chunk_that_a_synonym_variant_ranks_first(monkeypatch):
+    # 원문 질문: 제6조가 더 가깝다(거리 0.30) / 동의어 변형 "…정의": 제2조 1위(거리 0.35)
+    results = {
+        "중대재해법의 기준은?": [("L2-6", 0.30), ("L2-15", 0.31), ("L2-2", 0.40)],
+        "중대재해법의 정의은?": [("L2-2", 0.35), ("L2-6", 0.45)],
+    }
+    monkeypatch.setattr(retriever, "search_store",
+                        lambda q, store, k=5, filter=None: [_hit(cid) | {"score": s} for cid, s in results[q][:k]])
+    merged = retriever._search_all(list(results), store=None, k=2)
+    assert [h["metadata"]["chunk_id"] for h in merged] == ["L2-6", "L2-2"]   # 둘 다 어떤 변형에서 1위

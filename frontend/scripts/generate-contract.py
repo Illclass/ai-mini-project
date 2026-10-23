@@ -14,6 +14,7 @@ contract = {
     'languages': list(module.LANGUAGES),
     'question': {'minLength': question['minLength'], 'maxLength': question['maxLength']},
     'requestFields': list(module.RagRequest.model_fields),
+    'nullableFields': [name for name, field in module.RagRequest.model_fields.items() if not field.is_required() and field.default is None],
     'responseFields': list(module.RagResponse.model_fields),
     'sourceFields': list(module.Source.model_fields),
 }

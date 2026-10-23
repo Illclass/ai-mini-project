@@ -171,3 +171,88 @@ body .glass-language-menu button[aria-selected='true'], body .glass-language-men
 #app .clear-wave i { background:var(--c-teal); }
 #app .chat-api-error { color:var(--c-danger); background:var(--c-danger-soft); border-radius:10px; padding:10px 14px; }
 #app .chat-api-error p, #app .chat-api-error button { color:var(--c-danger); text-shadow:none; }
+
+/* 자유 질문: 예상 질문 보드 */
+#app .faq-board { width:100%; max-width:760px; margin:16px auto 0; text-align:left; display:flex; flex-direction:column; gap:18px; }
+#app .faq-sub { margin:0; text-align:center; font-size:13px; color:var(--c-muted); }
+#app .faq-group h3 { margin:0 0 8px; font-size:14px; font-weight:700; color:var(--c-teal); }
+#app .faq-items { display:flex; flex-direction:column; gap:8px; }
+#app .faq-item { display:flex; align-items:center; justify-content:space-between; gap:12px; text-align:left; padding:12px 16px; background:#fff; color:var(--c-ink); border:1px solid var(--c-line); border-radius:12px; font-size:14px; line-height:1.5; box-shadow:none; }
+#app .faq-item:hover { border-color:var(--c-teal); background:var(--c-teal-soft); }
+#app .faq-item svg { color:var(--c-muted); }
+
+/* 장비·제품 선택(지훈님 기능) 청록 테마 적용 */
+#app .chat-topic-picker:has(+.chat-scope) { margin-bottom:0; }
+#app .chat-scope { background:var(--c-ground); border:1px solid var(--c-line); border-radius:14px; padding:14px; }
+#app .chat-scope-controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+#app .chat-scope-controls>label>span { color:var(--c-ink); text-shadow:none; font-size:13px; font-weight:700; padding-left:2px; }
+#app .scope-trigger { background:#fff; color:var(--c-ink); border:1px solid #C5D1CD; border-radius:12px; min-height:44px; font-size:14px; padding:0 14px; box-shadow:none; backdrop-filter:none; }
+#app .scope-trigger:disabled { opacity:.5; }
+body .scope-menu button { font-size:14px; min-height:40px; }
+#app .chat-scope-warning { color:#7A4E0A; background:#FDF1DC; border-radius:10px; padding:8px 12px; margin:10px 0 0; font-size:13px; }
+#app .chat-scope-context { color:rgba(255,255,255,.92); font-size:12px; opacity:1; }
+#app .chat-product-required { background:#FDF1DC; color:#6B4300; border-radius:12px; font-size:14px; font-weight:500; padding:10px 14px; }
+#app .chat-product-required button { background:var(--c-teal); color:#fff; border-radius:10px; font-size:13px; }
+#app .chat-loading-state { padding:0; }
+#app .chat-loading-lines i { background:#E3E9E7; }
+#app .chat-cancel-request { color:var(--c-ink); background:#fff; border:1px solid #C5D1CD; box-shadow:none; }
+#app .chat-api-error { background:var(--c-danger-soft); color:var(--c-danger); border:1px solid #F0C4BA; }
+#app .chat-api-error h3, #app .chat-api-error h3 svg, #app .chat-api-error p { color:var(--c-danger); text-shadow:none; }
+#app .chat-api-error.is-cancelled { background:var(--c-ground); border-color:var(--c-line); }
+#app .chat-api-error.is-cancelled h3, #app .chat-api-error.is-cancelled h3 svg, #app .chat-api-error.is-cancelled p { color:var(--c-ink); }
+#app .chat-error-actions button { color:var(--c-ink); background:#fff; border:1px solid #C5D1CD; box-shadow:none; }
+#app .chat-error-actions button:first-child { background:var(--c-teal); color:#fff; border-color:var(--c-teal); }
+#app .chat-followup button { background:#fff; color:var(--c-ink); border:1px solid #C5D1CD; border-radius:999px; box-shadow:none; }
+#app .api-global-error { color:var(--c-danger); background:var(--c-danger-soft); }
+@media (max-width:600px) { #app .chat-scope-controls { grid-template-columns:1fr; } }
+
+/* 빈 화면 제목 축소 + 예상질문 가독성 */
+#app .clear-chat-empty { min-height:0; padding:16px 0 8px; }
+#app .clear-chat-empty .clear-empty-icon { width:48px; height:48px; border-radius:14px; margin-bottom:8px; }
+#app .clear-chat-empty .clear-empty-icon svg { width:26px; height:26px; }
+#app .clear-chat-empty h2 { font-size:18px; font-weight:500; margin:0 0 12px; }
+#app .clear-suggestions { flex-direction:column; align-items:stretch; gap:8px; }
+#app .clear-suggestions button { flex:none; width:100%; justify-content:space-between; text-align:left; border-radius:12px; padding:14px 16px; font-size:14px; line-height:1.6; word-break:keep-all; overflow-wrap:anywhere; }
+#app .clear-suggestions button:hover { border-color:var(--c-teal); background:var(--c-teal-soft); }
+
+/* 비상 연락망 */
+#app .emergency-btn { display:inline-flex; align-items:center; gap:6px; height:40px; padding:0 14px; border-radius:12px; background:#B4412F; color:#fff; border:0; font-size:14px; font-weight:700; box-shadow:none; }
+.em-modal { background:#fff; color:var(--c-ink); border-radius:20px; max-width:480px; width:100%; padding:28px; box-shadow:0 20px 60px rgba(18,32,30,.25); font-family:'Noto Sans KR',-apple-system,'Apple SD Gothic Neo',sans-serif; }
+.em-modal h2 { margin:0 0 8px; font-size:22px; color:var(--c-danger); }
+.em-note { margin:0 0 16px; font-size:14px; line-height:1.6; color:var(--c-muted); }
+.em-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.em-list li { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid var(--c-line); border-radius:12px; }
+.em-list li div { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.em-list li b { font-size:15px; }
+.em-list li span { font-size:12px; color:var(--c-muted); }
+.em-list a { flex:none; min-width:84px; text-align:center; padding:10px 14px; border-radius:10px; border:1px solid var(--c-teal); color:var(--c-teal); font-size:18px; font-weight:700; text-decoration:none; }
+.em-list a.primary { background:#B4412F; border-color:#B4412F; color:#fff; }
+.em-list .em-site { border-style:dashed; }
+.em-list .em-site em { font-style:normal; font-size:12px; color:var(--c-muted); }
+.em-close { margin-top:16px; width:100%; height:48px; border-radius:12px; border:1px solid #C5D1CD; background:#fff; color:var(--c-ink); font-size:15px; cursor:pointer; }
+
+/* 화면 전환·진입 속도: 느린 모래 애니메이션과 긴 페이드 제거 */
+#app .scene-enter-active { transition:opacity .22s ease !important; }
+#app .scene-leave-active { transition:opacity .12s ease !important; }
+#app .scene-enter-from { transform:none !important; }
+#app .scene-leave-to { transform:none !important; }
+#app .glass-situation { animation:none !important; }
+#app .glass-situation-grid, #app .home-free-question, #app .glass-home-main > * { animation:none !important; opacity:1 !important; transform:none !important; }
+
+/* 빈 화면: 예상질문을 위로, '작은 궁금증' 안내는 아래로 */
+#app .clear-chat-empty { display:flex; flex-direction:column; align-items:center; }
+#app .clear-chat-empty .clear-suggestions, #app .clear-chat-empty .faq-board { order:1; margin:0 0 20px; }
+#app .clear-chat-empty .clear-empty-icon { order:2; margin-bottom:6px; }
+#app .clear-chat-empty h2 { order:3; margin:0; }
+
+/* 최종: 안내(아이콘·제목)는 남은 여백 한가운데, 예상질문은 입력창 바로 위 */
+#app .clear-conversation { display:flex; flex-direction:column; }
+#app .clear-chat-empty { flex:1; width:100%; display:flex; flex-direction:column; align-items:center; padding:8px 0 0; min-height:0; }
+#app .clear-chat-empty .clear-empty-icon { order:1; margin:auto 0 6px; }
+#app .clear-chat-empty h2 { order:2; margin:0 0 auto; }
+#app .clear-chat-empty .clear-suggestions, #app .clear-chat-empty .faq-board { order:3; margin:12px 0 0; }
+
+/* 대화 영역: 기존 유리 상자(고정 높이·둥근 테두리·내부 스크롤) 제거 → 잘림 방지 */
+#app .clear-conversation { max-height:none; min-height:300px; overflow:visible; border:0; border-radius:0; box-shadow:none; background:none; }
+#app .clear-composer { position:sticky; bottom:12px; z-index:2; }
+#app .clear-chat-main { gap:0; }

@@ -205,6 +205,7 @@ TEXT = {
         "emergency": "긴급 안내: AI 답변이나 문서 검색을 기다리지 마세요. 현장 비상절차를 우선 따르고 즉시 119(한국)와 현장 비상연락 담당자에게 알리세요. 누출 차단·중화·재진입 같은 위험한 조치를 이 서비스의 답변만으로 시도하지 마세요.",
         "out_of_scope": "법적 책임 확정, 작업 승인, 위험한 현장 조작 방법은 제공하지 않습니다. 현장 안전담당자·선임 또는 해당 분야 전문가에게 확인하세요.",
         "no_evidence": "제공된 자료에서 질문에 답할 충분한 근거를 확인하지 못했습니다. 적용 여부 판단을 보류하고 선임·안전담당자에게 확인하세요.",
+        "product_selection_required": "어떤 약품인지 선택해 주세요. 같은 장비라도 사용하는 약품·농도에 따라 필요한 보호구가 달라질 수 있습니다. 제품 라벨과 일치하는 약품(MSDS)을 선택한 뒤 다시 질문해 주세요.",
         "product_unverified": "제품 확인이 필요합니다. 제품명·제품번호·농도·MSDS 개정일과 실제 현장 제품의 일치 여부를 확인하지 못해 제품별 설명을 보류합니다. 공급자 MSDS와 제품 라벨을 선임·안전담당자에게 확인하세요. 다른 제품의 정보로 대신 답하지 않습니다.",
         "invalid_translation": "경고·적용 조건의 번역을 검증하지 못해 답변을 보류합니다. 원문과 함께 선임·안전담당자의 확인이 필요합니다.",
         "fallback": "근거 또는 응답을 검증하지 못해 판단을 보류합니다. 선임·안전담당자에게 확인하세요.",
@@ -229,6 +230,7 @@ TEXT = {
         "emergency": "紧急提示：不要等待AI回答或文件检索。优先遵循现场应急程序，立即联系119（韩国）和现场应急负责人。不要仅凭本服务的回答尝试堵漏、中和或重新进入危险区域。",
         "out_of_scope": "本服务不认定法律责任、不批准作业，也不提供危险现场操作步骤。请向现场安全人员、资深同事或相关专业人员确认。",
         "no_evidence": "所提供的资料不足以回答问题。暂不判断是否适用，请向资深同事或安全人员确认。",
+        "product_selection_required": "请选择使用的化学品。同一设备使用不同化学品或浓度时，所需防护用品可能不同。请选择与产品标签一致的化学品（MSDS）后重新提问。",
         "product_unverified": "需要确认产品。产品名称、产品编号、浓度、MSDS修订日期及其与现场产品的一致性尚未核实，因此暂不提供产品专用说明。请与资深同事或安全人员核对供应商MSDS和产品标签，不用其他产品的信息代替。",
         "invalid_translation": "未能核实警告和适用条件的翻译，暂不提供回答。请与资深同事或安全人员核对原文。",
         "fallback": "未能核实依据或回答，暂缓判断。请向资深同事或安全人员确认。",
@@ -253,6 +255,7 @@ TEXT = {
         "emergency": "Thông báo khẩn cấp: Không chờ câu trả lời của AI hoặc kết quả tìm tài liệu. Ưu tiên quy trình khẩn cấp tại cơ sở, liên hệ ngay 119 (tại Hàn Quốc) và người phụ trách khẩn cấp tại hiện trường. Không tự chặn rò rỉ, trung hòa hoặc quay lại khu vực nguy hiểm chỉ dựa vào câu trả lời của dịch vụ này.",
         "out_of_scope": "Dịch vụ không kết luận trách nhiệm pháp lý, không phê duyệt công việc và không hướng dẫn thao tác nguy hiểm tại hiện trường. Hãy xác nhận với nhân viên an toàn, đồng nghiệp có kinh nghiệm hoặc chuyên gia phù hợp.",
         "no_evidence": "Tài liệu được cung cấp chưa đủ căn cứ để trả lời. Chưa thể kết luận có áp dụng hay không; hãy hỏi đồng nghiệp có kinh nghiệm hoặc nhân viên an toàn.",
+        "product_selection_required": "Vui lòng chọn hóa chất đang sử dụng. Cùng một thiết bị có thể cần phương tiện bảo hộ khác nhau tùy hóa chất và nồng độ. Chọn hóa chất (MSDS) khớp với nhãn sản phẩm rồi hỏi lại.",
         "product_unverified": "Cần xác nhận sản phẩm. Chưa xác minh tên, mã sản phẩm, nồng độ, ngày sửa đổi MSDS và sự phù hợp với sản phẩm thực tế nên tạm chưa đưa ra giải thích riêng cho sản phẩm. Hãy cùng đồng nghiệp có kinh nghiệm hoặc nhân viên an toàn kiểm tra MSDS của nhà cung cấp và nhãn sản phẩm. Không thay bằng thông tin của sản phẩm khác.",
         "invalid_translation": "Chưa xác minh được bản dịch cảnh báo và điều kiện áp dụng nên tạm chưa trả lời. Hãy đối chiếu bản gốc với đồng nghiệp có kinh nghiệm hoặc nhân viên an toàn.",
         "fallback": "Chưa xác minh được căn cứ hoặc câu trả lời nên tạm hoãn kết luận. Hãy xác nhận với đồng nghiệp có kinh nghiệm hoặc nhân viên an toàn.",
@@ -277,6 +280,7 @@ TEXT = {
         "emergency": "Emergency notice: Do not wait for an AI answer or document search. Follow the on-site emergency procedure first and immediately contact 119 (Korea) and the on-site emergency contact person. Do not attempt dangerous actions such as stopping a leak, neutralizing, or re-entering based only on this service's answer.",
         "out_of_scope": "This service does not determine legal liability, approve work, or explain dangerous on-site operations. Please check with your on-site safety officer, a senior colleague, or a qualified expert.",
         "no_evidence": "The provided materials do not contain enough evidence to answer this question. Applicability is not determined; please check with a senior colleague or safety officer.",
+        "product_selection_required": "Please select the chemical you are using. Required protective equipment may differ with the chemical and concentration, even on the same equipment. Select the chemical (MSDS) matching the product label, then ask again.",
         "product_unverified": "Product confirmation is needed. The product name, product number, concentration, MSDS revision date, and match with the actual on-site product could not be verified, so a product-specific explanation is withheld. Check the supplier MSDS and product label with a senior colleague or safety officer. Information from other products is not used as a substitute.",
         "invalid_translation": "The translation of warnings and conditions of application could not be verified, so the answer is withheld. Please check the original text with a senior colleague or safety officer.",
         "fallback": "The evidence or answer could not be verified, so judgment is withheld. Please check with a senior colleague or safety officer.",
@@ -301,6 +305,7 @@ TEXT = {
         "emergency": "សេចក្តីជូនដំណឹងបន្ទាន់៖ កុំរង់ចាំចម្លើយរបស់ AI ឬការស្វែងរកឯកសារ។ សូមអនុវត្តនីតិវិធីបន្ទាន់នៅកន្លែងការងារជាមុន ហើយទាក់ទងលេខ 119 (កូរ៉េ) និងអ្នកទទួលខុសត្រូវបន្ទាន់នៅកន្លែងការងារភ្លាមៗ។ កុំព្យាយាមបិទការលេចធ្លាយ បន្សាប ឬចូលទៅតំបន់គ្រោះថ្នាក់វិញ ដោយផ្អែកតែលើចម្លើយរបស់សេវានេះ។",
         "out_of_scope": "សេវានេះមិនកំណត់ការទទួលខុសត្រូវផ្លូវច្បាប់ មិនអនុម័តការងារ និងមិនពន្យល់ពីប្រតិបត្តិការដែលមានគ្រោះថ្នាក់នៅកន្លែងការងារទេ។ សូមពិនិត្យជាមួយមន្ត្រីសុវត្ថិភាព បុគ្គលិកជាន់ខ្ពស់ ឬអ្នកជំនាញ។",
         "no_evidence": "ឯកសារដែលបានផ្តល់មិនមានភស្តុតាងគ្រប់គ្រាន់ដើម្បីឆ្លើយសំណួរនេះទេ។ មិនទាន់សម្រេចថាអនុវត្តឬអត់ទេ សូមពិនិត្យជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
+        "product_selection_required": "សូមជ្រើសរើសសារធាតុគីមីដែលអ្នកកំពុងប្រើ។ ឧបករណ៍ការពារដែលត្រូវការអាចខុសគ្នាតាមសារធាតុគីមី និងកំហាប់ ទោះបីប្រើម៉ាស៊ីនដូចគ្នាក៏ដោយ។ សូមជ្រើសរើសសារធាតុគីមី (MSDS) ដែលត្រូវនឹងស្លាកផលិតផល រួចសួរម្តងទៀត។",
         "product_unverified": "ត្រូវការបញ្ជាក់ផលិតផល។ មិនអាចផ្ទៀងផ្ទាត់ឈ្មោះផលិតផល លេខផលិតផល កំហាប់ កាលបរិច្ឆេទកែប្រែ MSDS និងភាពត្រូវគ្នាជាមួយផលិតផលពិតនៅកន្លែងការងារបានទេ ដូច្នេះការពន្យល់សម្រាប់ផលិតផលនេះត្រូវបានផ្អាក។ សូមពិនិត្យ MSDS របស់អ្នកផ្គត់ផ្គង់ និងស្លាកផលិតផលជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។ មិនប្រើព័ត៌មានរបស់ផលិតផលផ្សេងជំនួសទេ។",
         "invalid_translation": "មិនអាចផ្ទៀងផ្ទាត់ការបកប្រែការព្រមាន និងលក្ខខណ្ឌអនុវត្តបានទេ ដូច្នេះចម្លើយត្រូវបានផ្អាក។ សូមពិនិត្យអត្ថបទដើមជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
         "fallback": "មិនអាចផ្ទៀងផ្ទាត់ភស្តុតាង ឬចម្លើយបានទេ ដូច្នេះការសម្រេចត្រូវបានផ្អាក។ សូមពិនិត្យជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
@@ -420,8 +425,11 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   그 JSON이 {}이면 반드시 []를 반환하세요. chunk_id를 passage_id 대신 넣지 마세요.
 - 번역에서도 숫자는 원문 아라비아 숫자 표기를 그대로 유지하세요. 예: 2를 중국어 两/二나
   베트남어 hai로 바꾸지 마세요. 1.0%, ppm, 온도 단위와 날짜도 그대로 보존하세요.
-- product_facts의 quote에는 '제품명:', '제품번호:', '농도:', '개정일:'처럼 값의 의미를
-  확인할 수 있는 원문 항목명과 값을 함께 인용하세요. 값만 따로 인용하지 마세요.
+- product_facts의 quote에는 '제품명:', '제품번호:', '개정일:'처럼 값의 의미를
+  확인할 수 있는 원문 항목명과 값을 함께 인용하세요.
+- 농도(concentration)는 표의 '농도' 또는 '함유량' 라벨이 같은 chunk_id의 본문에 있으면
+  값이 있는 표 행만 quote로 인용할 수 있습니다. value는 해당 quote 안의 원문 표기 그대로
+  추출하세요. 다른 청크나 metadata에만 있는 라벨로 보완하거나 범위·단위를 바꾸지 마세요.
 - 적용 조건은 statements의 조건 설명 문장만으로 대신하지 말고 conditions에도 인용과 함께
   기록하세요. 같은 내용을 반복하는 statements는 합쳐 간결하게 설명하세요.
 """

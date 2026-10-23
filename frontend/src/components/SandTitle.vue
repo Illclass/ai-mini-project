@@ -31,12 +31,15 @@ async function paint() {
   context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
   context.fillStyle = '#fff'
   context.textBaseline = 'alphabetic'
-  // DOM ranges retain the actual wrapping and kerning of all three languages.
+  // Keep combining marks and Khmer consonant clusters together during sampling.
   const node = textElement.value.firstChild
   if (!node) { settled.value = true; return }
   const range = document.createRange()
   let offset = 0
-  for (const char of props.text) {
+  const glyphs = typeof Intl.Segmenter === 'function'
+    ? [...new Intl.Segmenter(document.documentElement.lang, { granularity: 'grapheme' }).segment(props.text)].map(item => item.segment)
+    : Array.from(props.text)
+  for (const char of glyphs) {
     range.setStart(node, offset)
     offset += char.length
     range.setEnd(node, offset)

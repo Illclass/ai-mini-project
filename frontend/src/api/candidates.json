@@ -1,0 +1,272 @@
+{
+ "ko": {
+  "chemical": [
+   {
+    "g": "substance",
+    "q": "불산 취급 시 주의할 점과 필요한 보호구는?"
+   },
+   {
+    "g": "substance",
+    "q": "황산을 개봉하거나 옮겨 담을 때 주의할 점은?"
+   },
+   {
+    "g": "substance",
+    "q": "과산화수소를 보관할 때 피해야 할 조건은?"
+   },
+   {
+    "g": "substance",
+    "q": "암모니아수 작업 시 환기와 보호구 확인사항은?"
+   },
+   {
+    "g": "substance",
+    "q": "염산이 눈에 들어가면 어떻게 해야 하나요?"
+   },
+   {
+    "g": "substance",
+    "q": "질산과 함께 두면 안 되는 물질은?"
+   },
+   {
+    "g": "substance",
+    "q": "TMAH가 피부에 묻었어요. 어떻게 해야 하나요?"
+   },
+   {
+    "g": "substance",
+    "q": "아세톤에 불이 붙으면 어떻게 꺼야 하나요?"
+   },
+   {
+    "g": "substance",
+    "q": "메탄올을 마시면 어떤 증상이 나타나나요?"
+   },
+   {
+    "g": "substance",
+    "q": "IPA의 인화점은 얼마인가요?"
+   },
+   {
+    "g": "substance",
+    "q": "남은 PGMEA는 어떻게 폐기하나요?"
+   },
+   {
+    "g": "substance",
+    "q": "수산화나트륨이 바닥에 쏟아지면 어떻게 처리하나요?"
+   },
+   {
+    "g": "substance",
+    "q": "인산을 다룰 때 어떤 보호구를 써야 하나요?"
+   },
+   {
+    "g": "common",
+    "q": "유해화학물질은 어떻게 저장해야 하나요?"
+   },
+   {
+    "g": "common",
+    "q": "개인보호구는 어떻게 관리하고 유지해야 하나요?"
+   },
+   {
+    "g": "common",
+    "q": "용기 경고표지에는 어떤 내용이 들어가나요?"
+   },
+   {
+    "g": "common",
+    "q": "사용기한이나 개봉 후 사용기한은 어떻게 확인하나요?"
+   },
+   {
+    "g": "common",
+    "q": "노출기준만큼은 오래 작업해도 되나요?"
+   },
+   {
+    "g": "common",
+    "q": "남은 약품과 오염된 장갑은 어떻게 처리하나요?"
+   },
+   {
+    "g": "incident",
+    "q": "Wet Bench에서 불산 공급 용기를 교체하기 전에 무엇을 확인해야 하나요?"
+   },
+   {
+    "g": "incident",
+    "q": "Dry Etcher 챔버를 열어 부품을 교체하려고 합니다. 어떤 유해물질을 확인해야 하나요?"
+   },
+   {
+    "g": "incident",
+    "q": "CVD 장비에서 가스 누출 경보가 울렸습니다. 어떻게 해야 하나요?"
+   },
+   {
+    "g": "incident",
+    "q": "설비에서 이상한 냄새가 나는데 어떤 가스인가요?"
+   },
+   {
+    "g": "incident",
+    "q": "불산에 노출됐을 때 응급대응은 어떻게 하나요?"
+   }
+  ],
+  "law": [
+   {
+    "g": "law",
+    "q": "중대재해법의 기준은?"
+   },
+   {
+    "g": "law",
+    "q": "경영책임자는 어떤 안전 의무가 있나요?"
+   },
+   {
+    "g": "law",
+    "q": "협력사(하청) 근로자도 이 법으로 보호받나요?"
+   },
+   {
+    "g": "law",
+    "q": "직원이 5명보다 적은 회사도 적용되나요?"
+   },
+   {
+    "g": "law",
+    "q": "우리 공장에서 사망사고가 났는데 대표이사가 처벌받나요?"
+   },
+   {
+    "g": "law",
+    "q": "중처법 위반으로 사람이 죽으면 벌금 얼마야?"
+   },
+   {
+    "g": "law",
+    "q": "회사(법인)도 따로 벌금을 내나요?"
+   },
+   {
+    "g": "law",
+    "q": "위험하면 작업을 멈추고 대피해도 되나요?"
+   },
+   {
+    "g": "law",
+    "q": "MSDS를 작업장에 게시하고 교육해야 하나요?"
+   },
+   {
+    "g": "law",
+    "q": "화학사고가 나면 신고해야 하나요?"
+   },
+   {
+    "g": "law",
+    "q": "회사가 보호구를 지급해야 하나요?"
+   },
+   {
+    "g": "law",
+    "q": "협력업체 근로자도 보호 대상인가요?"
+   }
+  ]
+ },
+ "zh": {
+  "chemical": [
+   {
+    "g": "common",
+    "q": "处理氢氟酸时需要注意什么？需要哪些防护用品？"
+   },
+   {
+    "g": "common",
+    "q": "盐酸溅入眼睛怎么办？"
+   },
+   {
+    "g": "common",
+    "q": "TMAH沾到皮肤上了，该怎么办？"
+   },
+   {
+    "g": "common",
+    "q": "在Wet Bench更换氢氟酸供应容器之前，需要确认什么？"
+   }
+  ],
+  "law": [
+   {
+    "g": "law",
+    "q": "重大产业灾害的标准是什么？"
+   },
+   {
+    "g": "law",
+    "q": "如果有危险，可以停止作业并撤离吗？"
+   }
+  ]
+ },
+ "vi": {
+  "chemical": [
+   {
+    "g": "common",
+    "q": "Khi xử lý axit flohydric cần chú ý gì và cần đồ bảo hộ nào?"
+   },
+   {
+    "g": "common",
+    "q": "Nếu axit clohydric bắn vào mắt thì phải làm gì?"
+   },
+   {
+    "g": "common",
+    "q": "TMAH dính vào da, tôi phải làm gì?"
+   },
+   {
+    "g": "common",
+    "q": "Trước khi thay bình cấp axit flohydric ở Wet Bench, cần kiểm tra những gì?"
+   }
+  ],
+  "law": [
+   {
+    "g": "law",
+    "q": "Tiêu chuẩn của tai nạn lao động nghiêm trọng là gì?"
+   },
+   {
+    "g": "law",
+    "q": "Nếu nguy hiểm, tôi có thể dừng công việc và sơ tán không?"
+   }
+  ]
+ },
+ "en": {
+  "chemical": [
+   {
+    "g": "common",
+    "q": "What precautions and protective equipment are needed when handling hydrofluoric acid?"
+   },
+   {
+    "g": "common",
+    "q": "What should I do if hydrochloric acid gets in my eyes?"
+   },
+   {
+    "g": "common",
+    "q": "TMAH got on my skin. What should I do?"
+   },
+   {
+    "g": "common",
+    "q": "What should I check before replacing the hydrofluoric acid supply container on the Wet Bench?"
+   }
+  ],
+  "law": [
+   {
+    "g": "law",
+    "q": "What are the criteria for a serious industrial accident?"
+   },
+   {
+    "g": "law",
+    "q": "If there is danger, can I stop work and evacuate?"
+   }
+  ]
+ },
+ "km": {
+  "chemical": [
+   {
+    "g": "common",
+    "q": "តើត្រូវប្រុងប្រយ័ត្នអ្វីខ្លះ និងត្រូវការឧបករណ៍ការពារអ្វីខ្លះ នៅពេលប្រើអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិក?"
+   },
+   {
+    "g": "common",
+    "q": "ប្រសិនបើអាស៊ីតអ៊ីដ្រូក្លរិចចូលភ្នែក តើត្រូវធ្វើដូចម្តេច?"
+   },
+   {
+    "g": "common",
+    "q": "TMAH ប្រឡាក់ស្បែករបស់ខ្ញុំ។ តើខ្ញុំត្រូវធ្វើដូចម្តេច?"
+   },
+   {
+    "g": "common",
+    "q": "មុនពេលប្តូរធុងផ្គត់ផ្គង់អាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិកនៅ Wet Bench តើត្រូវពិនិត្យអ្វីខ្លះ?"
+   }
+  ],
+  "law": [
+   {
+    "g": "law",
+    "q": "តើលក្ខណៈវិនិច្ឆ័យនៃគ្រោះថ្នាក់ការងារធ្ងន់ធ្ងរមានអ្វីខ្លះ?"
+   },
+   {
+    "g": "law",
+    "q": "ប្រសិនបើមានគ្រោះថ្នាក់ តើខ្ញុំអាចឈប់ការងារ ហើយជម្លៀសខ្លួនបានទេ?"
+   }
+  ]
+ }
+}

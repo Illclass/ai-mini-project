@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from 'vue'
 import Icon from '../components/Icon.vue'
-import SandTitle from '../components/SandTitle.vue'
 import { copy } from '../locales'
 import { spring as vSpring } from '../directives/spring'
 import '../home-glass.css'
@@ -33,7 +32,7 @@ function reset(event) {
 <template>
   <div class="glass-home">
     <main class="glass-home-main">
-      <SandTitle :text="t.homeTitle.replace('\n', ' ')" />
+      <h1 class="sand-title"><span class="sand-title-text settled">{{ t.homeTitle.replace('\n', ' ') }}</span></h1>
       <p class="clean-home-sub">{{ t.homeDesc }}</p>
       <div class="glass-situation-grid" :aria-label="t.situations">
         <button

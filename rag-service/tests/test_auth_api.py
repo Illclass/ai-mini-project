@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from jose import jwt
 
 from app import auth, main
-from rag.schema import ENV_JWT_SECRET, TOPIC_LAW, TOPICS, RagRequest, RagResponse
+from rag.schema import DOC_TYPE_LAW, ENV_JWT_SECRET, LANGUAGES, TOPIC_LAW, TOPICS, RagRequest, RagResponse, make_chunk_id
 
 
 @pytest.fixture
@@ -36,9 +36,11 @@ def app_logs(caplog):
                      if record.name in ("chembridge.requests", "app.main", "root"))
 
 
-def test_bearer_without_cookie(api):
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_bearer_without_cookie(api, language):
     client, secret = api
-    response = client.post("/rag-query", headers={"Authorization": "Bearer " + token(secret)}, json=body())
+    response = client.post("/rag-query", headers={"Authorization": "Bearer " + token(secret)},
+                           json={**body(), "language": language})
     assert response.status_code == 200
     RagResponse.model_validate(response.json())
 
@@ -180,3 +182,119 @@ def test_index_startup_failure_keeps_health_available(monkeypatch, caplog):
         assert client.get("/health").status_code == 503
         assert client.get("/docs").status_code == 200
     assert "PRIVATE_STARTUP_MARKER" not in caplog.text
+
+
+@pytest.mark.parametrize("case, expected", [
+    ("missing_token", 401), ("expired_token", 401), ("invalid_topic", 422),
+    ("invalid_language", 422), ("too_short", 422), ("too_long", 422), ("malformed_json", 422),
+])
+def test_rejected_request_never_calls_chain(api, monkeypatch, case, expected):
+    client, secret = api
+    monkeypatch.setattr(main, "answer", lambda req: pytest.fail("거부된 요청에서 chain을 호출했습니다"))
+    headers = {"Authorization": "Bearer " + token(secret)}
+    payload = body()
+    if case == "missing_token":
+        headers.clear()
+    elif case == "expired_token":
+        headers["Authorization"] = "Bearer " + token(secret, exp=0)
+    elif case == "invalid_topic":
+        payload["topic"] = "invalid"
+    elif case == "invalid_language":
+        payload["language"] = "unsupported"
+    elif case == "too_short":
+        payload["question"] = "a"
+    elif case == "too_long":
+        payload["question"] = "a" * 501
+    if case == "malformed_json":
+        response = client.post("/rag-query", content="{", headers={**headers, "Content-Type": "application/json"})
+    else:
+        response = client.post("/rag-query", json=payload, headers=headers)
+    assert response.status_code == expected
+
+
+@pytest.mark.parametrize("failure", [TimeoutError, ConnectionError, RuntimeError])
+def test_chain_errors_are_sanitized_503(api, monkeypatch, failure):
+    client, secret = api
+    def fail(req):
+        raise failure("PRIVATE_UPSTREAM_DETAILS_" + req.question + secret)
+    monkeypatch.setattr(main, "answer", fail)
+    response = client.post("/rag-query", json=body(), headers={"Authorization": "Bearer " + token(secret)})
+    assert response.status_code == 503
+    assert response.json() == {"detail": "잠시 후 다시 시도해 주세요."}
+
+
+@pytest.mark.parametrize("ready, expected", [(True, 200), (False, 503)])
+def test_health_readiness_status(api, monkeypatch, ready, expected):
+    client, _ = api
+    monkeypatch.setattr(main.stores, "is_ready", lambda: ready)
+    monkeypatch.setattr(main.stores, "status", lambda: {topic: ready for topic in TOPICS})
+    response = client.get("/health")
+    assert response.status_code == expected
+    assert response.json() == {"ready": ready, "indexes": {topic: ready for topic in TOPICS}}
+
+
+def test_unmatched_path_does_not_leak_user_input(api, caplog):
+    client, _ = api
+    caplog.set_level(logging.INFO)
+    response = client.get("/PRIVATE_PATH_MARKER?secret=PRIVATE_QUERY_MARKER",
+                          headers={"Origin": "http://localhost:5174"})
+    assert response.status_code == 404
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5174"
+    logs = app_logs(caplog)
+    assert "path=/unmatched status=404 latency_ms=" in logs
+    assert "PRIVATE_PATH_MARKER" not in logs and "PRIVATE_QUERY_MARKER" not in logs
+
+
+def test_wrong_method_is_405_with_cors(api):
+    client, _ = api
+    response = client.get("/rag-query", headers={"Origin": "http://localhost:5174"})
+    assert response.status_code == 405
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5174"
+
+
+@pytest.mark.parametrize("doc_id", ["FIXTURE-LAW", "", None])
+def test_api_preserves_sources_and_exposes_generation_metadata_hold(api, monkeypatch, doc_id):
+    """API는 출처를 제거하지 않는다. 구 청크의 빈 doc_id는 생성 단계에서 보류한다.
+
+    검색·LLM은 격리하고 실제 chain→generate→응답 직렬화를 연결해 병합 회귀를 확인한다.
+    """
+    from rag import chain, generator
+
+    client, secret = api
+    metadata = {
+        "doc_id": doc_id, "doc_type": DOC_TYPE_LAW, "topic": TOPIC_LAW,
+        "chunk_id": make_chunk_id("FIXTURE-LAW", "1"),
+        "title": "가상 테스트 법령", "section": "제1조", "law_name": "가상 테스트 법령",
+        "article_no": "제1조", "source_url": "https://example.invalid/fixture",
+    }
+    if doc_id is None:
+        metadata.pop("doc_id")
+    hits = [{"text": "실제 법령이 아닌 API 전송 검증용 자료입니다.", "score": 0.0, "metadata": metadata}]
+    calls = []
+
+    def generated_result(question, documents, **kwargs):
+        calls.append(documents)
+        return generator.GenerationOutput(
+            answer="출처 전송 확인용 테스트 응답",
+            sources=[generator.SourceMetadata.model_validate(documents[0].metadata)],
+            needs_review=False, handoff=False,
+        )
+
+    monkeypatch.setattr(main, "answer", chain.answer)
+    monkeypatch.setattr(chain, "retrieve", lambda *args, **kwargs: hits)
+    monkeypatch.setattr(generator, "generate_answer", generated_result)
+    response = client.post("/rag-query", json=RagRequest(
+        question="중대재해법의 기준은?", topic=TOPIC_LAW,
+    ).model_dump(), headers={"Authorization": "Bearer " + token(secret)})
+    assert response.status_code == 200
+    data = response.json()
+    if doc_id:
+        assert len(calls) == 1
+        assert data["sources"] == [{"doc_id": doc_id, "section": metadata["section"],
+                                    "title": metadata["title"], "url": metadata["source_url"]}]
+        assert data["answer"] == "출처 전송 확인용 테스트 응답"
+        assert data["handoff"] is False
+    else:
+        assert not calls, "doc_id가 없는데 생성 호출로 진행했습니다"
+        assert data["sources"] == []
+        assert data["handoff"] is True and data["needs_review"] is True

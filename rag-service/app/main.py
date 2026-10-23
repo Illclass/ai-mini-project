@@ -150,7 +150,7 @@ def health():
     summary="근거 기반 다국어 안전 안내",
     responses={
         200: {
-            "description": "안내와 출처. 담당자 연결 여부도 함께 확인하세요.",
+            "description": "안내와 검증된 출처. 검색 근거가 질문에 충분하지 않으면 sources=[]·handoff=true로 보류할 수 있습니다.",
             "content": {"application/json": {"example": RagResponse(
                 answer="검색한 근거를 바탕으로 한 안내가 표시됩니다.",
                 sources=[Source(
@@ -176,7 +176,7 @@ def health():
     },
     openapi_extra={"requestBody": {"content": {"application/json": {"examples": {
         "law": {"summary": "법령 질문", "value": RagRequest(
-            question="중대재해법의 기준은?", topic=TOPIC_LAW,
+            question="중대재해처벌법 제2조에서 정한 중대산업재해의 정의는 무엇인가요?", topic=TOPIC_LAW,
         ).model_dump()},
         "chemical": {"summary": "화학물질 안전 질문", "value": RagRequest(
             question="황산 취급 시 보호구는 무엇인가요?", topic=TOPIC_CHEMICAL,
