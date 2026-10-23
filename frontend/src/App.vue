@@ -5,6 +5,9 @@ import LanguagePicker from './components/LanguagePicker.vue'
 import LoginView from './views/LoginView.vue'
 import HomeView from './views/HomeView.vue'
 import SceneBackground from './components/SceneBackground.vue'
+import GuideViewer from './components/GuideViewer.vue'
+import ReportModal from './components/ReportModal.vue'
+import { clean } from './locales/clean'
 import { spring as vSpring } from './directives/spring'
 import './chat-glass.css'
 import { copy } from './locales'
@@ -13,6 +16,7 @@ import { apiCopy } from './locales/api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
 const topic=ref(api.contract.topics.chemical), a=computed(()=>apiCopy[language.value])
+const report=ref(null), c=computed(()=>clean[language.value]||clean.ko)
 let requestController, resumeDraft
 function errorKey(error){
  if(error.status===422)return 'invalid'
@@ -33,6 +37,8 @@ onMounted(async()=>{
 try { const saved=localStorage.getItem('chembridge-language'); if(copy[saved])language.value=saved } catch {}
 const t=computed(()=>copy[language.value]),keys=['before','handling','storage','during','after','emergency']
 const index=computed(()=>keys.indexOf(situation.value)),title=computed(()=>topic.value===api.contract.topics.law?a.value.law:index.value<0?t.value.free:t.value.topicTitles[index.value]),busy=computed(()=>pending.value||['recording','processing'].includes(voice.value))
+const isLaw=computed(()=>topic.value===api.contract.topics.law)
+const guideUrl=computed(()=>isLaw.value?'/guides/law.pdf':index.value>=0?`/guides/${situation.value}.pdf`:null)
 const suggestions=computed(()=>[Math.max(0,index.value),index.value===2?1:2])
 const modalElement = ref(null)
 let modalTrigger
@@ -55,7 +61,7 @@ function stop(){clearTimeout(timer);playing.value=null}
 function cleanup(){requestController?.abort();version++;pending.value=false;voice.value='idle';modal.value=null;stop()}
 function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
 function open(key,selectedTopic=api.contract.topics.chemical){navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value=''}
-function changeTopic(value){if(busy.value)return;open('free',value)}
+function changeTopic(value){if(busy.value)return;open(situation.value,value)}
 async function logout(){
  if(signingOut.value)return
  signingOut.value=true;globalError.value=''
@@ -128,10 +134,12 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
 <Transition name="scene" mode="out-in">
 <LoginView key="login" v-if="page === 'login'" v-model:language="language" :loading="signingIn" :checking="checking" :error="loginError ? a[loginError] : ''" :notice="loginNotice ? a[loginNotice] : ''" @clear-error="loginError='';loginNotice=''" @submit="login" @signup="signup" />
 <HomeView key="home" v-else-if="page === 'home'" v-model:language="language" @open="open" @logout="logout" />
-<main v-else key="chat" class="clear-chat-main">
+<main v-else key="chat" class="clear-chat-main" :class="{'has-guide':guideUrl}">
+  <GuideViewer v-if="guideUrl" :src="guideUrl" :title="title" :source="isLaw?'국가법령정보센터':'KOSHA GUIDE'" :language="language" />
+  <div class="chat-pane">
   <div class="clear-chat-heading">
     <div class="clear-chat-title"><button v-spring class="chat-back" :aria-label="t.back" @click="navigate('home')"><Icon name="back" :size="22" /></button><h1>{{title}}</h1></div>
-    <button v-spring class="chat-new" :aria-label="t.newChat" @click="open(situation,topic)"><Icon name="plus" :size="18" /><span>{{t.newChat}}</span></button>
+    <div class="chat-heading-actions"><a v-if="guideUrl" class="guide-btn" :href="guideUrl" target="_blank" rel="noopener noreferrer">{{c.view}}</a><a v-if="guideUrl" class="guide-btn filled" :href="guideUrl" :download="`${title}.pdf`">{{c.download}}</a><button v-spring class="chat-new" :aria-label="t.newChat" @click="open(situation,topic)"><Icon name="plus" :size="18" /><span>{{t.newChat}}</span></button></div>
   </div>
 
   <div class="chat-topic-picker" role="group" :aria-label="a.topics"><button v-for="(value,key) in api.contract.topics" :key="key" type="button" :aria-pressed="topic===value" :disabled="busy" @click="changeTopic(value)">{{a[key]}}</button></div>
@@ -154,6 +162,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
           <div class="clear-answer-tools">
             <template v-for="(source,i) in message.response.sources" :key="`${source.doc_id}-${i}`"><a v-if="sourceUrl(source.url)" v-spring class="clear-source" :href="sourceUrl(source.url)" target="_blank" rel="noopener noreferrer"><Icon name="file" :size="18" /><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><Icon name="file" :size="18" /><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span></span></template>
             <button v-spring class="clear-listen" :disabled="busy" :aria-pressed="playing===message.id" @click="play(message.id)"><Icon :name="playing===message.id?'stop':'sound'" :size="19" />{{playing===message.id?t.stop:a.listenPreview}}</button>
+            <button v-spring type="button" class="clear-report" @click="report=message"><Icon name="file" :size="19" />{{c.makeReport}}</button>
           </div>
         </template>
       </div>
@@ -170,8 +179,10 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
     </div>
     <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voicePreview}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
   </form>
+  </div>
 </main>
 </Transition>
+<ReportModal v-if="report" :message="report" :title="title" :language="language" @close="report=null" />
 <div v-if="modal" class="modal-backdrop" @click.self="modal=null"><section ref="modalElement" @keydown="trapFocus" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="modal"><span class="modal-icon"><Icon :name="modal==='voice'?'mic':'file'" :size="28"/></span><h2 id="modal-title">{{modal==='voice'?t.permissionTitle:t.sourceTitle}}</h2><p>{{modal==='voice'?t.permissionBody:t.sourceBody}}</p><div class="modal-actions"><button class="secondary" autofocus @click="modal=null">{{t.close}}</button><button v-if="modal==='voice'" class="primary" @click="modal=null;voice='recording'">{{t.startVoice}}<Icon name="arrow" :size="17"/></button></div></section></div>
 </div>
 </template>
