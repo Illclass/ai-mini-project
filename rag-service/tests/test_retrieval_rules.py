@@ -104,3 +104,18 @@ def test_merge_keeps_chunk_that_a_synonym_variant_ranks_first(monkeypatch):
                         lambda q, store, k=5, filter=None: [_hit(cid) | {"score": s} for cid, s in results[q][:k]])
     merged = retriever._search_all(list(results), store=None, k=2)
     assert [h["metadata"]["chunk_id"] for h in merged] == ["L2-6", "L2-2"]   # 둘 다 어떤 변형에서 1위
+
+
+def test_chemical_question_without_product_excludes_msds(monkeypatch):
+    seen = {}
+
+    def fake_search(queries, store, k, filter=None):
+        seen["filter"] = filter
+        return []
+    monkeypatch.setattr(retriever, "get_store", lambda topic: object())
+    monkeypatch.setattr(retriever, "normalize_question", lambda q, lang, topic: [q])
+    monkeypatch.setattr(retriever, "_search_all", fake_search)
+    retriever.retrieve("장갑과 보안경은 어떻게 확인하나요?", TOPIC_CHEMICAL)
+    assert seen["filter"]({"doc_type": "guide"}) and not seen["filter"]({"doc_type": "msds"})
+    retriever.retrieve("작업중지 요건은?", TOPIC_LAW)
+    assert seen["filter"] is None   # 법령 질문은 그대로
