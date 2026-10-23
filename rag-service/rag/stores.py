@@ -7,27 +7,23 @@ import os
 from typing import Dict, Optional
 
 from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings
 
-from rag.schema import ENV_EMBEDDING_MODEL, INDEX_DIRS
+from rag.embeddings import get_embeddings
+from rag.schema import INDEX_DIRS
 
 log = logging.getLogger(__name__)
 
 _STORES: Dict[str, FAISS] = {}
 
 
-def _embeddings() -> OpenAIEmbeddings:
-    model = os.getenv(ENV_EMBEDDING_MODEL)
-    return OpenAIEmbeddings(model=model) if model else OpenAIEmbeddings()
-
-
 def load_all() -> None:
     """INDEX_DIRS 의 인덱스를 모두 로드한다. 없는 인덱스는 건너뛰고 경고만 남긴다."""
-    emb = _embeddings()
+    emb = None
     for topic, path in INDEX_DIRS.items():
         if not os.path.exists(os.path.join(path, "index.faiss")):
             log.warning("인덱스 없음: %s (%s)", topic, path)
             continue
+        emb = emb or get_embeddings()   # 인덱스가 있을 때만 모델 로드 (bge-m3 는 약 10초)
         _STORES[topic] = FAISS.load_local(path, emb, allow_dangerous_deserialization=True)
         log.info("인덱스 로드: %s (%s)", topic, path)
 

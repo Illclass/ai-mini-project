@@ -281,11 +281,12 @@ def save_index(chunks, out_dir: Path, append: bool):
     from dotenv import load_dotenv
     from langchain_community.vectorstores import FAISS
     from langchain_core.documents import Document
-    from langchain_openai import OpenAIEmbeddings
+
+    from rag.embeddings import get_embeddings
 
     load_dotenv(ROOT / ".env")
     docs = [Document(page_content=c["page_content"], metadata=c["metadata"]) for c in chunks]
-    emb = OpenAIEmbeddings()
+    emb = get_embeddings()   # 검색(stores.py)과 같은 모델
     if append and (out_dir / "index.faiss").exists():
         store = FAISS.load_local(str(out_dir), emb, allow_dangerous_deserialization=True)
         existing = {d.metadata.get("chunk_id") for d in store.docstore._dict.values()}

@@ -1,0 +1,34 @@
+{
+  "topics": {
+    "chemical": "chemical_safety",
+    "law": "serious_accident_law"
+  },
+  "languages": [
+    "ko",
+    "zh",
+    "vi"
+  ],
+  "question": {
+    "minLength": 2,
+    "maxLength": 500
+  },
+  "requestFields": [
+    "question",
+    "topic",
+    "product_id",
+    "language"
+  ],
+  "responseFields": [
+    "answer",
+    "sources",
+    "needs_review",
+    "handoff",
+    "latency_ms"
+  ],
+  "sourceFields": [
+    "doc_id",
+    "section",
+    "title",
+    "url"
+  ]
+}

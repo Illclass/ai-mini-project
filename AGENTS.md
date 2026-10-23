@@ -3,7 +3,7 @@
 이 저장소에서 코드를 쓰는 AI(ChatGPT, Cursor, Copilot, Claude 등)는 작업 전에 이 규칙을 따른다.
 
 ## 프로젝트
-**ChemBridge** — 반도체 공정 외국인 근로자를 위한 화학안전·중대재해 법령 다국어(ko·zh·vi) RAG 안내 서비스.
+**ChemBridge** — 반도체 공정 외국인 근로자를 위한 화학안전·중대재해 법령 다국어(ko·zh·vi·en·km) RAG 안내 서비스.
 
 ```
 Vue(:5174) → Java 인증(:8080, JWT 쿠키) → RAG FastAPI(:8001) → FAISS + OpenAI
