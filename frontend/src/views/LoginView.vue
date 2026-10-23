@@ -53,6 +53,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frame))
 
 
 
+    <aside class="clean-brand"><span class="clean-brand-mark"><Icon name="bridge" :size="26" /></span><b>ChemBridge</b><h2>{{ t.loginTitle }}</h2><p>{{ t.loginDesc }}</p></aside>
     <main class="liquid-main">
       <section class="liquid-form-area">
         <div ref="glass" class="liquid-card" @pointermove="reflect" @pointerleave="resetLight">
