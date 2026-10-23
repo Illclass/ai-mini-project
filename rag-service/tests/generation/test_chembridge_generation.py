@@ -28,7 +28,7 @@ def test_three_languages_keep_source_warning_condition_and_review(language):
     result, llm = call(doc, language)
     assert len(llm.calls) == 1
     assert result.sources[0].chunk_id == doc.metadata["chunk_id"]
-    assert result.needs_review and result.handoff
+    assert result.needs_review and not result.handoff
     assert result.review_reasons == ["msds_applicability_unverified"]
     assert TEXT[language]["msds_review"] in result.answer
     assert "TrainingLiquid-A" in result.answer
