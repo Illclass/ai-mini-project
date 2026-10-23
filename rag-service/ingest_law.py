@@ -12,6 +12,9 @@
   python ingest_law.py --input data/laws/중대재해처벌법.pdf --doc-id L2 \\
       --law-name "중대재해 처벌 등에 관한 법률" --effective-date 2022-01-27 \\
       --source-url https://www.law.go.kr --dry-run
+  # 중대재해처벌법은 제2조(정의)를 호 단위로 (제2조 제2호 …):
+  python ingest_law.py --input data/laws/L2_중대재해처벌법.pdf --doc-id L2 --law-name "중대재해 처벌 등에 관한 법률" \\
+      --effective-date 2022-01-27 --split-ho 2 --dry-run
   # 산업안전보건법은 MSDS 관련 조문만 (제108~116조):
   python ingest_law.py --input data/laws/산안법.pdf --doc-id L1 --law-name 산업안전보건법 \\
       --effective-date 2026-08-01 --only 110-116 --append
@@ -47,11 +50,24 @@ HEADER_RE = re.compile(r"^[ \t]*법제처[ \t]+\d+[ \t]+국가법령정보센터
 CHAPTER_RE = re.compile(r"^[ \t]*제\d+[장절편][ \t]")
 UPCOMING_RE = re.compile(r"^[ \t]*\[시행일[ \t]*:[^\]]*\][ \t]*제\d+조.*$")   # 시행 예정 개정 표시
 
+HO_RE = re.compile(r"^[ \t]*(\d{1,2})\.[ \t]+\S")   # 호: "1. ...", "2. ..." (줄 처음, 1부터 순서대로)
+
 DUPLICATES = []   # 같은 조가 두 번 나온 경우(현행 + 시행 예정본)
 
 
-def read_input(path: Path) -> str:
+def read_input(path: Path, layout: bool = False) -> str:
     if path.suffix.lower() == ".pdf":
+        # 1순위: pdftotext (poppler). 일부 KOSHA PDF 는 pypdf 로 읽으면 띄어쓰기가 사라진다.
+        import shutil
+        import subprocess
+        if shutil.which("pdftotext"):
+            cmd = ["pdftotext"] + (["-layout"] if layout else []) + [str(path), "-"]
+            r = subprocess.run(cmd,
+                               capture_output=True, text=True, encoding="utf-8")
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout.replace("\f", "\n")
+        print("[경고] pdftotext 가 없어 pypdf 로 읽습니다. 일부 PDF 는 띄어쓰기가 깨질 수 있어요 "
+              "(맥: brew install poppler)", file=sys.stderr)
         from pypdf import PdfReader  # 지연 import (txt 만 쓸 땐 불필요)
         reader = PdfReader(str(path))
         return "\n".join(t for p in reader.pages if (t := p.extract_text()))
@@ -138,6 +154,34 @@ def split_paragraphs(body: str):
     return parts
 
 
+def parse_ids(spec: str):
+    """'2,5' -> {2,5}.  'all' -> None(모든 조).  빈 값 -> 빈 집합(호 분할 안 함)"""
+    spec = (spec or "").strip()
+    if spec.lower() == "all":
+        return None
+    return {int(x) for x in spec.split(",") if x.strip()}
+
+
+def split_ho(text: str):
+    """조/항 본문을 호 단위로 쪼갠다. 1호부터 순서대로 이어지는 '1. ' 줄만 호로 인정(본문 번호 오인 방지).
+    반환: (머리말, [(호 번호, 호 본문)]) / 호가 2개 미만이면 None"""
+    starts, expect, off = [], 1, 0
+    for ln in text.split("\n"):
+        m = HO_RE.match(ln)
+        if m and int(m.group(1)) == expect:
+            starts.append((expect, off))
+            expect += 1
+        off += len(ln) + 1
+    if len(starts) < 2:
+        return None
+    intro = text[: starts[0][1]].strip()
+    items = []
+    for i, (n, st) in enumerate(starts):
+        en = starts[i + 1][1] if i + 1 < len(starts) else len(text)
+        items.append((n, text[st:en].strip()))
+    return intro, items
+
+
 def common_meta(args, section: str, chunk_id: str) -> dict:
     """schema.ChunkMeta 공통 키 (모든 청크 필수)."""
     return {
@@ -154,6 +198,7 @@ def common_meta(args, section: str, chunk_id: str) -> dict:
 
 def build_law_chunks(text, args):
     ranges = parse_only(args.only)
+    ho_ids = parse_ids(args.split_ho)
     text = cut_appendix(clean_noise(text))
     seen, chunks = set(), []
     for art in split_articles(text):
@@ -167,17 +212,27 @@ def build_law_chunks(text, args):
         seen.add(key)
         art_key = f"{art['no']}" + (f"_{art['sub']}" if art["sub"] else "")
         head = f"[{args.law_name} {article_no}({art['title']})]"
-        paras = split_paragraphs(art["body"]) if len(art["body"]) > args.max_chars else None
+        by_ho = ho_ids is None or art["no"] in ho_ids
+        paras = split_paragraphs(art["body"]) if (by_ho or len(art["body"]) > args.max_chars) else None
         for num, piece in (paras if paras else [(0, art["body"])]):
-            section = f"{article_no} 제{num}항" if num else article_no
-            part = f"{art_key}-{num}" if num else art_key          # 예) L2-2 (제2조), L2-4-1 (제4조 1항)
-            meta = common_meta(args, section, make_chunk_id(args.doc_id, part)) | {
-                "law_name": args.law_name,
-                "article_no": article_no,
-                "article_title": art["title"],
-                "paragraph": str(num) if num else "",
-            }
-            chunks.append({"page_content": f"{head}\n{piece}", "metadata": meta})
+            base_section = f"{article_no} 제{num}항" if num else article_no
+            base_part = f"{art_key}-{num}" if num else art_key          # 예) L2-2 (제2조), L2-4-1 (제4조 1항)
+            pieces = [("", 0, piece)]
+            ho = split_ho(piece) if by_ho else None
+            if ho:                                                       # 호 단위: "제2조 제2호", "제4조 제1항 제3호"
+                intro, items = ho
+                pieces = [(f"{intro}\n" if intro else "", n, txt) for n, txt in items]
+            for lead, ho_no, txt in pieces:
+                section = f"{base_section} 제{ho_no}호" if ho_no else base_section
+                part = f"{base_part}-h{ho_no}" if ho_no else base_part   # 예) L2-2-h2
+                meta = common_meta(args, section, make_chunk_id(args.doc_id, part)) | {
+                    "law_name": args.law_name,
+                    "article_no": article_no,
+                    "article_title": art["title"],
+                    "paragraph": str(num) if num else "",
+                }
+                # 호 청크는 앞에 조 제목과 머리말(예: "…다음 각 목의 어느 하나에 해당하는…")을 붙여 뜻이 남게 한다
+                chunks.append({"page_content": f"{head}\n{lead}{txt}", "metadata": meta})
     return chunks
 
 
@@ -252,6 +307,7 @@ def main():
     ap.add_argument("--topic", default=None, choices=[TOPIC_LAW, TOPIC_CHEMICAL],
                     help="기본: law→serious_accident_law, guide→chemical_safety")
     ap.add_argument("--only", default="", help="law 모드: 포함할 조 번호 범위 예) 31-34,299,420-515")
+    ap.add_argument("--split-ho", default="", help="law 모드: 호 단위로 나눌 조 번호 예) 2 또는 2,5 (all=모든 조). 비우면 조/항 단위")
     ap.add_argument("--max-chars", type=int, default=1200, help="이보다 긴 조/절은 분할")
     ap.add_argument("--out", default=None, help="기본: schema.INDEX_DIRS[topic] (rag-service/ 기준)")
     ap.add_argument("--append", action="store_true", help="기존 인덱스에 추가")
