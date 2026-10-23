@@ -120,13 +120,27 @@ git push -u origin feat/내이름-작업내용
 | MSDS 인덱스 | ⬜ `ingest/ingest_msds.py` 뼈대만 |
 | 다국어 질문 → 한국어 변환 | ⬜ TODO (답변은 요청 언어로 나옴) |
 | 평가셋 · 검색 적중률 | ⬜ 형식 예시 1개 |
-| Vue 프론트 · Docker Compose | ⬜ 예정 |
+| Vue 프론트 | ✅ 임시 데이터 기반 디자인 미리보기 — 실제 인증·RAG·음성 API 연동 전 |
+| Docker Compose | ⬜ 예정 |
 | 약속 확인 테스트 · CI | ✅ 10개 통과, PR 마다 자동 실행 |
+
+## 프론트 디자인 미리보기
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+http://localhost:5174 에서 로그인 → 작업 상황 선택 → 질문·답변을 확인합니다. 백엔드·DB·API 키 없이 실행되며 로그인은 입력 없이 가능합니다. 한국어·중국어·베트남어 화면과 임시 답변을 지원합니다. 음성 입력·재생은 실제 장치를 사용하지 않는 시뮬레이션입니다.
+
+빌드는 `npm run build`로 확인합니다. 파일 구조와 실제 API 연결 지점은 [frontend/README.md](frontend/README.md)를 참고하세요. `dev.sh`는 프론트 서버를 실행하지 않으므로 별도 터미널에서 실행합니다.
 
 ## 폴더 구조
 
 ```
 ai-mini-project/
+├── frontend/             Vue 3 + Vite 디자인 미리보기 (임시 데이터)
 ├── rag-service/          RAG API (FastAPI) — 아래 표 참고
 ├── auth-server/          Java 인증서버 (Gradle · MariaDB · BCrypt · JWT)
 ├── voice-service/        음성 서비스 (Whisper STT → GPT → TTS) — 확장 트랙

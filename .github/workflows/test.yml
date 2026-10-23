@@ -1,11 +1,11 @@
-# 약속 확인 테스트 자동 실행 — PR 을 올리거나 main 에 push 하면 돈다.
+# 약속 확인 테스트 자동 실행 — PR 을 올리거나 main·dev 에 push 하면 돈다.
 # 검색·LLM 은 가짜로 바꿔서 돌리므로 OpenAI 키(Secrets)가 필요 없다.
 name: contract-test
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   test:
