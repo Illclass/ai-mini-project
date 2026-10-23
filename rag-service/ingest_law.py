@@ -241,8 +241,25 @@ def numbered_sections(text, max_top, allow_sub):
     목차 줄(····· 점선)은 제외한다. 반환: [(번호문자열, 제목, 시작위치)]"""
     pat = re.compile(r"^[ \t]*(\d{1,2})(?:\.(\d{1,2}))?[.\s][ \t]*((?!.*··)[^\n]{2,80}?)[ \t]*$", re.M)
     out, last_top, last_sub = [], 0, 0
-    for m in pat.finditer(text):
-        top, sub, title = int(m.group(1)), m.group(2), m.group(3).strip()
+    ms = list(pat.finditer(text))
+    # 소번호(5.1) 없는 번호 줄이 30자 안쪽 간격으로 3개 이상 이어지면 제목이 아니라 목록(표 항목 나열)으로 본다
+    in_list = set()
+    run = [0]
+    for i in range(1, len(ms)):
+        if ms[i].start() - ms[i - 1].start() < 30 and not ms[i].group(2) and not ms[i - 1].group(2):
+            run.append(i)
+        else:
+            if len(run) >= 3:
+                in_list.update(run)
+            run = [i]
+    if len(run) >= 3:
+        in_list.update(run)
+    for idx, m in enumerate(ms):
+        top, sub, title = int(m.group(1)), m.group(2), m.group(3).strip().lstrip(". ").strip()
+        if idx in in_list:
+            continue
+        if not re.match(r"[가-힣A-Z]", title):        # 단위·수식·표 조각("5 m 이내…")은 제목이 아니다
+            continue
         if re.match(r"\s*[·․]{3,}", text[m.end(): m.end() + 80]):   # 제목 다음 줄이 점선(·····) = 목차 줄
             continue
         if sub is None:
@@ -257,7 +274,7 @@ def numbered_sections(text, max_top, allow_sub):
 
 def build_guide_chunks(text, args):
     text = clean_noise(text)
-    secs = numbered_sections(text, max_top=30, allow_sub=True) or [("전체", args.law_name, 0)]
+    secs = numbered_sections(text, max_top=getattr(args, "max_sections", 30), allow_sub=True) or [("전체", args.law_name, 0)]
     chunks = []
     for i, (no, title, pos) in enumerate(secs):
         end = secs[i + 1][2] if i + 1 < len(secs) else len(text)
@@ -314,6 +331,7 @@ def main():
     ap.add_argument("--only", default="", help="law 모드: 포함할 조 번호 범위 예) 31-34,299,420-515")
     ap.add_argument("--split-ho", default="", help="law 모드: 호 단위로 나눌 조 번호 예) 2 또는 2,5 (all=모든 조). 비우면 조/항 단위")
     ap.add_argument("--max-chars", type=int, default=1200, help="이보다 긴 조/절은 분할")
+    ap.add_argument("--max-sections", type=int, default=30, help="guide 모드: 인정할 최대 장 번호 (본문 번호 목록을 장으로 읽는 지침에서 줄인다) 예) 7")
     ap.add_argument("--out", default=None, help="기본: schema.INDEX_DIRS[topic] (rag-service/ 기준)")
     ap.add_argument("--append", action="store_true", help="기존 인덱스에 추가")
     ap.add_argument("--dry-run", action="store_true", help="청킹 결과만 출력, 임베딩/저장 안 함")
