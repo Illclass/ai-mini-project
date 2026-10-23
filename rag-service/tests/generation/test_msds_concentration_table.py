@@ -35,7 +35,7 @@ def test_table_header_in_same_chunk_accepts_verbatim_row(header):
     assert '농도: >= 95 - <= 100' in result.answer
     assert result.sources[0].chunk_id == doc.metadata['chunk_id']
     assert result.review_reasons == ['msds_applicability_unverified']
-    assert result.needs_review and result.handoff
+    assert result.needs_review and not result.handoff
 
 
 @pytest.mark.parametrize('cite_header_too', [False, True])

@@ -32,7 +32,7 @@ def test_equivalent_dates_preserve_original_answer_and_metadata(body, metadata):
     assert result.sources and result.sources[0].effective_date == metadata
     assert 'MSDS 개정일: ' + body in result.answer
     assert result.review_reasons == ['msds_applicability_unverified']
-    assert result.needs_review and result.handoff
+    assert result.needs_review and not result.handoff
 
 
 @pytest.mark.parametrize('value', [None, '', '2026-07', '14.07.2026', '07/14/2026',

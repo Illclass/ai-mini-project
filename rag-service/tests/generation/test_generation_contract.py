@@ -102,7 +102,8 @@ def run(documents, output, question="제공된 가상 자료의 내용을 설명
 
 def assert_review(result, reason):
     assert result.needs_review is True
-    assert result.handoff is True
+    # Caution-only sourced answers remain displayable; withheld answers hand off.
+    assert result.handoff is (not bool(result.sources))
     assert reason in result.review_reasons
     assert result.review_message
 
