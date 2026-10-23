@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { suggestedQuestions } from '../src/api/suggestions.js'
-import { availableEquipment, productsFor, productLabel, equipmentLabel } from '../src/api/scope.js'
+import { availableEquipment, availableProducts, productsFor, productLabel, equipmentLabel } from '../src/api/scope.js'
 import { questionCopy } from '../src/locales/questions.js'
 import { equipmentChecks, productChecks } from '../src/locales/question-checks.js'
 import { feedbackCopy } from '../src/locales/feedback.js'
@@ -63,4 +63,36 @@ test('equipment and product choices change the subject matter, not just names',(
  assert(ask('DEMO-SOLV-01','sigma-563935','after')[0].includes('걸레'))
  assert(ask('DEMO-UTIL-01','sigma-221465','during')[0].includes('중화조'))
  assert(ask('DEMO-WET-01','sigma-339741','storage')[1].includes('용기 재질'))
+})
+
+// Include product-only selections: the duplicate HF emergency sentence was hidden
+// by the old test matrix, which covered only equipment/product combinations.
+test('all selectable contexts, stages and languages avoid repeated names and broken sentence joins',()=>{
+ const contexts=[{},...availableEquipment.map(e=>({equipmentId:e.equipment_id})),...availableProducts.map(p=>({productId:p.product_id})),...availableEquipment.flatMap(e=>productsFor(e.equipment_id).map(p=>({equipmentId:e.equipment_id,productId:p.product_id}))) ]
+ let checked=0
+ for(const language of contract.languages)for(const situation of [...situations,'free'])for(const context of contexts){
+  const questions=suggestedQuestions({language,situation,...context})
+  assert.equal(questions.length,2)
+  assert.equal(new Set(questions).size,2)
+  const product=availableProducts.find(p=>p.product_id===context.productId)
+  const name=product && productLabel(product,language).split(' · ')[0]
+  for(const question of questions){
+   const details=JSON.stringify({language,situation,...context,question})
+   assert(question.trim()===question && !/\s{2,}|undefined|null|[{}]|sigma-|merck-/i.test(question),details)
+   assert(Array.from(question).length>=contract.question.minLength && Array.from(question).length<=contract.question.maxLength,details)
+   if(name)assert.equal(question.toLocaleLowerCase().split(name.toLocaleLowerCase()).length-1,1,details)
+   if(language==='ko'){
+    assert(!/(사고 시.*접촉 시|사고 시.*노출 시|시.*시.*절차|의\s+의|에서.*작업에서|절차.*절차|응급조치.*응급조치)/.test(question),details)
+   }
+   checked++
+  }
+ }
+ assert.equal(checked,contexts.length*contract.languages.length*7*2)
+})
+test('HF product-only emergency prompts do not repeat the chemical or incident preamble',()=>{
+ const questions=suggestedQuestions({situation:'emergency',language:'ko',productId:'sigma-695068'})
+ assert.deepEqual(questions,[
+  '불산 접촉 후 전문 응급대응 절차는 어느 자료에서 확인하나요?',
+  '불산 MSDS의 어느 항목에서 접촉 후 전문 응급대응 절차를 확인할 수 있나요?',
+ ])
 })

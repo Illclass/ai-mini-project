@@ -12,6 +12,8 @@
     - 다른 제품의 MSDS 만 빼고(고른 제품 MSDS + 공통 문서) 순위대로 뽑되, 고른 제품 MSDS 가 MIN_PRODUCT 개보다
       적으면 그 제품 MSDS 에서 채운다. (자리를 고정하면 S1 장비 절차처럼 공통 문서가 필요한 질문이 밀려난다)
     - 자료 미등록 장비(제품 목록이 빈 장비)는 공통 문서만 검색한다.
+    - 화학 질문인데 제품이 정해지지 않으면(물질명 없음·장비 없음) MSDS 는 빼고 공통 문서만 검색한다.
+      생성 쪽은 product_id 없이 MSDS 가 섞이면 바로 "제품 확인 필요"로 보류하므로, 지침·현장지침·법령으로 답하게 한다.
 
 잘린 MSDS 청크 제외 (DROP_TRUNCATED)
     - 생성 쪽은 MSDS 근거 중 하나라도 경고 문맥이 잘렸으면(prompt.incomplete_critical_chunks) 답변 전체를 보류한다.
@@ -28,7 +30,7 @@ from typing import Callable, List, Optional
 
 from rag import equipment
 from rag.query import normalize_question
-from rag.schema import DEFAULT_TOP_K, DOC_TYPE_MSDS, Hit
+from rag.schema import DEFAULT_TOP_K, DOC_TYPE_MSDS, TOPIC_CHEMICAL, Hit
 from rag.stores import get_store
 
 MIN_PRODUCT = 2    # 제품 범위 검색에서 고른 제품 MSDS 를 최소 몇 개 넣을지
@@ -135,6 +137,8 @@ def retrieve(question: str, topic: str, product_id: Optional[str] = None,
     ids = scope_product_ids(product_id, equipment_id)
     extra = TRUNCATED_MARGIN if DROP_TRUNCATED else 0
     if ids is None:
+        if topic == TOPIC_CHEMICAL:   # 제품 미지정 → MSDS 제외 (모듈 설명 참고)
+            return _search_all(queries, store, k, filter=lambda md: md.get("doc_type") != DOC_TYPE_MSDS)
         return drop_truncated(_search_all(queries, store, k + extra))[:k]
     single = ids[0] if len(ids) == 1 else None
 
