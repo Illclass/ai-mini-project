@@ -6,7 +6,9 @@
   "languages": [
     "ko",
     "zh",
-    "vi"
+    "vi",
+    "en",
+    "km"
   ],
   "question": {
     "minLength": 2,
@@ -16,7 +18,12 @@
     "question",
     "topic",
     "product_id",
+    "equipment_id",
     "language"
+  ],
+  "nullableFields": [
+    "product_id",
+    "equipment_id"
   ],
   "responseFields": [
     "answer",

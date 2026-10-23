@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createApi } from '../src/api/client.js'
 import contract from '../src/api/contract.json' with {type:'json'}
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}})
-const request={question:'작업 전 확인 사항',topic:contract.topics.chemical,product_id:null,language:contract.languages[0]}
+const request={question:'작업 전 확인 사항',topic:contract.topics.chemical,product_id:null,equipment_id:null,language:contract.languages[0]}
 const answer={answer:'확인하세요',sources:[{doc_id:'L2',section:'제2조',title:'법령',url:'https://www.law.go.kr/'}],needs_review:false,handoff:false,latency_ms:12}
 test('login submits encoded credentials, sends cookies and checks session; ignores legacy redirect',async()=>{
  const calls=[]
@@ -47,10 +47,17 @@ test('logout accepts HTML redirect but verifies session is actually gone',async(
  await createApi(async path=>path.endsWith('check')?json({},401):new Response('<html/>')).logout()
  await assert.rejects(createApi(async path=>path.endsWith('check')?json({ok:true}):new Response('<html/>')).logout(),e=>e.code==='LOGOUT_FAILED')
 })
-test('both topics and all three languages use the shared schema values',async()=>{
+test('both topics and all supported languages use the shared schema values',async()=>{
  const received=[]
  const api=createApi(async(_path,options)=>{received.push(JSON.parse(options.body));return json(answer)})
  for(const topic of Object.values(contract.topics))for(const language of contract.languages)await api.ask({...request,topic,language})
- assert.equal(received.length,6)
+ assert.equal(received.length,Object.keys(contract.topics).length*contract.languages.length)
  assert(received.every(body=>Object.values(contract.topics).includes(body.topic)&&contract.languages.includes(body.language)))
+})
+test('optional product and equipment fields are serialized as null when not selected',async()=>{
+ let payload
+ const api=createApi(async(_path,options)=>{payload=JSON.parse(options.body);return json(answer)})
+ const {product_id,equipment_id,...minimal}=request
+ await api.ask(minimal)
+ for(const field of contract.nullableFields)assert.equal(payload[field],null)
 })

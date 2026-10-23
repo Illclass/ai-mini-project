@@ -11,7 +11,7 @@ export class ApiError extends Error {
 
 // Same-origin routes are forwarded by Vite (and the deployment reverse proxy).
 // JWT stays in HttpOnly cookies; the frontend never reads or stores tokens.
-export function createApi(fetcher = (...args) => fetch(...args), { timeoutMs = 45000 } = {}) {
+export function createApi(fetcher = (...args) => fetch(...args), { timeoutMs = 90000 } = {}) {
   async function request(path, { signal, json = true, timeout = timeoutMs, ...options } = {}) {
     const controller = new AbortController()
     let timedOut = false
@@ -80,7 +80,7 @@ export function createApi(fetcher = (...args) => fetch(...args), { timeoutMs = 4
   }
 
   async function ask(body, options = {}) {
-    const payload = Object.fromEntries(contract.requestFields.map(key => [key, body[key] ?? (key === 'product_id' ? null : undefined)]))
+    const payload = Object.fromEntries(contract.requestFields.map(key => [key, body[key] ?? (contract.nullableFields.includes(key) ? null : undefined)]))
     const data = await request('/rag-query', {
       ...options,
       method: 'POST',

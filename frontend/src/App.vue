@@ -2,6 +2,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from './components/Icon.vue'
 import LanguagePicker from './components/LanguagePicker.vue'
+import ScopePicker from './components/ScopePicker.vue'
+import { scopeCopy } from './locales/scope'
+import { feedbackCopy } from './locales/feedback'
+import { suggestedQuestions } from './api/suggestions'
+import { catalog, availableEquipment, equipmentFor, productsFor, normalizeScope, requestScope, productLabel, equipmentLabel } from './api/scope'
 import LoginView from './views/LoginView.vue'
 import HomeView from './views/HomeView.vue'
 import SceneBackground from './components/SceneBackground.vue'
@@ -13,6 +18,14 @@ import { apiCopy } from './locales/api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
 const topic=ref(api.contract.topics.chemical), a=computed(()=>apiCopy[language.value])
+const productRequired=ref(false), productPicker=ref(null), scopePanel=ref(null)
+const equipmentId=ref(''), productId=ref(''), s=computed(()=>scopeCopy[language.value])
+watch(productId,value=>{if(value)productRequired.value=false})
+const selectedEquipment=computed(()=>equipmentFor(equipmentId.value))
+const equipmentOptions=computed(()=>[{value:'',label:s.value.allEquipment},...availableEquipment.map(item=>({value:item.equipment_id,label:equipmentLabel(item,language.value,s.value.demo)}))])
+const productOptions=computed(()=>[{value:'',label:s.value.allProducts},...productsFor(equipmentId.value).map(item=>({value:item.product_id,label:productLabel(item,language.value)}))])
+function selectEquipment(value){equipmentId.value=value;productId.value=normalizeScope(value,productId.value).product_id||''}
+function scopeLabel(scope){return [equipmentFor(scope.equipment_id) ? equipmentLabel(equipmentFor(scope.equipment_id),language.value,s.value.demo) : '',catalog.products.find(p=>p.product_id===scope.product_id) ? productLabel(catalog.products.find(p=>p.product_id===scope.product_id),language.value) : ''].filter(Boolean).join(' / ')}
 let requestController, resumeDraft
 function errorKey(error){
  if(error.status===422)return 'invalid'
@@ -21,8 +34,8 @@ function errorKey(error){
  if(error.code==='NETWORK')return 'connection'
  return 'unexpected'
 }
-function expire(){
- resumeDraft={situation:situation.value,topic:topic.value,question:question.value}
+function expire(message){
+ resumeDraft={situation:situation.value,topic:message.topic,question:message.question,equipmentId:message.equipment_id||'',productId:message.product_id||''}
  navigate('login');messages.value=[];loginError.value='expired'
 }
 onMounted(async()=>{
@@ -33,7 +46,10 @@ onMounted(async()=>{
 try { const saved=localStorage.getItem('chembridge-language'); if(copy[saved])language.value=saved } catch {}
 const t=computed(()=>copy[language.value]),keys=['before','handling','storage','during','after','emergency']
 const index=computed(()=>keys.indexOf(situation.value)),title=computed(()=>topic.value===api.contract.topics.law?a.value.law:index.value<0?t.value.free:t.value.topicTitles[index.value]),busy=computed(()=>pending.value||['recording','processing'].includes(voice.value))
-const suggestions=computed(()=>[Math.max(0,index.value),index.value===2?1:2])
+const suggestions=computed(()=>topic.value===api.contract.topics.law?[a.value.lawQuestion]:suggestedQuestions({situation:situation.value,language:language.value,equipmentId:equipmentId.value,productId:productId.value}))
+const feedback=computed(()=>feedbackCopy[language.value]), slowResponse=ref(false)
+let slowTimer
+watch(pending,value=>{clearTimeout(slowTimer);slowResponse.value=false;if(value)slowTimer=setTimeout(()=>{slowResponse.value=true},12000)})
 const modalElement = ref(null)
 let modalTrigger
 watch(modal, async value => {
@@ -49,12 +65,13 @@ function trapFocus(event) {
  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
 }
 let version=0, timer
-watch(language,v=>{document.documentElement.lang=v;try{localStorage.setItem('chembridge-language',v)}catch{}})
+watch(language,v=>{document.documentElement.lang=v;document.title=`ChemBridge · ${copy[v].service}`;try{localStorage.setItem('chembridge-language',v)}catch{}})
 document.documentElement.lang=language.value
+document.title=`ChemBridge · ${copy[language.value].service}`
 function stop(){clearTimeout(timer);playing.value=null}
-function cleanup(){requestController?.abort();version++;pending.value=false;voice.value='idle';modal.value=null;stop()}
+function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';modal.value=null;stop()}
 function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
-function open(key,selectedTopic=api.contract.topics.chemical){navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value=''}
+function open(key,selectedTopic=api.contract.topics.chemical){productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
 function changeTopic(value){if(busy.value)return;open('free',value)}
 async function logout(){
  if(signingOut.value)return
@@ -69,7 +86,7 @@ async function login(credentials){
  signingIn.value=true;loginError.value='';loginNotice.value=''
  try{
   await api.login(credentials)
-  if(resumeDraft){const draft=resumeDraft;resumeDraft=null;open(draft.situation,draft.topic);question.value=draft.question}
+  if(resumeDraft){const draft=resumeDraft;resumeDraft=null;open(draft.situation,draft.topic);question.value=draft.question;equipmentId.value=draft.equipmentId;productId.value=draft.productId}
   else navigate('home')
  }catch(error){loginError.value=error.status===401?'credentials':errorKey(error)}
  finally{signingIn.value=false}
@@ -89,21 +106,27 @@ async function send(retryMessage){
  const text=retry?retry.question:question.value.trim()
  const length=Array.from(text).length
  if(busy.value||length<api.contract.question.minLength||length>api.contract.question.maxLength)return
+ const scope=retry||requestScope(topic.value,equipmentId.value,productId.value)
+ if(scope.equipment_id&&!scope.product_id){question.value=text;equipmentId.value=scope.equipment_id;productId.value='';productRequired.value=true;await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});return}
+ productRequired.value=false
  stop();voice.value='idle'
  const id=++version
- const message=retry||{id,question:text,response:null,error:null,topic:topic.value,language:language.value}
+ const message=retry||{id,question:text,response:null,error:null,topic:topic.value,language:language.value,...requestScope(topic.value,equipmentId.value,productId.value)}
  if(retry){message.id=id;message.error=null}
  else {question.value='';messages.value.push(message)}
  pending.value=true;requestController=new AbortController();scroll()
  try{
-  const response=await api.ask({question:text,topic:message.topic,product_id:null,language:message.language},{signal:requestController.signal})
+  const response=await api.ask({question:text,topic:message.topic,product_id:message.product_id,equipment_id:message.equipment_id,language:message.language},{signal:requestController.signal})
   if(version===id)messages.value.find(m=>m.id===id).response=response
  }catch(error){
   if(version!==id)return
-  if(error.status===401){question.value=text;expire()}
-  else if(error.code!=='CANCELLED')messages.value.find(m=>m.id===id).error=errorKey(error)
+  if(error.status===401){question.value=text;expire(message)}
+  else messages.value.find(m=>m.id===id).error=error.code==='CANCELLED'?'cancelled':errorKey(error)
  }finally{if(version===id){pending.value=false;scroll()}}
 }
+async function chooseProduct(){await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});productPicker.value?.open()}
+function cancelRequest(){requestController?.abort()}
+function editQuestion(message){if(busy.value)return;const scope=requestScope(message.topic,message.equipment_id,message.product_id);equipmentId.value=scope.equipment_id||'';productId.value=scope.product_id||'';fill(message.question)}
 function sourceUrl(value){try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)?url.href:null}catch{return null}}
 
 function startVoice(){if(busy.value)return;stop();modal.value='voice'}
@@ -135,24 +158,39 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
   </div>
 
   <div class="chat-topic-picker" role="group" :aria-label="a.topics"><button v-for="(value,key) in api.contract.topics" :key="key" type="button" :aria-pressed="topic===value" :disabled="busy" @click="changeTopic(value)">{{a[key]}}</button></div>
+  <div v-if="topic===api.contract.topics.chemical" class="chat-scope" ref="scopePanel">
+    <div class="chat-scope-controls">
+      <label><span>{{s.equipment}}</span><ScopePicker :model-value="equipmentId" :options="equipmentOptions" :label="s.equipment" :disabled="busy" @update:model-value="selectEquipment" /></label>
+      <label><span>{{s.product}}</span><ScopePicker ref="productPicker" v-model="productId" :options="productOptions" :label="s.product" :disabled="busy||selectedEquipment?.coverage==='none'" /></label>
+    </div>
+    <div v-if="productRequired" class="chat-product-required" role="alert"><span>{{feedback.selectProduct}}</span><button type="button" @click="chooseProduct">{{feedback.chooseProduct}}</button></div>
+    <p v-if="selectedEquipment && selectedEquipment.coverage!=='full'" class="chat-scope-warning" role="status"><Icon name="alert" :size="18" />{{s[selectedEquipment.coverage]}}</p>
+  </div>
   <section ref="thread" class="clear-conversation" :aria-label="t.assistant" aria-live="polite" :aria-busy="pending">
     <div v-if="!messages.length" class="clear-chat-empty">
       <span class="clear-empty-icon"><Icon name="chat" :size="36" /></span>
       <h2>{{t.emptyTitle}}</h2>
-      <div v-if="topic===api.contract.topics.law" class="clear-suggestions"><button v-spring @click="fill(a.lawQuestion)"><span>{{a.lawQuestion}}</span><Icon name="arrow" :size="18" /></button></div>
-      <div v-else class="clear-suggestions"><button v-for="i in suggestions" :key="i" v-spring @click="fill(t.questions[i])"><span>{{t.questions[i]}}</span><Icon name="arrow" :size="18" /></button></div>
+      <div class="clear-suggestions" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
     </div>
     <article v-for="message in messages" :key="message.id" class="clear-exchange">
-      <div class="clear-question"><p>{{message.question}}</p></div>
+      <div class="clear-question"><span v-if="scopeLabel(message)" class="chat-scope-context">{{scopeLabel(message)}}</span><p>{{message.question}}</p></div>
       <div class="clear-answer">
         <div class="clear-answer-heading"><span class="clear-assistant-icon"><Icon name="bridge" :size="23" /></span><b>ChemBridge</b></div>
-        <div v-if="message.error" class="chat-api-error" role="alert"><p>{{a[message.error]}}</p><button type="button" @click="send(message)">{{a.retry}}</button></div>
-        <div v-else-if="!message.response" class="clear-loading" role="status"><span class="clear-loading-dots"><i></i><i></i><i></i></span>{{t.loading}}</div>
+        <div v-if="message.error" class="chat-api-error" :class="{'is-cancelled':message.error==='cancelled'}" role="alert">
+          <h3><Icon name="alert" :size="22" />{{message.error==='cancelled'?feedback.cancelledTitle:feedback.failed}}</h3>
+          <p>{{message.error==='cancelled'?feedback.cancelled:a[message.error]}}</p>
+          <div class="chat-error-actions"><button type="button" :disabled="busy" @click="send(message)">{{a.retry}}</button><button type="button" :disabled="busy" @click="editQuestion(message)">{{feedback.edit}}</button></div>
+        </div>
+        <div v-else-if="!message.response" class="chat-loading-state">
+          <div class="clear-loading" role="status"><span class="clear-loading-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>{{slowResponse?feedback.slow:feedback.waiting}}</span></div>
+          <div class="chat-loading-lines" aria-hidden="true"><i></i><i></i></div>
+          <button type="button" class="chat-cancel-request" @click="cancelRequest">{{feedback.cancel}}</button>
+        </div>
         <template v-else>
-          <div v-if="message.response.needs_review || message.response.handoff" class="clear-alert" :class="{emergency:message.response.handoff}"><Icon name="alert" :size="18" />{{message.response.handoff?a.handoff:t.review}}</div>
+          <div v-if="message.response.needs_review || message.response.handoff" class="clear-alert" role="note"><Icon name="alert" :size="18" />{{message.response.handoff?a.handoff:t.review}}</div>
           <p class="clear-answer-text">{{message.response.answer}}</p>
           <div class="clear-answer-tools">
-            <template v-for="(source,i) in message.response.sources" :key="`${source.doc_id}-${i}`"><a v-if="sourceUrl(source.url)" v-spring class="clear-source" :href="sourceUrl(source.url)" target="_blank" rel="noopener noreferrer"><Icon name="file" :size="18" /><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><Icon name="file" :size="18" /><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span></span></template>
+            <template v-for="(source,i) in message.response.sources" :key="`${source.doc_id}-${i}`"><a v-if="sourceUrl(source.url)" v-spring class="clear-source" :href="sourceUrl(source.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span></span></template>
             <button v-spring class="clear-listen" :disabled="busy" :aria-pressed="playing===message.id" @click="play(message.id)"><Icon :name="playing===message.id?'stop':'sound'" :size="19" />{{playing===message.id?t.stop:a.listenPreview}}</button>
           </div>
         </template>
@@ -160,6 +198,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
     </article>
   </section>
 
+  <div v-if="messages.length&&!busy" class="clear-suggestions chat-followup" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
   <form class="clear-composer" @submit.prevent="send">
     <label class="sr-only" for="question">{{t.send}}</label>
     <textarea id="question" ref="input" v-model="question" :disabled="busy" :maxlength="api.contract.question.maxLength" :placeholder="t.placeholder" rows="3" @keydown.ctrl.enter.prevent="send" @keydown.meta.enter.prevent="send"></textarea>
