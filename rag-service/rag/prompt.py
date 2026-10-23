@@ -8,7 +8,7 @@ from typing import Dict, List
 
 from rag.schema import Hit
 
-LANGUAGE_NAMES = {"ko": "한국어", "zh": "중국어(간체)", "vi": "베트남어"}
+LANGUAGE_NAMES = {"ko": "한국어", "zh": "중국어(간체)", "vi": "베트남어", "en": "영어", "km": "크메르어(캄보디아어)"}
 
 SYSTEM_PROMPT = (
     "당신은 반도체 공정 근로자를 위한 화학안전·중대재해 법령 안내 도우미입니다.\n"

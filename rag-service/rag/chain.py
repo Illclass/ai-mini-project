@@ -15,6 +15,8 @@ EMERGENCY_NOTICE = {
     "ko": "⚠ 긴급 상황이면 즉시 작업을 멈추고 119와 현장 안전관리자에게 연락하세요. 아래는 참고 정보입니다.\n\n",
     "zh": "⚠ 如属紧急情况，请立即停止作业，并联系119和现场安全管理人员。以下为参考信息。\n\n",
     "vi": "⚠ Nếu khẩn cấp, hãy dừng công việc ngay và gọi 119 cùng người quản lý an toàn tại hiện trường. Dưới đây là thông tin tham khảo.\n\n",
+    "en": "⚠ If this is an emergency, stop work immediately and call 119 and the on-site safety manager. The information below is for reference only.\n\n",
+    "km": "⚠ ប្រសិនបើជាករណីបន្ទាន់ សូមបញ្ឈប់ការងារភ្លាមៗ ហើយទូរស័ព្ទទៅលេខ 119 និងអ្នកគ្រប់គ្រងសុវត្ថិភាពនៅកន្លែងការងារ។ ព័ត៌មានខាងក្រោមគឺសម្រាប់ជាឯកសារយោងប៉ុណ្ណោះ។\n\n",
 }
 
 

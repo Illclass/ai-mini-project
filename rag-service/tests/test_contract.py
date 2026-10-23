@@ -69,7 +69,7 @@ def test_forged_token_is_401(client):
 # --- 요청 형식 ------------------------------------------------------------
 @pytest.mark.parametrize("body", [
     {"question": "중대재해법의 기준은?", "topic": "etc"},           # 없는 topic
-    {"question": "중대재해법의 기준은?", "language": "en"},         # 지원하지 않는 언어
+    {"question": "중대재해법의 기준은?", "language": "ja"},         # 지원하지 않는 언어
     {"question": "a"},                                               # 너무 짧은 질문
 ])
 def test_bad_request_is_422(logged_in, body):
@@ -77,6 +77,18 @@ def test_bad_request_is_422(logged_in, body):
 
 
 # --- 응답 형식 · 규칙 ---------------------------------------------------------
+@pytest.mark.parametrize("language", ["ko", "zh", "vi", "en", "km"])
+def test_all_languages_accepted(logged_in, fake_search, language):
+    fake_search([FAKE_HIT])
+    assert ask(logged_in, question="사망자가 발생하면 처벌은?", language=language).status_code == 200
+
+
+def test_equipment_id_accepted(logged_in, fake_search):
+    fake_search([FAKE_HIT])
+    r = ask(logged_in, question="탱크 열 때 주의할 점은?", topic=TOPIC_CHEMICAL, equipment_id="DEMO-WET-01")
+    assert r.status_code == 200
+
+
 def test_answer_has_contract_fields(logged_in, fake_search):
     fake_search([FAKE_HIT])
     r = ask(logged_in, question="사망자가 발생하면 처벌은?")
