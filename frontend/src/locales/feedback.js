@@ -1,0 +1,7 @@
+export const feedbackCopy = {
+ ko:{selectProduct:'어떤 약품인지 선택해 주세요.',chooseProduct:'약품 선택하기',waiting:'답변을 기다리고 있어요',slow:'응답이 지연되고 있어요. 잠시 더 기다리거나 취소할 수 있어요.',cancel:'요청 취소',cancelledTitle:'요청을 취소했어요',cancelled:'질문은 남아 있어요. 수정하거나 다시 보낼 수 있어요.',failed:'답변을 받지 못했어요',edit:'질문 수정'},
+ zh:{selectProduct:'请选择使用的化学产品。',chooseProduct:'选择化学产品',waiting:'正在等待回答',slow:'响应较慢，您可以继续等待或取消。',cancel:'取消请求',cancelledTitle:'请求已取消',cancelled:'问题已保留，可以修改或重新发送。',failed:'未能收到回答',edit:'修改问题'},
+ vi:{selectProduct:'Vui lòng chọn hóa chất đang sử dụng.',chooseProduct:'Chọn hóa chất',waiting:'Đang chờ câu trả lời',slow:'Phản hồi chậm. Bạn có thể chờ thêm hoặc hủy.',cancel:'Hủy yêu cầu',cancelledTitle:'Đã hủy yêu cầu',cancelled:'Câu hỏi vẫn được giữ. Bạn có thể sửa hoặc gửi lại.',failed:'Chưa nhận được câu trả lời',edit:'Sửa câu hỏi'},
+ en:{selectProduct:'Please select the chemical product you are using.',chooseProduct:'Choose chemical product',waiting:'Waiting for an answer',slow:'The response is taking longer. You can keep waiting or cancel.',cancel:'Cancel request',cancelledTitle:'Request cancelled',cancelled:'Your question is still here. You can edit it or send it again.',failed:'Could not get an answer',edit:'Edit question'},
+ km:{selectProduct:'សូមជ្រើសរើសផលិតផលគីមីដែលអ្នកប្រើ។',chooseProduct:'ជ្រើសរើសផលិតផលគីមី',waiting:'កំពុងរង់ចាំចម្លើយ',slow:'ការឆ្លើយតបយឺត។ អ្នកអាចរង់ចាំបន្ត ឬបោះបង់។',cancel:'បោះបង់សំណើ',cancelledTitle:'បានបោះបង់សំណើ',cancelled:'សំណួររបស់អ្នកនៅតែមាន។ អ្នកអាចកែ ឬផ្ញើម្តងទៀត។',failed:'មិនអាចទទួលចម្លើយបាន',edit:'កែសំណួរ'},
+}

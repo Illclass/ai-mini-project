@@ -11,7 +11,7 @@ export class ApiError extends Error {
 
 // Same-origin routes are forwarded by Vite (and the deployment reverse proxy).
 // JWT stays in HttpOnly cookies; the frontend never reads or stores tokens.
-export function createApi(fetcher = (...args) => fetch(...args), { timeoutMs = 45000 } = {}) {
+export function createApi(fetcher = (...args) => fetch(...args), { timeoutMs = 90000 } = {}) {
   async function request(path, { signal, json = true, timeout = timeoutMs, ...options } = {}) {
     const controller = new AbortController()
     let timedOut = false
