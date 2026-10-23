@@ -80,7 +80,7 @@ export function createApi(fetcher = (...args) => fetch(...args), { timeoutMs = 4
   }
 
   async function ask(body, options = {}) {
-    const payload = Object.fromEntries(contract.requestFields.map(key => [key, body[key] ?? (key === 'product_id' ? null : undefined)]))
+    const payload = Object.fromEntries(contract.requestFields.map(key => [key, body[key] ?? (contract.nullableFields.includes(key) ? null : undefined)]))
     const data = await request('/rag-query', {
       ...options,
       method: 'POST',

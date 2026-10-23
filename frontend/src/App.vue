@@ -49,8 +49,9 @@ function trapFocus(event) {
  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
 }
 let version=0, timer
-watch(language,v=>{document.documentElement.lang=v;try{localStorage.setItem('chembridge-language',v)}catch{}})
+watch(language,v=>{document.documentElement.lang=v;document.title=`ChemBridge · ${copy[v].service}`;try{localStorage.setItem('chembridge-language',v)}catch{}})
 document.documentElement.lang=language.value
+document.title=`ChemBridge · ${copy[language.value].service}`
 function stop(){clearTimeout(timer);playing.value=null}
 function cleanup(){requestController?.abort();version++;pending.value=false;voice.value='idle';modal.value=null;stop()}
 function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}

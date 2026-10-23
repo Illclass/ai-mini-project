@@ -110,3 +110,7 @@
 .chat-api-error button { padding:10px 16px; border-radius:12px; background:#ffffff20; color:#fff; }
 .api-global-error { position:relative; z-index:5; margin:12px auto; width:min(90%,700px); background:#421d39d9; color:white; padding:15px 20px; border-radius:16px; }
 a.clear-source { text-decoration:none; }
+:root:lang(km) { font-family: 'Khmer Sangam MN', 'Khmer MN', 'Nirmala UI', system-ui, sans-serif; line-height: 1.85; }
+:lang(km) h1, :lang(km) h2, :lang(km) .home-tile-title { letter-spacing: 0; line-height: 1.8; }
+:lang(km) .clear-answer-text { line-height: 2; }
+:lang(km) .glass-language-trigger { letter-spacing: 0; }
