@@ -296,7 +296,7 @@ export const productChecks = {
    "ចំហាយអាស៊ីត និងការលេចធ្លាយបំពង់"
   ],
   [
-   "잔류 황산과 오염 용기",
+   "잔류 약액과 오염 용기",
    "酸性废液和污染容器",
    "axit thải và bình nhiễm bẩn",
    "acid waste and contaminated containers",
@@ -319,11 +319,11 @@ export const productChecks = {
    "ទំនាក់ទំនងបន្ទាន់ និងឯកសារសង្គ្រោះ"
   ],
   [
-   "불산의 피부 접촉과 침투",
-   "氢氟酸皮肤接触和渗透",
-   "axit hydrofluoric tiếp xúc và thấm qua da",
-   "hydrofluoric acid skin contact and penetration",
-   "ការប៉ះ និងជ្រាបចូលស្បែកដោយអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរីក"
+   "피부 접촉과 침투",
+   "皮肤接触和渗透",
+   "tiếp xúc và thấm qua da",
+   "skin contact and penetration",
+   "ការប៉ះ និងជ្រាបចូលស្បែក"
   ],
   [
    "용기 재질과 분리 보관 조건",
@@ -333,25 +333,25 @@ export const productChecks = {
    "សម្ភារៈធុង និងលក្ខខណ្ឌផ្ទុកដាច់ពីគ្នា"
   ],
   [
-   "불산 증기와 미세 누출",
-   "氢氟酸蒸气和微量泄漏",
-   "hơi axit hydrofluoric và rò rỉ nhỏ",
-   "hydrofluoric acid vapor and small leaks",
-   "ចំហាយអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរីក និងការលេចធ្លាយតិចតួច"
+   "증기와 미세 누출",
+   "蒸气和微量泄漏",
+   "hơi và rò rỉ nhỏ",
+   "vapor and small leaks",
+   "ចំហាយ និងការលេចធ្លាយតិចតួច"
   ],
   [
-   "불산 잔류액과 오염 보호구",
-   "氢氟酸残液和污染防护用品",
-   "axit hydrofluoric còn dư và đồ bảo hộ nhiễm bẩn",
-   "hydrofluoric acid residues and contaminated PPE",
-   "សំណល់អាស៊ីតអ៊ីដ្រូហ្វ្លុយអរីក និងឧបករណ៍ការពារកខ្វក់"
+   "잔류액과 오염 보호구",
+   "残液和污染防护用品",
+   "hóa chất còn dư và đồ bảo hộ nhiễm bẩn",
+   "residues and contaminated PPE",
+   "សំណល់ និងឧបករណ៍ការពារកខ្វក់"
   ],
   [
-   "불산 접촉 시 전문 응급대응 절차",
-   "氢氟酸接触后的专业急救程序",
-   "quy trình cấp cứu chuyên môn khi tiếp xúc HF",
-   "specialist emergency procedures for HF contact",
-   "នីតិវិធីសង្គ្រោះជំនាញពេលប៉ះ HF"
+   "접촉 후 전문 응급대응 절차",
+   "接触后的专业急救程序",
+   "quy trình cấp cứu chuyên môn khi tiếp xúc",
+   "specialist emergency procedures after contact",
+   "នីតិវិធីសង្គ្រោះជំនាញពេលប៉ះសារធាតុគីមី"
   ]
  ],
  "merck-8.22287": [
@@ -391,7 +391,7 @@ export const productChecks = {
    "សារធាតុអុកស៊ីតកម្មនៅសល់ និងឧបករណ៍កខ្វក់"
   ],
   [
-   "분해·누출 시 현장 대응 절차",
+   "분해·누출 대응 절차",
    "分解或泄漏时现场应急程序",
    "quy trình tại chỗ khi phân hủy hoặc rò rỉ",
    "site procedures for decomposition or leaks",
@@ -407,7 +407,7 @@ export const productChecks = {
    "កំហាប់ និងតម្រូវការខ្យល់ចេញចូល"
   ],
   [
-   "암모니아 증기의 흡입과 비산",
+   "증기 흡입과 비산",
    "碱液飞溅和皮肤接触",
    "bắn tóe và tiếp xúc dung dịch kiềm",
    "alkaline splashes and skin contact",
@@ -421,14 +421,14 @@ export const productChecks = {
    "លក្ខខណ្ឌផ្ទុកដាច់ពីអាស៊ីត"
   ],
   [
-   "암모니아 증기 노출과 배기 이상",
+   "증기 노출과 배기 이상",
    "供液泄漏和异常反应",
    "rò rỉ cấp liệu và phản ứng bất thường",
    "supply leaks and abnormal reactions",
    "ការលេចធ្លាយ និងប្រតិកម្មមិនធម្មតា"
   ],
   [
-   "암모니아수 잔류액과 오염 용기",
+   "잔류액과 오염 용기",
    "残留碱液和污染容器",
    "dung dịch kiềm dư và bình nhiễm bẩn",
    "alkaline residues and contaminated containers",
@@ -472,7 +472,7 @@ export const productChecks = {
    "ចំហាយអាស៊ីត និងការលេចធ្លាយបំពង់"
   ],
   [
-   "염산 잔류액과 오염 도구",
+   "잔류액과 오염 도구",
    "酸性废液和污染容器",
    "axit thải và bình nhiễm bẩn",
    "acid waste and contaminated containers",
@@ -516,14 +516,14 @@ export const productChecks = {
    "ពពុះ និងសម្ពាធធុងកើនឡើង"
   ],
   [
-   "질산 폐액의 분리 수거",
+   "폐액과 분리 수거 용기",
    "残留氧化剂和污染工具",
    "chất oxy hóa còn lại và dụng cụ nhiễm bẩn",
    "residual oxidizer and contaminated tools",
    "សារធាតុអុកស៊ីតកម្មនៅសល់ និងឧបករណ៍កខ្វក់"
   ],
   [
-   "누출·이상 반응 시 비상 절차",
+   "누출·이상 반응 대응 절차",
    "分解或泄漏时现场应急程序",
    "quy trình tại chỗ khi phân hủy hoặc rò rỉ",
    "site procedures for decomposition or leaks",
@@ -560,7 +560,7 @@ export const productChecks = {
    "ចំហាយអាស៊ីត និងការលេចធ្លាយបំពង់"
   ],
   [
-   "인산 폐액과 오염 용기",
+   "폐액과 오염 용기",
    "酸性废液和污染容器",
    "axit thải và bình nhiễm bẩn",
    "acid waste and contaminated containers",
@@ -583,7 +583,7 @@ export const productChecks = {
    "កំហាប់ និងតម្រូវការខ្យល់ចេញចូល"
   ],
   [
-   "TMAH의 피부 접촉",
+   "피부 접촉",
    "碱液飞溅和皮肤接触",
    "bắn tóe và tiếp xúc dung dịch kiềm",
    "alkaline splashes and skin contact",
@@ -604,14 +604,14 @@ export const productChecks = {
    "ការលេចធ្លាយ និងប្រតិកម្មមិនធម្មតា"
   ],
   [
-   "폐현상액과 TMAH 오염 보호구",
+   "폐현상액과 오염 보호구",
    "残留碱液和污染容器",
    "dung dịch kiềm dư và bình nhiễm bẩn",
    "alkaline residues and contaminated containers",
    "សំណល់ទឹកអាល់កាឡាំង និងធុងកខ្វក់"
   ],
   [
-   "TMAH 접촉 시 전문 응급대응 절차",
+   "접촉 후 전문 응급대응 절차",
    "皮肤或眼睛接触后的急救程序",
    "sơ cứu khi tiếp xúc da hoặc mắt",
    "first-aid procedures for skin or eye contact",
@@ -627,7 +627,7 @@ export const productChecks = {
    "ភាពងាយឆេះ និងការគ្រប់គ្រងប្រភពបញ្ឆេះ"
   ],
   [
-   "아세톤 증기 흡입과 피부 접촉",
+   "증기 흡입과 피부 접촉",
    "溶剂吸入和皮肤接触",
    "hít dung môi và tiếp xúc da",
    "solvent inhalation and skin contact",
@@ -648,14 +648,14 @@ export const productChecks = {
    "ការកកកុញចំហាយ និងអគ្គិសនីឋិតិវន្ត"
   ],
   [
-   "폐아세톤과 용제가 묻은 걸레",
+   "폐액과 용제가 묻은 걸레",
    "废溶剂和污染擦拭材料",
    "dung môi thải và giẻ nhiễm bẩn",
    "waste solvents and contaminated wipes",
    "សារធាតុរំលាយប្រើរួច និងក្រណាត់កខ្វក់"
   ],
   [
-   "누출·화재 시 대피 절차",
+   "누출·화재 대피 절차",
    "泄漏或火灾时的疏散程序",
    "quy trình sơ tán khi rò rỉ hoặc cháy",
    "evacuation procedures for leaks or fires",
@@ -671,7 +671,7 @@ export const productChecks = {
    "ភាពងាយឆេះ និងការគ្រប់គ្រងប្រភពបញ្ឆេះ"
   ],
   [
-   "메탄올 증기와 피부 접촉",
+   "증기와 피부 접촉",
    "溶剂吸入和皮肤接触",
    "hít dung môi và tiếp xúc da",
    "solvent inhalation and skin contact",
@@ -685,21 +685,21 @@ export const productChecks = {
    "ធុងបិទជិត និងលក្ខខណ្ឌផ្ទុកសារធាតុងាយឆេះ"
   ],
   [
-   "메탄올 증기 노출",
+   "증기 노출",
    "溶剂蒸气积聚和静电",
    "tích tụ hơi dung môi và tĩnh điện",
    "solvent-vapor buildup and static electricity",
    "ការកកកុញចំហាយ និងអគ្គិសនីឋិតិវន្ត"
   ],
   [
-   "폐메탄올과 오염 흡착재",
+   "폐액과 오염 흡착재",
    "废溶剂和污染擦拭材料",
    "dung môi thải và giẻ nhiễm bẩn",
    "waste solvents and contaminated wipes",
    "សារធាតុរំលាយប្រើរួច និងក្រណាត់កខ្វក់"
   ],
   [
-   "메탄올 노출 시 의료 대응 안내",
+   "노출 후 의료 대응 안내",
    "泄漏或火灾时的疏散程序",
    "quy trình sơ tán khi rò rỉ hoặc cháy",
    "evacuation procedures for leaks or fires",
@@ -715,7 +715,7 @@ export const productChecks = {
    "ភាពងាយឆេះ និងការគ្រប់គ្រងប្រភពបញ្ឆេះ"
   ],
   [
-   "IPA 증기 흡입과 비산",
+   "증기 흡입과 비산",
    "溶剂吸入和皮肤接触",
    "hít dung môi và tiếp xúc da",
    "solvent inhalation and skin contact",
@@ -729,21 +729,21 @@ export const productChecks = {
    "ធុងបិទជិត និងលក្ខខណ្ឌផ្ទុកសារធាតុងាយឆេះ"
   ],
   [
-   "IPA 증기 축적과 정전기",
+   "증기 축적과 정전기",
    "溶剂蒸气积聚和静电",
    "tích tụ hơi dung môi và tĩnh điện",
    "solvent-vapor buildup and static electricity",
    "ការកកកុញចំហាយ និងអគ្គិសនីឋិតិវន្ត"
   ],
   [
-   "폐IPA와 오염 와이퍼",
+   "폐액과 오염 와이퍼",
    "废溶剂和污染擦拭材料",
    "dung môi thải và giẻ nhiễm bẩn",
    "waste solvents and contaminated wipes",
    "សារធាតុរំលាយប្រើរួច និងក្រណាត់កខ្វក់"
   ],
   [
-   "누출·화재 시 현장 대응 절차",
+   "누출·화재 대응 절차",
    "泄漏或火灾时的疏散程序",
    "quy trình sơ tán khi rò rỉ hoặc cháy",
    "evacuation procedures for leaks or fires",
@@ -759,7 +759,7 @@ export const productChecks = {
    "ភាពងាយឆេះ និងការគ្រប់គ្រងប្រភពបញ្ឆេះ"
   ],
   [
-   "PGMEA 증기 흡입과 피부 접촉",
+   "증기 흡입과 피부 접촉",
    "溶剂吸入和皮肤接触",
    "hít dung môi và tiếp xúc da",
    "solvent inhalation and skin contact",
@@ -773,21 +773,21 @@ export const productChecks = {
    "ធុងបិទជិត និងលក្ខខណ្ឌផ្ទុកសារធាតុងាយឆេះ"
   ],
   [
-   "PGMEA 증기 노출과 배기 상태",
+   "증기 노출과 배기 상태",
    "溶剂蒸气积聚和静电",
    "tích tụ hơi dung môi và tĩnh điện",
    "solvent-vapor buildup and static electricity",
    "ការកកកុញចំហាយ និងអគ្គិសនីឋិតិវន្ត"
   ],
   [
-   "폐PGMEA와 오염 세척 도구",
+   "폐액과 오염 세척 도구",
    "废溶剂和污染擦拭材料",
    "dung môi thải và giẻ nhiễm bẩn",
    "waste solvents and contaminated wipes",
    "សារធាតុរំលាយប្រើរួច និងក្រណាត់កខ្វក់"
   ],
   [
-   "PGMEA 흡입·눈 접촉 시 응급조치",
+   "흡입·눈 접촉 응급조치",
    "泄漏或火灾时的疏散程序",
    "quy trình sơ tán khi rò rỉ hoặc cháy",
    "evacuation procedures for leaks or fires",
