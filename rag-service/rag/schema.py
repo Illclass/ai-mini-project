@@ -94,7 +94,7 @@ class Hit(TypedDict):
 #          k: int = DEFAULT_TOP_K) -> List[Hit]
 #   - question 은 검색용 한국어 (다국어 → 한국어 변환은 검색 쪽에서 처리)
 #   - topic 의 인덱스만 검색, product_id 가 있으면 그 제품 MSDS 만
-#   - equipment_id 는 장비에 연결된 제품 목록으로 바꿔 검색 범위를 정한다 (김규빈, 구현 예정)
+#   - equipment_id 는 장비에 연결된 제품 목록으로 바꿔 검색 범위를 정한다 (rag/equipment.py)
 #   - 결과 없으면 [] → 생성 쪽은 LLM 을 부르지 않는다
 #
 # generate(question: str, hits: List[Hit], language: Language) -> RagResponse

@@ -1,7 +1,7 @@
 """평가 — 담당: 김규빈 (검색 지표) · 박진근 (생성 지표)
 
 questions.json 항목:
-    id, category, question, language, topic, product_id,
+    id, category, question, language, topic, product_id, equipment_id(선택),
     expected_answer, expected_sources [{doc_id, section}],
     expected_behavior: "answer" | "not_found" | "handoff"
     (다국어 문항은 base = 기준 한국어 문항 ID)
@@ -147,7 +147,8 @@ def run_retrieval(questions: List[dict], translate: bool, k: int) -> List[dict]:
             continue
         lang = q["language"] if translate else "ko"
         t0 = time.time()
-        hits = retrieve(q["question"], q["topic"], q.get("product_id"), k=k, language=lang)
+        hits = retrieve(q["question"], q["topic"], q.get("product_id"), k=k, language=lang,
+                        equipment_id=q.get("equipment_id"))
         ms = (time.time() - t0) * 1000
         rows.append({"id": q["id"], "category": q.get("category", ""), "language": q["language"],
                      "rank": first_hit_rank(hits, q["expected_sources"]), "ms": ms,
@@ -183,7 +184,7 @@ def run_full(questions: List[dict]) -> None:
     ok = 0
     for q in questions:
         req = RagRequest(question=q["question"], topic=q["topic"], product_id=q.get("product_id"),
-                         language=q["language"])
+                         equipment_id=q.get("equipment_id"), language=q["language"])
         resp = answer(req).model_dump()
         good = judge_behavior(resp, q["expected_behavior"])
         ok += good
