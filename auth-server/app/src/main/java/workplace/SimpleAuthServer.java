@@ -127,6 +127,7 @@ public class SimpleAuthServer {
     private static final Set<String> CORS_ORIGINS = Set.of(
             DEV_FRONTEND_ORIGIN, "http://127.0.0.1:5174",
             "http://localhost:8080", "http://127.0.0.1:8080",
+            "http://localhost:8001", "http://127.0.0.1:8001",
             "http://localhost:8008"
     );
     private static final Set<String> CORS_METHODS = Set.of("GET", "POST", "OPTIONS");
@@ -218,7 +219,12 @@ public class SimpleAuthServer {
 
             try {
                 //  회원가입 요청을 어떤 계층으로 위임해야 하는가?
-                authService.signUp(username, password);redirect(exchange, "/login");
+                authService.signUp(username, password);
+                if (acceptsJson(exchange)) {
+                    writeJson(exchange, 201, "{\"ok\":true}");
+                } else {
+                    redirect(exchange, "/login");
+                }
             } catch (SQLIntegrityConstraintViolationException dup) {
                 writeText(exchange, 400, "username already exists");
             } catch (Exception e) {
@@ -413,13 +419,22 @@ public class SimpleAuthServer {
             exchange.getResponseHeaders().add("Set-Cookie", cookie(JWT_COOKIE_NAME, "", true, 0));
             exchange.getResponseHeaders().add("Set-Cookie", cookie(APP_AUTH_COOKIE_NAME, "", false, 0));
 
-            redirect(exchange, "/login");
+            if (acceptsJson(exchange)) {
+                writeJson(exchange, 200, "{\"ok\":true}");
+            } else {
+                redirect(exchange, "/login");
+            }
         });
 
         server.start();
     }
 
     // ========= CORS =========
+
+    private static boolean acceptsJson(HttpExchange exchange) {
+        String accept = exchange.getRequestHeaders().getFirst("Accept");
+        return accept != null && accept.toLowerCase(Locale.ROOT).contains("application/json");
+    }
 
     private static void createContext(HttpServer server, String path, HttpHandler handler) {
         server.createContext(path, handler).getFilters().add(new Filter() {
