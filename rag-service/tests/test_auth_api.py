@@ -1,0 +1,182 @@
+"""인증 연동·CORS·로그 회귀 테스트. 외부 서비스 호출 없이 검증한다."""
+import logging
+import secrets
+import time
+
+import pytest
+from fastapi.testclient import TestClient
+from jose import jwt
+
+from app import auth, main
+from rag.schema import ENV_JWT_SECRET, TOPIC_LAW, TOPICS, RagRequest, RagResponse
+
+
+@pytest.fixture
+def api(monkeypatch):
+    secret = secrets.token_urlsafe(32)
+    monkeypatch.setenv(ENV_JWT_SECRET, secret)
+    monkeypatch.setattr(main, "answer", lambda req: RagResponse(answer="테스트 안내"))
+    client = TestClient(main.app)
+    yield client, secret
+    main.app.dependency_overrides.clear()
+
+
+def token(secret, **changes):
+    claims = {"sub": "1", "username": "tester", "iss": auth.ISSUER, "exp": int(time.time()) + 600}
+    claims.update(changes)
+    return jwt.encode(claims, secret, algorithm=auth.ALGORITHM)
+
+
+def body():
+    return RagRequest(question="PRIVATE_QUESTION_MARKER", topic=TOPIC_LAW).model_dump()
+
+
+def app_logs(caplog):
+    return "\n".join(record.getMessage() for record in caplog.records
+                     if record.name in ("chembridge.requests", "app.main", "root"))
+
+
+def test_bearer_without_cookie(api):
+    client, secret = api
+    response = client.post("/rag-query", headers={"Authorization": "Bearer " + token(secret)}, json=body())
+    assert response.status_code == 200
+    RagResponse.model_validate(response.json())
+
+
+def test_existing_cookie_is_compatible(api):
+    client, secret = api
+    client.cookies.set("ACCESS_TOKEN", token(secret))
+    assert client.post("/rag-query", json=body()).status_code == 200
+
+
+@pytest.mark.parametrize("authorization", ["", "Basic value", "Bearer", "Bearer invalid", "Bearer bad token"])
+def test_invalid_bearer_cannot_fall_back_to_cookie(api, authorization):
+    client, secret = api
+    client.cookies.set("ACCESS_TOKEN", token(secret))
+    response = client.post("/rag-query", headers={"Authorization": authorization}, json=body())
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+def test_valid_bearer_takes_priority_over_forged_cookie(api):
+    client, secret = api
+    client.cookies.set("ACCESS_TOKEN", "invalid")
+    response = client.post("/rag-query", headers={"Authorization": "Bearer " + token(secret)}, json=body())
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("changes", [
+    {"exp": 0}, {"exp": None}, {"exp": []}, {"exp": "invalid"},
+    {"sub": ""}, {"sub": 1}, {"iss": "wrong-issuer"},
+])
+def test_bad_bearer_claims_are_401(api, changes):
+    client, secret = api
+    response = client.post("/rag-query", headers={"Authorization": "Bearer " + token(secret, **changes)}, json=body())
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize("missing", ["exp", "sub", "iss"])
+def test_required_bearer_claims(api, missing):
+    client, secret = api
+    claims = jwt.get_unverified_claims(token(secret))
+    claims.pop(missing)
+    encoded = jwt.encode(claims, secret, algorithm=auth.ALGORITHM)
+    assert client.post("/rag-query", headers={"Authorization": "Bearer " + encoded}, json=body()).status_code == 401
+
+
+def test_forged_bearer_is_401(api):
+    client, _ = api
+    encoded = token(secrets.token_urlsafe(32))
+    assert client.post("/rag-query", headers={"Authorization": "Bearer " + encoded}, json=body()).status_code == 401
+
+
+def test_missing_token_is_401(api):
+    client, _ = api
+    assert client.post("/rag-query", json=body()).status_code == 401
+
+
+def test_missing_secret_is_503(api, monkeypatch):
+    client, secret = api
+    monkeypatch.delenv(ENV_JWT_SECRET)
+    assert client.post("/rag-query", headers={"Authorization": "Bearer " + token(secret)}, json=body()).status_code == 503
+
+
+def test_cors_preflight_accepts_authorization(api):
+    client, _ = api
+    response = client.options("/rag-query", headers={
+        "Origin": "http://localhost:5174", "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type",
+    })
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5174"
+    assert response.headers["access-control-allow-credentials"] == "true"
+    assert "authorization" in response.headers["access-control-allow-headers"].lower()
+
+
+def test_cors_disallows_other_origins(api):
+    client, _ = api
+    response = client.options("/rag-query", headers={
+        "Origin": "http://untrusted.invalid", "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type",
+    })
+    assert response.status_code == 400
+    assert "access-control-allow-origin" not in response.headers
+
+
+@pytest.mark.parametrize("case, expected", [("ok", 200), ("unauthenticated", 401), ("invalid", 422), ("upstream", 503)])
+def test_error_cors_and_private_logs(api, monkeypatch, caplog, case, expected):
+    client, secret = api
+    encoded = token(secret)
+    headers = {"Origin": "http://localhost:5174", "Authorization": "Bearer " + encoded}
+    payload = body()
+    caplog.set_level(logging.INFO)
+    if case == "unauthenticated":
+        headers.pop("Authorization")
+    elif case == "invalid":
+        payload["topic"] = "invalid"
+    elif case == "upstream":
+        def fail(req):
+            raise TimeoutError(req.question + encoded + secret)
+        monkeypatch.setattr(main, "answer", fail)
+    response = client.post("/rag-query?token=PRIVATE_QUERY_MARKER", json=payload, headers=headers)
+    assert response.status_code == expected
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5174"
+    logs = app_logs(caplog)
+    assert f"path=/rag-query status={expected} latency_ms=" in logs
+    for private in ("PRIVATE_QUESTION_MARKER", "PRIVATE_QUERY_MARKER", encoded, secret):
+        assert private not in logs
+
+
+def test_unexpected_error_preserves_cors_and_privacy(api, caplog):
+    client, secret = api
+    caplog.set_level(logging.INFO)
+    def fail():
+        raise RuntimeError("PRIVATE_QUESTION_MARKER" + secret)
+    main.app.dependency_overrides[auth.get_current_user] = fail
+    response = client.post("/rag-query", json=body(), headers={"Origin": "http://localhost:5174"})
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5174"
+    assert "PRIVATE_QUESTION_MARKER" not in app_logs(caplog)
+    assert secret not in app_logs(caplog)
+
+
+def test_swagger_documents_bearer(api):
+    client, _ = api
+    schema = client.get("/openapi.json").json()
+    scheme = schema["components"]["securitySchemes"]["BearerAuth"]
+    assert scheme["type"] == "http" and scheme["scheme"] == "bearer"
+    operation = schema["paths"]["/rag-query"]["post"]
+    assert {"BearerAuth": []} in operation["security"]
+    assert {"200", "401", "422", "503"} <= operation["responses"].keys()
+
+
+def test_index_startup_failure_keeps_health_available(monkeypatch, caplog):
+    def fail():
+        raise RuntimeError("PRIVATE_STARTUP_MARKER")
+    monkeypatch.setattr(main.stores, "load_all", fail)
+    monkeypatch.setattr(main.stores, "is_ready", lambda: False)
+    monkeypatch.setattr(main.stores, "status", lambda: {topic: False for topic in TOPICS})
+    with TestClient(main.app) as client:
+        assert client.get("/health").status_code == 503
+        assert client.get("/docs").status_code == 200
+    assert "PRIVATE_STARTUP_MARKER" not in caplog.text
