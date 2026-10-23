@@ -66,3 +66,29 @@ def test_drop_truncated_can_be_turned_off(monkeypatch):
     monkeypatch.setattr(retriever, "DROP_TRUNCATED", False)
     hits = [_hit("D2-s7-bad")]
     assert retriever.drop_truncated(hits) == hits
+
+
+class _FakeDoc:
+    def __init__(self, cid, no, text, pid="sigma-695068"):
+        self.page_content = text
+        self.metadata = {"chunk_id": cid, "doc_type": "msds", "product_id": pid, "msds_section_no": no}
+
+
+class _FakeStore:
+    def __init__(self, docs):
+        self.docstore = type("DS", (), {"_dict": {d.metadata["chunk_id"]: d for d in docs}})()
+
+
+def test_attach_identity_adds_sections_1_3_16_once():
+    store = _FakeStore([
+        _FakeDoc("D2-s1", 1, "제품명 : HF\n제품 번호 : 695068"), _FakeDoc("D2-s3", 3, "함유량 (% w/w) >= 45"),
+        _FakeDoc("D2-s16", 16, "약어 설명"), _FakeDoc("D2-s16-2", 16, "최종 개정일자 : 2026.07.17"),
+        _FakeDoc("D2-s8", 8, "보호구"), _FakeDoc("D1-s1", 1, "제품 번호 : 339741", pid="sigma-339741"),
+    ])
+    hits = [_hit("D2-s8"), _hit("D2-s1")]   # 1항은 이미 검색됨 → 다시 붙이지 않는다
+    out = [h["metadata"]["chunk_id"] for h in retriever.attach_identity(hits, store, "sigma-695068")]
+    assert out == ["D2-s8", "D2-s1", "D2-s3", "D2-s16-2"]
+
+
+def test_attach_identity_needs_one_product():
+    assert retriever.attach_identity([_hit("D2-s8")], _FakeStore([]), None) == [_hit("D2-s8")]

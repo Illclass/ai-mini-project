@@ -17,7 +17,13 @@
     - 생성 쪽은 MSDS 근거 중 하나라도 경고 문맥이 잘렸으면(prompt.incomplete_critical_chunks) 답변 전체를 보류한다.
       실제 MSDS 는 목록·표 형식이 많아 청크의 약 1/3 이 잘림으로 판정되므로, 그 청크만 근거에서 빼고 다음 순위로 채운다.
     - 대가: 빠진 청크 안의 경고는 답변에 나오지 않는다 (생성 쪽 MSDS 원문 확인 안내는 그대로 붙는다).
+
+제품 식별 근거 붙이기 (ATTACH_IDENTITY)
+    - 생성 쪽은 MSDS 로 답하기 전에 제품명·제품번호·농도·개정일을 원문 인용으로 확인한다.
+      이 값들은 MSDS 1항(제품명·번호) · 3항(함유량) · 16항(최종 개정일자)에 있어 보호구·취급 질문으로는 검색되지 않는다.
+    - 제품이 하나로 정해졌으면 그 제품의 해당 청크를 상위 k 개 뒤에 덧붙인다 (k 개 밖, 이미 있으면 생략).
 """
+import re
 from typing import Callable, List, Optional
 
 from rag import equipment
@@ -28,6 +34,9 @@ from rag.stores import get_store
 MIN_PRODUCT = 2    # 제품 범위 검색에서 고른 제품 MSDS 를 최소 몇 개 넣을지
 DROP_TRUNCATED = True   # 경고 문맥이 잘린 MSDS 청크를 근거에서 뺀다 (모듈 설명 참고)
 TRUNCATED_MARGIN = 4    # 빠질 청크를 대비해 더 가져올 개수
+ATTACH_IDENTITY = True  # 제품이 하나로 정해지면 MSDS 1·3·16항 식별 청크를 덧붙인다 (모듈 설명 참고)
+# MSDS 항목 번호 → 그 항목 청크 중 식별 정보가 있는 청크를 고르는 표시
+IDENTITY_SECTIONS = {1: r"제품\s*번호", 3: r"함유량|농도", 16: r"최종\s*개정"}
 
 
 def search_store(question: str, vectorstore, k: int = DEFAULT_TOP_K,
@@ -73,6 +82,36 @@ def drop_truncated(hits: List[Hit]) -> List[Hit]:
     return [h for h in hits if h["metadata"].get("chunk_id") not in bad]
 
 
+_IDENTITY_CACHE: dict = {}   # (인덱스 id, product_id) → 식별 청크 목록
+
+
+def identity_chunks(store, product_id: str) -> list:
+    """제품의 식별 청크: 1·3·16항마다 식별 표시(IDENTITY_SECTIONS)가 있는 첫 청크."""
+    key = (id(store), product_id)
+    if key not in _IDENTITY_CACHE:
+        docs = sorted((d for d in store.docstore._dict.values() if d.metadata.get("product_id") == product_id),
+                      key=lambda d: d.metadata.get("chunk_id", ""))
+        picked = []
+        for no, mark in IDENTITY_SECTIONS.items():
+            doc = next((d for d in docs if d.metadata.get("msds_section_no") == no
+                        and re.search(mark, d.page_content)), None)
+            if doc is not None:
+                picked.append(doc)
+        _IDENTITY_CACHE[key] = picked
+    return _IDENTITY_CACHE[key]
+
+
+def attach_identity(hits: List[Hit], store, product_id: Optional[str]) -> List[Hit]:
+    """제품이 하나로 정해졌으면 식별 청크를 hits 뒤에 덧붙인다 (이미 있는 청크·잘림 판정 청크는 제외)."""
+    if not ATTACH_IDENTITY or not product_id or store is None:
+        return hits
+    have = {h["metadata"].get("chunk_id") for h in hits}
+    worst = max((h["score"] for h in hits), default=0.0)
+    extra = [{"text": d.page_content, "score": worst, "metadata": dict(d.metadata)}
+             for d in identity_chunks(store, product_id) if d.metadata.get("chunk_id") not in have]
+    return hits + drop_truncated(extra)
+
+
 def scope_product_ids(product_id: Optional[str], equipment_id: Optional[str]) -> Optional[List[str]]:
     """검색할 제품 범위. product_id 가 우선, 없으면 장비의 제품 목록. None 이면 범위 제한 없음."""
     if product_id:
@@ -83,7 +122,8 @@ def scope_product_ids(product_id: Optional[str], equipment_id: Optional[str]) ->
 def retrieve(question: str, topic: str, product_id: Optional[str] = None,
              k: int = DEFAULT_TOP_K, language: str = "ko",
              equipment_id: Optional[str] = None) -> List[Hit]:
-    """stores.get_store(topic) → query.normalize_question → (제품 범위가 있으면) 제품 MSDS + 공통 문서 → 상위 k."""
+    """stores.get_store(topic) → query.normalize_question → (제품 범위가 있으면) 제품 MSDS + 공통 문서 → 상위 k
+    → (제품이 하나면) 식별 청크 덧붙임. 그래서 제품이 하나로 정해진 경우 결과가 k 개보다 많을 수 있다."""
     store = get_store(topic)
     if store is None:
         return []
@@ -93,6 +133,7 @@ def retrieve(question: str, topic: str, product_id: Optional[str] = None,
     extra = TRUNCATED_MARGIN if DROP_TRUNCATED else 0
     if ids is None:
         return drop_truncated(_search_all(queries, store, k + extra))[:k]
+    single = ids[0] if len(ids) == 1 else None
 
     allowed = set(ids)
     in_scope = drop_truncated(_search_all(queries, store, k + extra,
@@ -105,4 +146,4 @@ def retrieve(question: str, topic: str, product_id: Optional[str] = None,
                 if h["metadata"].get("chunk_id") not in have][:MIN_PRODUCT - n_product]
         common = [h for h in in_scope if not h["metadata"].get("product_id")]
         in_scope = [h for h in in_scope if h["metadata"].get("product_id")] + more + common[:k - n_product - len(more)]
-    return sorted(in_scope, key=lambda h: h["score"])[:k]
+    return attach_identity(sorted(in_scope, key=lambda h: h["score"])[:k], store, single)
