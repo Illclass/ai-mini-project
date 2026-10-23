@@ -216,7 +216,7 @@ class EvidenceDraft(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     supported: bool
     statements: list[EvidenceStatement]
-    critical_translations: list["CriticalTranslation"] = Field(default_factory=list, description="Translate only exact IDs in CRITICAL_PASSAGES_JSON. Return [] if that map is empty; never use a chunk_id as a passage_id.")
+    critical_translations: list["CriticalTranslation"] = Field(default_factory=list, description="Translate EVERY exact ID in CRITICAL_PASSAGES_JSON once; never omit a warning even if the question asks only product identity. Keep all quantities unchanged. Return [] if that map is empty; never use a chunk_id as a passage_id.")
     product_facts: list["ProductFact"] = Field(default_factory=list, description="For MSDS, extract ALL FOUR available identity fields regardless of what the user asked: product_name, product_number, concentration, revision_date. Quote only page_content. For non-MSDS return [].")
 
 
@@ -346,6 +346,18 @@ def _unsafe_text(text: str) -> bool:
     )) or bool(re.search(r"现行法律要求|目前有效|已被废止|luật hiện hành yêu cầu|đã bị bãi bỏ|작업해도\s*됩니다|작업을\s*승인합니다|可以安全作业|批准作业|được phép làm việc", text, re.I))
 
 
+def _unsafe_critical_translation(text: str, original: str) -> bool:
+    """Allow only the original supplier URLs in a warning translation.
+
+    New/extended URLs and all other unsafe assertions still fail locally;
+    independent semantic verification compares the untouched translation.
+    """
+    url_characters = r"A-Za-z0-9./?=&%_~#:+@-"
+    for url in re.findall(r"(?:https?://|www\.)[" + url_characters + r"]+", original):
+        text = re.sub(re.escape(url) + r"(?![" + url_characters + r"])", " ", text)
+    return _unsafe_text(text)
+
+
 def _verify_citations(citations: list[Citation], originals: dict[str, Document]) -> bool:
     return bool(citations) and all(
         citation.chunk_id in originals and bool(citation.quote.strip())
@@ -354,17 +366,39 @@ def _verify_citations(citations: list[Citation], originals: dict[str, Document])
     )
 
 
-def _quantities_supported(text: str, citations: list[Citation]) -> bool:
+def _cited_cas_identifiers(citations, originals) -> tuple[str, ...]:
+    """Recognize chemical IDs only in actual citations of CAS-labelled MSDS.
+
+    A checksum-valid CAS number is an identifier, not an impossible calendar
+    date. Exact source quotes and all numeric/semantic comparisons still apply.
+    """
+    identifiers = []
+    for citation in citations:
+        doc = originals.get(citation.chunk_id)
+        if (doc is None or doc.metadata.get("doc_type") != DOC_TYPE_MSDS
+                or citation.quote not in doc.page_content
+                or not re.search(r"\bCAS\b", doc.page_content, re.I)):
+            continue
+        for value in re.findall(r"(?<![\w-])[1-9][0-9]{1,6}-[0-9]{2}-[0-9](?![\w-])", citation.quote):
+            digits = value.replace("-", "")
+            if sum(int(digit) * weight for weight, digit in enumerate(reversed(digits[:-1]), 1)) % 10 == int(digits[-1]):
+                identifiers.append(value)
+    return tuple(dict.fromkeys(identifiers))
+
+
+def _quantities_supported(text: str, citations: list[Citation], *, source_identifiers=()) -> bool:
     """Reject new numeric facts/units/dates using ONLY this claim's quotes.
 
     Conservative: no unit conversion or inferred shelf life. Omission can be a
     valid summary; negation, bounds and meaning are checked by the verifier.
     """
     def canonical(value):
-        return unicodedata.normalize("NFKC", value).lower().replace("−", "-")
+        return unicodedata.normalize("NFKC", value).lower().replace("−", "-").translate(prompt.KHMER_DIGITS)
 
-    claim = canonical(text)
-    evidence = canonical("\n".join(c.quote for c in citations))
+    claim = prompt.calendar_text_with_identifiers(canonical(text), source_identifiers)
+    evidence = prompt.calendar_text_with_identifiers(canonical("\n".join(c.quote for c in citations)), source_identifiers)
+    if claim is None or evidence is None:
+        return False
     number = r"[+-]?\d+(?:[.,]\d+)?"
     unit = r"ppm|ppb|mg/m3|μg/m3|g/l|mg/l|°c|°f|%|kg|mg|μg|ml|l|g"
     measurements = rf"({number})\s*({unit})(?![a-z])"
@@ -416,13 +450,120 @@ def _verify_draft_support(question, draft, originals, required, translated, *,
     return None
 
 
+
+def _cited_ingredient_terms(citations, originals) -> tuple[str, ...]:
+    """Script exceptions for name cells in actually cited MSDS table rows only.
+
+    Require a header identifying both the name and concentration columns.
+    Do not use metadata, another chunk, an uncited row, or arbitrary prose.
+    Exact row/value citations and semantic support are checked independently.
+    """
+    terms = []
+    for citation in citations:
+        doc = originals.get(citation.chunk_id)
+        if (doc is None or doc.metadata.get("doc_type") != DOC_TYPE_MSDS
+                or not citation.quote.strip() or citation.quote not in doc.page_content):
+            continue
+        name_index = None
+        width = 0
+        for line in doc.page_content.splitlines():
+            row = line.strip()
+            if "|" not in row:
+                name_index = None
+                continue
+            cells = [cell.strip() for cell in row.strip("|").split("|")]
+            header_names = [i for i, cell in enumerate(cells)
+                            if re.fullmatch(r"구성성분(?:의 명칭)?|성분명|화학물질명|ingredient(?: name)?|chemical name", cell, re.I)]
+            if header_names and any(re.search(r"함유량|농도|concentration|content", cell, re.I) for cell in cells):
+                name_index, width = header_names[0], len(cells)
+                continue
+            if name_index is None:
+                continue
+            if all(re.fullmatch(r"[: -]+", cell) for cell in cells):
+                continue  # Markdown separator row.
+            if len(cells) != width:
+                name_index = None
+                continue
+            name = cells[name_index]
+            if (row in citation.quote and 1 < len(name) <= 80
+                    and re.fullmatch(r"[\w ()\[\],+./%-]+", name)
+                    and not re.search(r"[.!?]$", name)):
+                terms.append(name)
+    return tuple(dict.fromkeys(terms))
+
+
 def _has_duty_assertion(text: str) -> bool:
     """Conservative lexical check; not a legal entailment classifier."""
+    # Vietnamese negative copula means "is not", not "must". Remove only
+    # that pair; a separate phải/must/legal duty in the same text remains.
+    text = re.sub(r"\bkhông\s+phải\b", " ", text, flags=re.I)
     return bool(re.search(
-        r"하여야|되어야|이어야|해야\s*(?:합|한|할|해|되|만)|반드시|"
+        r"하\s*여야|되\s*어야|이\s*어야|있\s*어야|없\s*어야|해\s*야\s*(?:합|한|할|해|되|만)|반드시|"
         r"의무\s*(?:입니다|이다|가\s*있|를\s*진|를\s*부담)|"
         r"\bmust\b|\bshall\b|required\s+to|必须|有义务|应当|\bphải\b|có nghĩa vụ", text, re.IGNORECASE,
     ))
+
+
+def _invalid_nonlaw_duty(text: str, citations, metadata) -> bool:
+    """Separate explicit law claims from faithfully quoted MSDS instructions."""
+    if not _has_duty_assertion(text):
+        return False
+    # Remove only explicit negative legal-status phrases, never the action
+    # clause. A separate affirmative "by law" claim must still be rejected.
+    nonlegal_text = re.sub(
+        r"법적\s*의무(?:라는\s*뜻은\s*아니(?:며|고|다)|는?\s*아니(?:며|고|다)|로\s*단정하지\s*않(?:으며|고|습니다))|"
+        r"\bnot\s+(?:a\s+)?(?:legal|statutory)\s+obligation\b|"
+        r"(?:不是|并非|不属于)\s*(?:法定|法律)义务|"
+        r"không\s+phải\s+(?:là\s+)?nghĩa\s+vụ\s+pháp\s+lý",
+        " ", text, flags=re.I,
+    )
+    wording = normalized(nonlegal_text)
+    explicit_law = re.search(
+        r"법령|법률|법적|법정|법에\s*(?:따라|의해)|法律|法定|依法|有义务|"
+        r"\blegal\b|\blaw\b|\bstatutory\b|phap luat|theo luat|nghia vu phap ly", wording, re.I,
+    ) or re.search(r"ច្បាប់", nonlegal_text)
+    if explicit_law:
+        return True
+    # A technical requirement can be mandatory without claiming legal status.
+    # Keep source-force checks locally AND independent semantic verification.
+    if not citations or any(metadata[c.chunk_id].doc_type == DOC_TYPE_LAW for c in citations):
+        return True
+    return not any(_source_technical_requirement(citation, metadata) for citation in citations)
+
+
+def _source_technical_requirement(citation, metadata) -> bool:
+    """Syntactic source-force check, never proof of the generated claim's meaning."""
+    if metadata[citation.chunk_id].doc_type == DOC_TYPE_LAW:
+        return False
+    quote = citation.quote
+    if _has_duty_assertion(quote) or re.search(
+        r"하\s*(?:시오|십시오)|입으십시오|(?:할|말)\s*것(?=\s*(?:[.!?]|$))|금지|필수", quote, re.I | re.M,
+    ):
+        return True
+    return bool(
+        metadata[citation.chunk_id].doc_type == DOC_TYPE_MSDS
+        and re.search(r"(?:신체|피부)\s*(?:[/·]\s*(?:신체|피부))?\s*보호\s*[:：]", quote)
+        and re.search(r"보호복|보호의|보호장갑|보안경", quote)
+        and not re.search(r"권장|권고|추천|불필요|필요\s*없|착용하지\s*않아도|선택적", quote)
+    )
+
+
+def _align_technical_kinds(draft, originals, metadata):
+    """Keep actual technical requirements out of the recommendation heading.
+
+    Only already valid source quotes can change the internal category. Text,
+    citation, strength and applicability are still independently verified.
+    Never change a legal claim into a technical claim to make it pass.
+    """
+    statements = []
+    for statement in draft.statements:
+        if (statement.kind == "recommendation"
+                and _verify_citations(statement.citations, originals)
+                and all(metadata[c.chunk_id].doc_type != DOC_TYPE_LAW for c in statement.citations)
+                and any(_source_technical_requirement(c, metadata) for c in statement.citations)):
+            statement = statement.model_copy(update={"kind": "information"})
+        statements.append(statement)
+    return draft.model_copy(update={"statements": statements})
 
 
 def _supports_legal_duty(citations: list[Citation], metadata: dict[str, SourceMetadata]) -> bool:
@@ -514,6 +655,11 @@ def _verified_product(draft: EvidenceDraft, originals, metadata_by_id, reference
             for c in fact.citations
         ):
             return False
+        if fact.field == "product_name" and not any(
+            fact.value in prompt.product_name_tokens([originals[c.chunk_id]]).values()
+            and fact.value in c.quote for c in fact.citations
+        ):
+            return False  # A wrapped product identifier must not be truncated.
         if fact.field in fields and fields[fact.field] != fact.value:
             return False
         fields[fact.field] = fact.value
@@ -537,6 +683,74 @@ def _verified_product(draft: EvidenceDraft, originals, metadata_by_id, reference
     if revision > reference_date:
         return False
     return dates == {revision}
+
+
+
+def _restore_product_name_tokens(draft: EvidenceDraft, documents) -> EvidenceDraft | None:
+    """Restore text only from already source-validated product name facts.
+
+    Never repair a mistranslated literal or modify quotes/facts/metadata. Unknown
+    tokens, absent product facts and names not evidenced by that text's citations
+    fail closed. All normal evidence/semantic checks run on the restored text.
+    """
+    verified = {fact.value for fact in draft.product_facts if fact.field == "product_name"}
+    tokens = {key: value for key, value in prompt.product_name_tokens(documents).items() if value in verified}
+
+    def restore(text, citations):
+        def replace(match):
+            token = match[0]
+            if token not in tokens or not any(tokens[token] in c.quote for c in citations):
+                raise ValueError("Unverified product name placeholder")
+            return tokens[token]
+
+        text = re.sub(r"(?<![A-Za-z0-9_])CB_PRODUCT_NAME_[A-Za-z0-9_]+", replace, text)
+        if "CB_PRODUCT_NAME_" in text:
+            raise ValueError("Unresolved product name placeholder")
+        return text
+
+    try:
+        statements = []
+        for statement in draft.statements:
+            conditions = [condition.model_copy(update={"text": restore(condition.text, condition.citations)})
+                          for condition in statement.conditions]
+            statements.append(statement.model_copy(update={
+                "text": restore(statement.text, statement.citations), "conditions": conditions}))
+        passages = critical_passages(documents)
+        translations = []
+        for item in draft.critical_translations:
+            pair = passages.get(item.passage_id)
+            citations = [Citation(chunk_id=pair[0], quote=pair[1])] if pair else []
+            translations.append(item.model_copy(update={"text": restore(item.text, citations)}))
+        return draft.model_copy(update={"statements": statements, "critical_translations": translations})
+    except ValueError:
+        return None
+
+
+def _without_redundant_msds_statements(draft: EvidenceDraft, documents) -> EvidenceDraft:
+    """Render verified product names and complete PPE warnings once, separately.
+
+    Only exact, already verified name-fact citations can replace a name-only
+    statement. A PPE duplicate is omitted only when a matching dedicated warning
+    translation exists; that translation still passes every downstream check.
+    Statements with conditions or legal claims are never omitted here.
+    """
+    names = {(c.chunk_id, c.quote) for fact in draft.product_facts if fact.field == "product_name"
+             for c in fact.citations}
+    passages = critical_passages(documents)
+    translated_ids = {item.passage_id for item in draft.critical_translations}
+    translated_quotes = {pair for pid, pair in passages.items() if pid in translated_ids}
+    kept = []
+    for statement in draft.statements:
+        citations = {(c.chunk_id, c.quote) for c in statement.citations}
+        eligible = statement.kind != "legal_obligation" and not statement.conditions and bool(citations)
+        name_duplicate = eligible and citations.issubset(names)
+        ppe_duplicate = eligible and citations.issubset(translated_quotes) and all(
+            re.search(r"보호장갑|보호구|보안경", quote)
+            and re.search(r"착용하(?:시오|십시오)[.!]?$", quote.strip()) for _, quote in citations
+        )
+        if not (name_duplicate or ppe_duplicate):
+            kept.append(statement)
+    return draft.model_copy(update={"statements": kept})
 
 
 def generate_answer(
@@ -633,6 +847,16 @@ def generate_answer(
     if msds and not _verified_product(draft, originals, metadata_by_id, reference_date, question):
         return review("product_unverified")
 
+    draft = _restore_product_name_tokens(draft, usable)
+    if draft is None:
+        return review("invalid_translation")
+    draft = _align_technical_kinds(draft, originals, metadata_by_id)
+    if msds:
+        draft = _without_redundant_msds_statements(draft, msds)
+
+    # Product names were verified by _verified_product above; allow those exact
+    # identifiers in translated prose without allowing arbitrary source-language text.
+    preserved_terms = tuple(fact.value for fact in draft.product_facts if fact.field == "product_name") if msds else ()
     selected_ids = []
     reasons = ["msds_applicability_unverified"] if msds else []
     if mode == "precheck":
@@ -640,13 +864,31 @@ def generate_answer(
     for statement in draft.statements:
         if _unsafe_text(statement.text) or not _verify_citations(statement.citations, originals):
             return review("invalid_evidence")
-        if not translation_valid("", statement.text, language):
+        if not translation_valid("", statement.text, language,
+                                 preserved_terms=preserved_terms + _cited_ingredient_terms(statement.citations, originals)):
             return review("invalid_translation")
-        if statement.kind != "legal_obligation" and _has_duty_assertion(statement.text):
+        # A product-name claim must use the verified identifier, not a translation.
+        identity_claim = re.search(r"제품명|产品名|产品名称|product name|ten san pham", normalized(statement.text), re.I) or "ឈ្មោះផលិតផល" in statement.text
+        if identity_claim and any(term not in statement.text and any(term in c.quote for c in statement.citations) for term in preserved_terms):
+            return review("invalid_translation")
+        # Guard the observed PPE failure: a source instruction must not become
+        # a mere recommendation. Full semantic support is still checked below.
+        direct_ppe = all(
+            metadata_by_id[c.chunk_id].doc_type == DOC_TYPE_MSDS
+            and re.search(r"보호장갑|보호구|보안경", c.quote)
+            and re.search(r"착용하(?:시오|십시오)[.!]?$", c.quote.strip())
+            for c in statement.citations
+        )
+        if direct_ppe and re.search(r"recommend|advis|suggest|建议|推荐|khuyen|권장", normalized(statement.text), re.I):
+            return review("invalid_translation")
+        if statement.kind == "recommendation" and _has_duty_assertion(statement.text):
+            return review("invalid_evidence")
+        if statement.kind != "legal_obligation" and _invalid_nonlaw_duty(statement.text, statement.citations, metadata_by_id):
             return review("invalid_evidence")
         if statement.kind == "legal_obligation" and not _supports_legal_duty(statement.citations, metadata_by_id):
             return review("invalid_evidence")
-        if not _quantities_supported(statement.text, statement.citations):
+        if not _quantities_supported(statement.text, statement.citations,
+                source_identifiers=_cited_cas_identifiers(statement.citations, originals)):
             return review("claim_mismatch")
         selected_ids.extend(c.chunk_id for c in statement.citations)
         if not statement.conditions:
@@ -654,11 +896,13 @@ def generate_answer(
         for condition in statement.conditions:
             if _unsafe_text(condition.text) or not _verify_citations(condition.citations, originals):
                 return review("invalid_evidence")
-            if not _quantities_supported(condition.text, condition.citations):
+            if not _quantities_supported(condition.text, condition.citations,
+                    source_identifiers=_cited_cas_identifiers(condition.citations, originals)):
                 return review("claim_mismatch")
-            if not translation_valid("", condition.text, language):
+            if not translation_valid("", condition.text, language,
+                                     preserved_terms=preserved_terms + _cited_ingredient_terms(condition.citations, originals)):
                 return review("invalid_translation")
-            if statement.kind != "legal_obligation" and _has_duty_assertion(condition.text):
+            if statement.kind != "legal_obligation" and _invalid_nonlaw_duty(condition.text, condition.citations, metadata_by_id):
                 return review("invalid_evidence")
             if statement.kind == "legal_obligation" and not all(
                 metadata_by_id[c.chunk_id].doc_type == DOC_TYPE_LAW for c in condition.citations
@@ -675,10 +919,17 @@ def generate_answer(
     for item in draft.critical_translations:
         if item.passage_id not in passages or item.passage_id in translated:
             return review("invalid_translation")
-        if _unsafe_text(item.text) or not translation_valid(passages[item.passage_id][1], item.text, language):
+        if _unsafe_critical_translation(item.text, passages[item.passage_id][1]) or not translation_valid(passages[item.passage_id][1], item.text, language,
+                source_doc_type=metadata_by_id[passages[item.passage_id][0]].doc_type,
+                source_identifiers=_cited_cas_identifiers(
+                    [Citation(chunk_id=passages[item.passage_id][0], quote=passages[item.passage_id][1])], originals),
+                preserved_terms=preserved_terms + _cited_ingredient_terms(
+                    [Citation(chunk_id=passages[item.passage_id][0], quote=passages[item.passage_id][1])], originals)):
             return review("invalid_translation")
         passage_cid, passage_quote = passages[item.passage_id]
-        if not _quantities_supported(item.text, [Citation(chunk_id=passage_cid, quote=passage_quote)]):
+        if not _quantities_supported(item.text, [Citation(chunk_id=passage_cid, quote=passage_quote)],
+                source_identifiers=_cited_cas_identifiers(
+                    [Citation(chunk_id=passage_cid, quote=passage_quote)], originals)):
             return review("claim_mismatch")
         translated[item.passage_id] = item.text
     if language != "ko" and not set(required).issubset(translated):
@@ -742,7 +993,7 @@ def generate_answer(
         parts.append(text["versions"])
     result = GenerationOutput(
         answer="\n\n".join(parts), sources=sources,
-        needs_review=bool(reasons), handoff=bool(reasons),
+        needs_review=bool(reasons), handoff=False,
     )
     result._review_reasons = reasons
     result._review_message = " ".join(_REVIEW_MESSAGES[reason] for reason in reasons)
