@@ -68,6 +68,16 @@ def test_rag_and_health_keep_their_current_server(client):
     assert "servers" not in paths["/health"]["get"]
 
 
+def test_log_endpoint_is_documented_with_auth_and_filters(client):
+    operation = client.get("/openapi.json").json()["paths"]["/raq-query-log"]["get"]
+    assert operation["tags"] == ["서비스 상태"]
+    assert {"BearerAuth": []} in operation["security"]
+    query = {parameter["name"]: parameter for parameter in operation["parameters"] if parameter["in"] == "query"}
+    assert set(query) == {"limit", "path", "status"}
+    assert query["limit"]["schema"]["maximum"] == 1000
+    assert {"200", "401", "422", "503"} <= operation["responses"].keys()
+
+
 def test_swagger_enables_cross_origin_cookie_sessions(client):
     response = client.get("/docs")
     assert response.status_code == 200
