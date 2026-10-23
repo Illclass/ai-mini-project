@@ -2,6 +2,7 @@
 
 실행 (rag-service/ 에서):  python -m uvicorn app.main:app --port 8001 --reload
 """
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
@@ -15,7 +16,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # rag-service/.env
 
-from fastapi import Depends, FastAPI, HTTPException  # noqa: E402
+from fastapi import Depends, FastAPI, HTTPException, Query  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.openapi.utils import get_openapi  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
@@ -124,6 +125,7 @@ class LatencyStatistics:
         self._started_at = datetime.now(timezone.utc).isoformat()
         self._total = _LatencyBucket()
         self._routes: dict = {}
+        self._recent_logs: deque = deque(maxlen=1000)
         self._output_path: Path | None = None
         self._write_warning_logged = False
 
@@ -149,6 +151,19 @@ class LatencyStatistics:
         with self._lock:
             return self._snapshot()
 
+    def query_logs(self, limit: int, path: str | None, status: int | None) -> dict:
+        with self._lock:
+            logs = [dict(event) for event in reversed(self._recent_logs)
+                    if (path is None or event["path"] == path)
+                    and (status is None or event["status"] == status)]
+            return {
+                **self._snapshot(),
+                "filters": {"path": path, "status": status, "limit": limit},
+                "retention": {"max_entries": self._recent_logs.maxlen,
+                              "retained_count": len(self._recent_logs), "matching_count": len(logs)},
+                "logs": logs[:limit],
+            }
+
     def record(self, path: str, method: str, status: int, elapsed_ms: float, completed: bool) -> None:
         method = method if method in {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "TRACE", "CONNECT"} else "OTHER"
         with self._lock:
@@ -156,6 +171,15 @@ class LatencyStatistics:
             status_bucket = statuses.setdefault(status, _LatencyBucket())
             for item in (self._total, bucket, status_bucket):
                 item.add(status, elapsed_ms, completed)
+            self._recent_logs.append({
+                "sequence": self._total.request_count,
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
+                "path": path, "method": method, "status": status,
+                "latency_ms": round(elapsed_ms, 2), "completed": completed,
+                "level": "ERROR" if status >= 500 or not completed else "WARNING" if status >= 400 else "INFO",
+                "outcome": "incomplete" if not completed else "server_error" if status >= 500
+                           else "client_error" if status >= 400 else "completed",
+            })
             summary = bucket.snapshot()
             latency_log.info(
                 "latency_summary path=%s method=%s requests=%d failures=%d avg_ms=%.2f max_ms=%.2f",
@@ -227,7 +251,9 @@ class RequestLogMiddleware:
                 "path=%s status=%d latency_ms=%.2f",
                 path, status_code, elapsed_ms,
             )
-            latency_stats.record(path, scope["method"], status_code, elapsed_ms, response_completed)
+            # 대시보드 조회 자체가 질의 통계·최근 로그를 밀어내지 않게 한다.
+            if not (path == "/raq-query-log" and scope["method"] == "GET"):
+                latency_stats.record(path, scope["method"], status_code, elapsed_ms, response_completed)
 
 
 app.add_middleware(RequestLogMiddleware)
@@ -268,6 +294,37 @@ def health():
     """인증 없이 호출합니다. 전체 준비 상태와 topic별 인덱스 상태를 반환합니다."""
     body = {"ready": stores.is_ready(), "indexes": stores.status()}
     return JSONResponse(body, status_code=200 if body["ready"] else 503)
+
+
+@app.get(
+    "/raq-query-log",
+    tags=["서비스 상태"],
+    summary="요청 로그·HTTP 지연 집계 조회",
+    responses={
+        200: {"description": "overall: 전체 HTTP 집계, routes: 경로·메서드 및 by_status별 집계, logs: 최신순 요청 기록, retention: 보관 범위."},
+        401: {"description": "유효한 Bearer 또는 기존 ACCESS_TOKEN 쿠키 필요."},
+        422: {"description": "limit(1~1000), status(100~599), 등록된 path 또는 /unmatched만 허용."},
+        503: {"description": "인증 설정 미준비."},
+    },
+)
+def rag_query_log(
+    limit: int = Query(default=100, ge=1, le=1000, description="반환할 최근 요청 수. 최신순."),
+    path: str | None = Query(default=None, max_length=200, description="최근 logs만 필터. 예: /rag-query. 생략하면 전체 경로."),
+    status: int | None = Query(default=None, ge=100, le=599, description="최근 logs만 HTTP 상태코드로 필터. 예: 503."),
+    user: dict = Depends(get_current_user),
+):
+    """현재 프로세스의 운영 통계와 최근 최대 1000건의 HTTP 요청 기록을 조회합니다.
+
+    로그인한 사용자는 서비스 공통 통계를 봅니다. 사용자별 대화 이력이 아닙니다.
+    각 로그에는 sequence·UTC 시각·경로·메서드·상태코드·지연·완료 여부·level·outcome만 있습니다.
+    질문/답변·사용자 ID·토큰·쿠키·쿼리·예외 원문·서버 로그 파일 원문은 제공하지 않습니다.
+    status/path 필터는 logs에만 적용하며 overall/routes는 프로세스 전체 누적을 유지합니다.
+    재시작하면 초기화되고 worker별 통계입니다. 이 GET 조회 요청은 집계에서 제외합니다.
+    응답은 no-store이며, LLM 토큰/비용·검색 청크·LLM 호출별 기록은 포함하지 않습니다.
+    """
+    if path is not None and path not in {"/unmatched", *(route.path for route in app.routes)}:
+        raise HTTPException(status_code=422, detail="등록된 API 경로 또는 /unmatched를 지정해 주세요.")
+    return JSONResponse(latency_stats.query_logs(limit, path, status), headers={"Cache-Control": "no-store"})
 
 
 @app.post(

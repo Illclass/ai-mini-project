@@ -252,6 +252,107 @@ def test_latency_snapshot_concurrent_updates_and_atomic_file(tmp_path):
     assert main.LatencyStatistics().snapshot()["overall"]["request_count"] == 0
 
 
+@pytest.mark.parametrize("case", ["missing", "expired", "forged", "invalid_bearer_with_cookie"])
+def test_log_endpoint_requires_valid_auth(api, case):
+    client, secret = api
+    headers = {}
+    if case == "expired":
+        headers["Authorization"] = "Bearer " + token(secret, exp=0)
+    elif case == "forged":
+        headers["Authorization"] = "Bearer " + token(secrets.token_urlsafe(32))
+    elif case == "invalid_bearer_with_cookie":
+        client.cookies.set("ACCESS_TOKEN", token(secret))
+        headers["Authorization"] = "Bearer invalid"
+    response = client.get("/raq-query-log", headers=headers)
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert "logs" not in response.json()
+
+
+def test_log_endpoint_exposes_safe_live_events_and_summary(api, isolated_latency, monkeypatch):
+    client, secret = api
+    encoded = token(secret)
+    headers = {"Authorization": "Bearer " + encoded, "Origin": "http://localhost:5174"}
+    payload = body()
+    calls = []
+
+    def answer(req):
+        calls.append(req)
+        return RagResponse(answer="PRIVATE_ANSWER_MARKER")
+    monkeypatch.setattr(main, "answer", answer)
+    assert client.post("/rag-query?key=PRIVATE_QUERY_MARKER", json=payload, headers=headers).status_code == 200
+    assert client.post("/rag-query", json=payload).status_code == 401
+    response = client.get("/raq-query-log", headers=headers)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5174"
+    data = response.json()
+    assert data["overall"]["request_count"] == 2
+    assert data["overall"]["failure_count"] == 1
+    assert [event["status"] for event in data["logs"]] == [401, 200]
+    assert [event["sequence"] for event in data["logs"]] == [2, 1]
+    assert data["logs"][0]["level"] == "WARNING"
+    assert data["logs"][0]["outcome"] == "client_error"
+    assert data["logs"][1]["outcome"] == "completed"
+    assert all(event["completed"] and event["latency_ms"] >= 0 and event["recorded_at"] for event in data["logs"])
+    for private in (payload["question"], "PRIVATE_ANSWER_MARKER", "PRIVATE_QUERY_MARKER", encoded, secret, "tester"):
+        assert private not in response.text
+    # 반복 조회 자체는 집계·최근 요청 목록을 바꾸거나 RAG를 호출하지 않는다.
+    assert client.get("/raq-query-log", headers=headers).json()["logs"] == data["logs"]
+    assert isolated_latency.snapshot()["overall"]["request_count"] == 2
+    assert len(calls) == 1
+
+
+def test_log_endpoint_cookie_auth_and_empty_state(api):
+    client, secret = api
+    client.cookies.set("ACCESS_TOKEN", token(secret))
+    response = client.get("/raq-query-log")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["logs"] == [] and data["routes"] == []
+    assert data["overall"]["request_count"] == 0
+    assert data["retention"] == {"max_entries": 1000, "retained_count": 0, "matching_count": 0}
+
+
+def test_log_endpoint_filters_only_events_and_caps_retention(api, isolated_latency):
+    client, secret = api
+    # 운영 파일을 읽지 않으며 오래된 요청부터 1000건 버퍼에서 제거한다.
+    for index in range(1002):
+        isolated_latency.record("/rag-query", "POST", 200 if index % 2 == 0 else 503, index, True)
+    isolated_latency.record("/health", "GET", 200, 1, True)
+    headers = {"Authorization": "Bearer " + token(secret)}
+    response = client.get("/raq-query-log", params={"limit": 2, "path": "/rag-query", "status": 503}, headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["logs"]) == 2
+    assert [event["sequence"] for event in data["logs"]] == [1002, 1000]
+    assert data["filters"] == {"path": "/rag-query", "status": 503, "limit": 2}
+    assert data["retention"] == {"max_entries": 1000, "retained_count": 1000, "matching_count": 500}
+    assert data["overall"]["request_count"] == 1003
+    assert len(data["routes"]) == 2
+    all_events = client.get("/raq-query-log?limit=1000", headers=headers).json()["logs"]
+    assert len(all_events) == 1000 and all_events[-1]["sequence"] == 4
+    assert client.get("/raq-query-log?status=404", headers=headers).json()["logs"] == []
+    # 조회 결과를 수정해도 내부 메모리를 변경하지 않는다.
+    snapshot = isolated_latency.query_logs(1, None, None)
+    snapshot["logs"][0]["path"] = "PRIVATE_MUTATION"
+    assert isolated_latency.query_logs(1, None, None)["logs"][0]["path"] == "/health"
+
+
+@pytest.mark.parametrize("query", ["limit=0", "limit=1001", "limit=abc", "status=99", "status=600", "path=/PRIVATE_PATH"])
+def test_log_endpoint_rejects_invalid_filters(api, query):
+    client, secret = api
+    response = client.get("/raq-query-log?" + query, headers={"Authorization": "Bearer " + token(secret)})
+    assert response.status_code == 422
+
+
+def test_log_endpoint_missing_auth_configuration_is_503(api, monkeypatch):
+    client, secret = api
+    monkeypatch.delenv(ENV_JWT_SECRET)
+    response = client.get("/raq-query-log", headers={"Authorization": "Bearer " + token(secret)})
+    assert response.status_code == 503 and "logs" not in response.json()
+
+
 def test_latency_file_failure_keeps_response_and_memory_stats(api, tmp_path, caplog, isolated_latency):
     client, secret = api
     blocked = tmp_path / "PRIVATE_PATH_MARKER"
