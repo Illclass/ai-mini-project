@@ -35,6 +35,7 @@ load_dotenv(ROOT / ".env")
 
 from rag import stores                                 # noqa: E402
 from rag.embeddings import get_embeddings, model_name  # noqa: E402
+from rag.products import resolve_product_id            # noqa: E402
 from rag.retriever import retrieve                     # noqa: E402
 from rag.schema import INDEX_DIRS, TOPICS              # noqa: E402
 
@@ -147,8 +148,8 @@ def run_retrieval(questions: List[dict], translate: bool, k: int) -> List[dict]:
             continue
         lang = q["language"] if translate else "ko"
         t0 = time.time()
-        hits = retrieve(q["question"], q["topic"], q.get("product_id"), k=k, language=lang,
-                        equipment_id=q.get("equipment_id"))
+        pid = resolve_product_id(q["question"], q["topic"], lang, q.get("product_id"), q.get("equipment_id"))
+        hits = retrieve(q["question"], q["topic"], pid, k=k, language=lang, equipment_id=q.get("equipment_id"))
         ms = (time.time() - t0) * 1000
         rows.append({"id": q["id"], "category": q.get("category", ""), "language": q["language"],
                      "rank": first_hit_rank(hits, q["expected_sources"]), "ms": ms,
