@@ -243,6 +243,8 @@ def numbered_sections(text, max_top, allow_sub):
     out, last_top, last_sub = [], 0, 0
     for m in pat.finditer(text):
         top, sub, title = int(m.group(1)), m.group(2), m.group(3).strip()
+        if re.match(r"\s*[·․]{3,}", text[m.end(): m.end() + 80]):   # 제목 다음 줄이 점선(·····) = 목차 줄
+            continue
         if sub is None:
             if top == last_top + 1 and top <= max_top:
                 out.append((str(top), title, m.start()))
@@ -262,6 +264,8 @@ def build_guide_chunks(text, args):
         body = text[pos:end].strip()
         head = f"[{args.law_name} {no} {title}]"
         for j, piece in enumerate(split_long(body, args.max_chars), start=1):
+            if len(piece.strip().splitlines()) <= 1 and i + 1 < len(secs):   # 제목 한 줄뿐인 상위 절은 건너뜀(하위 절이 내용을 가짐)
+                continue
             part = no.replace(".", "_") + (f"-{j}" if j > 1 else "")
             meta = common_meta(args, f"{no} {title}", make_chunk_id(args.doc_id, part))
             chunks.append({"page_content": f"{head}\n{piece}", "metadata": meta})
