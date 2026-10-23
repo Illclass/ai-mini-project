@@ -1,4 +1,7 @@
 """인증 연동·CORS·로그 회귀 테스트. 외부 서비스 호출 없이 검증한다."""
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import json
 import logging
 import secrets
 import time
@@ -9,6 +12,13 @@ from jose import jwt
 
 from app import auth, main
 from rag.schema import DOC_TYPE_LAW, ENV_JWT_SECRET, LANGUAGES, TOPIC_LAW, TOPICS, RagRequest, RagResponse, make_chunk_id
+
+
+@pytest.fixture(autouse=True)
+def isolated_latency(monkeypatch):
+    stats = main.LatencyStatistics()
+    monkeypatch.setattr(main, "latency_stats", stats)
+    return stats
 
 
 @pytest.fixture
@@ -33,7 +43,7 @@ def body():
 
 def app_logs(caplog):
     return "\n".join(record.getMessage() for record in caplog.records
-                     if record.name in ("chembridge.requests", "app.main", "root"))
+                     if record.name in ("chembridge.requests", "chembridge.latency", "app.main", "root"))
 
 
 @pytest.mark.parametrize("language", LANGUAGES)
@@ -182,6 +192,132 @@ def test_index_startup_failure_keeps_health_available(monkeypatch, caplog):
         assert client.get("/health").status_code == 503
         assert client.get("/docs").status_code == 200
     assert "PRIVATE_STARTUP_MARKER" not in caplog.text
+
+
+def test_latency_separates_statuses_and_routes(api, monkeypatch, isolated_latency):
+    client, secret = api
+    headers = {"Authorization": "Bearer " + token(secret)}
+    monkeypatch.setattr(main.stores, "is_ready", lambda: True)
+    monkeypatch.setattr(main.stores, "status", lambda: {topic: True for topic in TOPICS})
+    # 보류 응답은 HTTP 실패가 아니며, 인증/형식/의존성 오류와 분리한다.
+    monkeypatch.setattr(main, "answer", lambda req: RagResponse(answer="판단 보류", handoff=True, needs_review=True))
+    assert client.post("/rag-query", json=body(), headers=headers).status_code == 200
+    assert client.post("/rag-query", json=body()).status_code == 401
+    assert client.post("/rag-query", json={**body(), "topic": "invalid"}, headers=headers).status_code == 422
+
+    def fail(req):
+        raise TimeoutError("PRIVATE_FAILURE_MARKER")
+    monkeypatch.setattr(main, "answer", fail)
+    assert client.post("/rag-query", json=body(), headers=headers).status_code == 503
+    main.app.dependency_overrides[auth.get_current_user] = lambda: 1 / 0
+    assert client.post("/rag-query", json=body()).status_code == 500
+    assert client.get("/health").status_code == 200
+
+    snapshot = isolated_latency.snapshot()
+    total = snapshot["overall"]
+    assert total["request_count"] == total["completed_count"] == 6
+    assert total["incomplete_count"] == 0
+    assert total["client_error_count"] == total["server_error_count"] == 2
+    assert total["failure_count"] == 4
+    rag = next(row for row in snapshot["routes"] if row["path"] == "/rag-query")
+    assert rag["method"] == "POST" and rag["request_count"] == 5
+    assert rag["status_counts"] == {"200": 1, "401": 1, "422": 1, "500": 1, "503": 1}
+    assert rag["by_status"]["200"]["failure_count"] == 0
+    assert all(row["request_count"] == 1 for row in rag["by_status"].values())
+
+
+def test_latency_snapshot_concurrent_updates_and_atomic_file(tmp_path):
+    stats = main.LatencyStatistics()
+    target = tmp_path / "latency.json"
+    stats.enable_file(target)
+
+    def record(index):
+        stats.record("/rag-query", "POST", 200 if index % 2 == 0 else 503, index + 1, True)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(record, range(100)))
+
+    snapshot = stats.snapshot()
+    overall = snapshot["overall"]
+    assert overall["request_count"] == overall["completed_count"] == 100
+    assert overall["latency_ms"] == {"sum": 5050, "min": 1, "avg": 50.5, "max": 100}
+    assert overall["error_rate"] == .5 and overall["failure_count"] == 50
+    assert overall["status_counts"] == {"200": 50, "503": 50}
+    by_status = snapshot["routes"][0]["by_status"]
+    assert by_status["200"]["latency_ms"]["avg"] == 50
+    assert by_status["503"]["latency_ms"]["avg"] == 51
+    saved = json.loads(target.read_text())
+    assert saved["overall"] == overall and saved["routes"] == snapshot["routes"]
+    assert saved["scope"] == "http_process_lifetime"
+    assert not target.with_suffix(".tmp").exists()
+    assert main.LatencyStatistics().snapshot()["overall"]["request_count"] == 0
+
+
+def test_latency_file_failure_keeps_response_and_memory_stats(api, tmp_path, caplog, isolated_latency):
+    client, secret = api
+    blocked = tmp_path / "PRIVATE_PATH_MARKER"
+    blocked.write_text("not a directory")
+    isolated_latency.enable_file(blocked / "latency.json")
+    for _ in range(2):
+        assert client.post("/rag-query", json=body(), headers={"Authorization": "Bearer " + token(secret)}).status_code == 200
+    assert isolated_latency.snapshot()["overall"]["request_count"] == 2
+    warnings = [r.getMessage() for r in caplog.records if r.name == "chembridge.latency"]
+    assert warnings == ["지연 통계 파일 기록 실패: 메모리 집계는 유지합니다."]
+    assert "PRIVATE_PATH_MARKER" not in caplog.text
+
+
+def test_latency_snapshot_hides_input_and_tracks_preflight(api, tmp_path, caplog, isolated_latency):
+    client, secret = api
+    caplog.set_level(logging.INFO)
+    target = tmp_path / "latency.json"
+    isolated_latency.enable_file(target)
+    encoded = token(secret)
+    client.post("/rag-query?token=PRIVATE_QUERY_MARKER", json=body(),
+                headers={"Authorization": "Bearer " + encoded, "Cookie": "PRIVATE_COOKIE_MARKER"})
+    client.request("PRIVATE_METHOD_MARKER", "/PRIVATE_PATH_MARKER")
+    client.options("/rag-query", headers={"Origin": "http://localhost:5174",
+                                           "Access-Control-Request-Method": "POST"})
+    saved = target.read_text()
+    for private in ("PRIVATE_QUERY_MARKER", "PRIVATE_QUESTION_MARKER", "PRIVATE_COOKIE_MARKER",
+                    "PRIVATE_METHOD_MARKER", "PRIVATE_PATH_MARKER", encoded, secret):
+        assert private not in saved and private not in app_logs(caplog)
+    routes = {(row["path"], row["method"]): row for row in json.loads(saved)["routes"]}
+    assert routes[("/unmatched", "OTHER")]["status_counts"] == {"404": 1}
+    assert routes[("/rag-query", "OPTIONS")]["status_counts"] == {"200": 1}
+
+
+@pytest.mark.parametrize("fail_after_first_body", [False, True])
+def test_latency_measures_until_last_body_and_marks_interrupted_send(monkeypatch, isolated_latency, fail_after_first_body):
+    clock = [10.0]
+    monkeypatch.setattr(main, "perf_counter", lambda: clock[0])
+
+    async def application(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"part", "more_body": True})
+        if fail_after_first_body:
+            raise RuntimeError("PRIVATE_PARTIAL_ERROR")
+        await send({"type": "http.response.body", "body": b"end"})
+        # 응답 완료 뒤 실행되는 background 작업은 HTTP 응답 지연에서 제외한다.
+        clock[0] += 5
+
+    async def send(message):
+        # 완결 body를 보내는 시간까지 포함해야 한다.
+        clock[0] += .1
+
+    async def receive():
+        return {"type": "http.request", "body": b""}
+
+    middleware = main.RequestLogMiddleware(application)
+    request = middleware({"type": "http", "path": "/rag-query", "method": "POST"}, receive, send)
+    if fail_after_first_body:
+        with pytest.raises(RuntimeError, match="응답 전송을 완료하지 못했습니다") as error:
+            asyncio.run(request)
+        assert "PRIVATE_PARTIAL_ERROR" not in str(error.value)
+    else:
+        asyncio.run(request)
+    total = isolated_latency.snapshot()["overall"]
+    assert total["latency_ms"]["avg"] == (200 if fail_after_first_body else 300)
+    assert total["incomplete_count"] == total["failure_count"] == int(fail_after_first_body)
+    assert total["status_counts"] == {"200": 1}
 
 
 @pytest.mark.parametrize("case, expected", [
