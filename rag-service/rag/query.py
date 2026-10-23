@@ -52,13 +52,14 @@ def _translate(question: str) -> str:
                      {"role": "user", "content": question}], timeout=15).strip()
 
 
-# 번역해서 검색할 언어. bge-m3 는 en · zh 질문을 번역 없이도 잘 찾아서(hit@5 100%) vi · km 만 번역한다.
-# (번역 없이 vi · km 은 67% → 번역 후 100%, eval/results/20261023_1139_retrieval.md)
-TRANSLATE_LANGUAGES = ("vi", "km")
+# 번역해서 검색할 언어 — 한국어가 아니면 모두 번역한다.
+# 처음에는 bge-m3 가 en · zh 를 번역 없이도 상위 5위 안에 찾아서 vi · km 만 번역했지만,
+# 번역해야 한국어 동의어(기준→정의 등)가 적용된다. zh 6문항·en 6문항 모두 번역 후 1위 (질문당 약 +1초)
+TRANSLATE_LANGUAGES = ("zh", "vi", "en", "km")
 
 
 def to_korean(question: str, language: str) -> str:
-    """vi · km 질문을 한국어로 바꾼다. 그 밖의 언어는 그대로 검색한다. 번역에 실패하면 원문으로 검색한다."""
+    """한국어가 아닌 질문(TRANSLATE_LANGUAGES)을 한국어로 바꾼다. 번역에 실패하면 원문으로 검색한다."""
     if language not in TRANSLATE_LANGUAGES:
         return question
     try:
