@@ -635,6 +635,218 @@
   "expected_behavior": "answer"
  },
  {
+  "id": "P01",
+  "category": "제품지정",
+  "question": "불산 취급 시 주의할 점과 필요한 보호구는?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": "sigma-695068",
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D2",
+    "section": "2"
+   },
+   {
+    "doc_id": "D2",
+    "section": "8"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "P02",
+  "category": "제품지정",
+  "question": "황산을 개봉하거나 옮겨 담을 때 주의할 점은?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": "sigma-339741",
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D1",
+    "section": "7"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "P03",
+  "category": "제품지정",
+  "question": "과산화수소 취급·보관 시 피해야 할 조건은?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": "merck-8.22287",
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D3",
+    "section": "7"
+   },
+   {
+    "doc_id": "D3",
+    "section": "10"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "P04",
+  "category": "제품지정",
+  "question": "암모니아수 작업 시 환기와 보호구 확인사항은?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": "sigma-221228",
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D4",
+    "section": "7"
+   },
+   {
+    "doc_id": "D4",
+    "section": "8"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "P05",
+  "category": "제품지정",
+  "question": "피부에 닿으면 어떻게 해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": "sigma-328251",
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D8",
+    "section": "4"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "E01",
+  "category": "장비지정",
+  "question": "약품 공급 용기를 교체하기 전에 무엇을 확인해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "3.4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "2.2"
+   }
+  ],
+  "expected_behavior": "answer",
+  "equipment_id": "DEMO-WET-01"
+ },
+ {
+  "id": "E02",
+  "category": "장비지정",
+  "question": "현상액이 작업복에 튀었어요. 어떻게 해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D8",
+    "section": "4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "4.4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "13.1"
+   }
+  ],
+  "expected_behavior": "answer",
+  "equipment_id": "DEMO-PHOTO-01"
+ },
+ {
+  "id": "E03",
+  "category": "장비지정",
+  "question": "가스 누출 경보가 울렸습니다. 어떻게 해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "8.4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "13.4"
+   }
+  ],
+  "expected_behavior": "handoff",
+  "equipment_id": "DEMO-CVD-01"
+ },
+ {
+  "id": "E04",
+  "category": "장비지정",
+  "question": "부품 세척할 때 화재를 막으려면?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D11",
+    "section": "5"
+   },
+   {
+    "doc_id": "D9",
+    "section": "5"
+   },
+   {
+    "doc_id": "D10",
+    "section": "5"
+   },
+   {
+    "doc_id": "D11",
+    "section": "7"
+   },
+   {
+    "doc_id": "D9",
+    "section": "7"
+   },
+   {
+    "doc_id": "S1",
+    "section": "11.3"
+   }
+  ],
+  "expected_behavior": "answer",
+  "equipment_id": "DEMO-SOLV-01"
+ },
+ {
+  "id": "LQ15",
+  "category": "법령",
+  "question": "협력업체 근로자도 보호 대상인가요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제5조"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
   "id": "M-C01-zh",
   "category": "다국어",
   "question": "处理氢氟酸时需要注意什么？需要哪些防护用品？",
