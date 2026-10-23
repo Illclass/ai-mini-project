@@ -1,102 +1,1109 @@
 [
-  {
-    "id": "LQ01",
-    "question": "중대재해법의 기준은?",
-    "language": "ko",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
-    "expected_sources": [{"doc_id": "L2", "section": "제2조 제2호"}],
-    "expected_behavior": "answer"
-  },
-  {
-    "id": "LQ02",
-    "question": "경영책임자는 어떤 안전 의무가 있나요?",
-    "language": "ko",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "안전보건관리체계 구축·이행, 재해 재발방지 대책, 행정기관 개선·시정명령 이행, 안전·보건 관계 법령 의무이행 관리 조치",
-    "expected_sources": [{"doc_id": "L2", "section": "제4조"}],
-    "expected_behavior": "answer"
-  },
-  {
-    "id": "LQ03",
-    "question": "협력사(하청) 근로자도 이 법으로 보호받나요?",
-    "language": "ko",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "도급·용역·위탁 관계에서도 시설·장비·장소를 실질적으로 지배·운영·관리하는 경우 사업주·경영책임자등이 제3자의 종사자에 대해 안전 및 보건 확보의무를 진다",
-    "expected_sources": [{"doc_id": "L2", "section": "제5조"}, {"doc_id": "L2", "section": "제2조 제7호"}],
-    "expected_behavior": "answer"
-  },
-  {
-    "id": "LQ04",
-    "question": "직원이 5명보다 적은 회사도 적용되나요?",
-    "language": "ko",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "상시 근로자 5명 미만 사업장의 사업주·경영책임자등에게는 중대산업재해 장의 규정을 적용하지 않는다",
-    "expected_sources": [{"doc_id": "L2", "section": "제3조"}],
-    "expected_behavior": "answer"
-  },
-  {
-    "id": "LQ05",
-    "question": "우리 공장에서 사망사고가 났는데 대표이사가 처벌받나요?",
-    "language": "ko",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "개별 사건의 책임·처벌 여부는 판단하지 않고 조문(제4~6조)만 안내한 뒤 안전관리자·전문가에게 연결",
-    "expected_sources": [{"doc_id": "L2", "section": "제6조"}, {"doc_id": "L2", "section": "제4조"}],
-    "expected_behavior": "handoff"
-  },
-  {
-    "id": "LQ06",
-    "question": "중처법 위반으로 사람이 죽으면 벌금 얼마야?",
-    "language": "ko",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "1년 이상의 징역 또는 10억원 이하의 벌금 (병과 가능)",
-    "expected_sources": [{"doc_id": "L2", "section": "제6조 제1항"}],
-    "expected_behavior": "answer"
-  },
-  {
-    "id": "LQ07",
-    "question": "회사(법인)도 따로 벌금을 내나요?",
-    "language": "ko",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "양벌규정: 사망 시 50억원 이하, 부상·질병 시 10억원 이하 벌금. 상당한 주의·감독을 한 경우 제외",
-    "expected_sources": [{"doc_id": "L2", "section": "제7조"}],
-    "expected_behavior": "answer"
-  },
-  {
-    "id": "LQ08",
-    "question": "发生死亡事故时，经营负责人会受到什么处罚？",
-    "language": "zh",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "1년 이상의 징역 또는 10억원 이하의 벌금 (병과 가능)",
-    "expected_sources": [{"doc_id": "L2", "section": "제6조 제1항"}],
-    "expected_behavior": "answer"
-  },
-  {
-    "id": "LQ09",
-    "question": "Tai nạn lao động nghiêm trọng là gì?",
-    "language": "vi",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
-    "expected_sources": [{"doc_id": "L2", "section": "제2조 제2호"}],
-    "expected_behavior": "answer"
-  },
-  {
-    "id": "LQ10",
-    "question": "산업재해가 나면 노동부에 며칠 안에 신고해야 하나요?",
-    "language": "ko",
-    "topic": "serious_accident_law",
-    "product_id": null,
-    "expected_answer": "현재 자료(중대재해처벌법)에 없는 내용 → 찾을 수 없음 안내",
-    "expected_sources": [],
-    "expected_behavior": "not_found"
-  }
+ {
+  "id": "C01",
+  "category": "물질별",
+  "question": "불산 취급 시 주의할 점과 필요한 보호구는?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D2",
+    "section": "8"
+   },
+   {
+    "doc_id": "D2",
+    "section": "7"
+   },
+   {
+    "doc_id": "K8",
+    "section": ""
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C02",
+  "category": "물질별",
+  "question": "황산을 개봉하거나 옮겨 담을 때 주의할 점은?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D1",
+    "section": "7"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C03",
+  "category": "물질별",
+  "question": "과산화수소를 보관할 때 피해야 할 조건은?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D3",
+    "section": "7"
+   },
+   {
+    "doc_id": "D3",
+    "section": "10"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C04",
+  "category": "물질별",
+  "question": "암모니아수 작업 시 환기와 보호구 확인사항은?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D4",
+    "section": "8"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C05",
+  "category": "물질별",
+  "question": "염산이 눈에 들어가면 어떻게 해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D5",
+    "section": "4"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C06",
+  "category": "물질별",
+  "question": "질산과 함께 두면 안 되는 물질은?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D6",
+    "section": "10"
+   },
+   {
+    "doc_id": "D6",
+    "section": "7"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C07",
+  "category": "물질별",
+  "question": "TMAH가 피부에 묻었어요. 어떻게 해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D8",
+    "section": "4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "13.1"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C08",
+  "category": "물질별",
+  "question": "아세톤에 불이 붙으면 어떻게 꺼야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D9",
+    "section": "5"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C09",
+  "category": "물질별",
+  "question": "메탄올을 마시면 어떤 증상이 나타나나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D10",
+    "section": "11"
+   },
+   {
+    "doc_id": "D10",
+    "section": "4"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C10",
+  "category": "물질별",
+  "question": "IPA의 인화점은 얼마인가요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D11",
+    "section": "9"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C11",
+  "category": "물질별",
+  "question": "남은 PGMEA는 어떻게 폐기하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D12",
+    "section": "13"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C12",
+  "category": "물질별",
+  "question": "수산화나트륨이 바닥에 쏟아지면 어떻게 처리하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D13",
+    "section": "6"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C13",
+  "category": "물질별",
+  "question": "인산을 다룰 때 어떤 보호구를 써야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D7",
+    "section": "8"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C14",
+  "category": "공통",
+  "question": "유해화학물질은 어떻게 저장해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "K1",
+    "section": ""
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C15",
+  "category": "공통",
+  "question": "개인보호구는 어떻게 관리하고 유지해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "K3",
+    "section": ""
+   },
+   {
+    "doc_id": "S1",
+    "section": "2.3"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C16",
+  "category": "공통",
+  "question": "용기 경고표지에는 어떤 내용이 들어가나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "K4",
+    "section": ""
+   },
+   {
+    "doc_id": "S1",
+    "section": "2.4"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C17",
+  "category": "공통",
+  "question": "사용기한이나 개봉 후 사용기한은 어떻게 확인하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "14.2"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C18",
+  "category": "공통",
+  "question": "노출기준만큼은 오래 작업해도 되나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "14.3"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C19",
+  "category": "공통",
+  "question": "남은 약품과 오염된 장갑은 어떻게 처리하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "2.5"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C20",
+  "category": "위험사고",
+  "question": "Wet Bench에서 불산 공급 용기를 교체하기 전에 무엇을 확인해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "3.4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "2.2"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C21",
+  "category": "위험사고",
+  "question": "Dry Etcher 챔버를 열어 부품을 교체하려고 합니다. 어떤 유해물질을 확인해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "6.3"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C22",
+  "category": "위험사고",
+  "question": "CVD 장비에서 가스 누출 경보가 울렸습니다. 어떻게 해야 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "8.4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "13.4"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "C23",
+  "category": "위험사고",
+  "question": "설비에서 이상한 냄새가 나는데 어떤 가스인가요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "13.5"
+   }
+  ],
+  "expected_behavior": "handoff"
+ },
+ {
+  "id": "C24",
+  "category": "위험사고",
+  "question": "불산에 노출됐을 때 응급대응은 어떻게 하나요?",
+  "language": "ko",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "K8",
+    "section": ""
+   },
+   {
+    "doc_id": "D2",
+    "section": "4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "13.2"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ01",
+  "category": "법령",
+  "question": "중대재해법의 기준은?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제2조 제2호"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ02",
+  "category": "법령",
+  "question": "경영책임자는 어떤 안전 의무가 있나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "안전보건관리체계 구축·이행, 재해 재발방지 대책, 행정기관 개선·시정명령 이행, 안전·보건 관계 법령 의무이행 관리 조치",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제4조"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ03",
+  "category": "법령",
+  "question": "협력사(하청) 근로자도 이 법으로 보호받나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "도급·용역·위탁 관계에서도 시설·장비·장소를 실질적으로 지배·운영·관리하는 경우 사업주·경영책임자등이 제3자의 종사자에 대해 안전 및 보건 확보의무를 진다",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제5조"
+   },
+   {
+    "doc_id": "L2",
+    "section": "제2조 제7호"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ04",
+  "category": "법령",
+  "question": "직원이 5명보다 적은 회사도 적용되나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "상시 근로자 5명 미만 사업장의 사업주·경영책임자등에게는 중대산업재해 장의 규정을 적용하지 않는다",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제3조"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ05",
+  "category": "법령",
+  "question": "우리 공장에서 사망사고가 났는데 대표이사가 처벌받나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "개별 사건의 책임·처벌 여부는 판단하지 않고 조문(제4~6조)만 안내한 뒤 안전관리자·전문가에게 연결",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제6조"
+   },
+   {
+    "doc_id": "L2",
+    "section": "제4조"
+   }
+  ],
+  "expected_behavior": "handoff"
+ },
+ {
+  "id": "LQ06",
+  "category": "법령",
+  "question": "중처법 위반으로 사람이 죽으면 벌금 얼마야?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "1년 이상의 징역 또는 10억원 이하의 벌금 (병과 가능)",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제6조 제1항"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ07",
+  "category": "법령",
+  "question": "회사(법인)도 따로 벌금을 내나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "양벌규정: 사망 시 50억원 이하, 부상·질병 시 10억원 이하 벌금. 상당한 주의·감독을 한 경우 제외",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제7조"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ10",
+  "category": "법령",
+  "question": "산업재해가 나면 노동부에 며칠 안에 신고해야 하나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "현재 자료(중대재해처벌법)에 없는 내용 → 찾을 수 없음 안내",
+  "expected_sources": [],
+  "expected_behavior": "not_found"
+ },
+ {
+  "id": "LQ11",
+  "category": "법령",
+  "question": "위험하면 작업을 멈추고 대피해도 되나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "L1",
+    "section": "제52조"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ12",
+  "category": "법령",
+  "question": "MSDS를 작업장에 게시하고 교육해야 하나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "L1",
+    "section": "제114조"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ13",
+  "category": "법령",
+  "question": "화학사고가 나면 신고해야 하나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "L3",
+    "section": "제43조"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "LQ14",
+  "category": "법령",
+  "question": "회사가 보호구를 지급해야 하나요?",
+  "language": "ko",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "L4",
+    "section": "제32조"
+   },
+   {
+    "doc_id": "L4",
+    "section": "제450조"
+   },
+   {
+    "doc_id": "L4",
+    "section": "제491조"
+   }
+  ],
+  "expected_behavior": "answer"
+ },
+ {
+  "id": "M-C01-zh",
+  "category": "다국어",
+  "question": "处理氢氟酸时需要注意什么？需要哪些防护用品？",
+  "language": "zh",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D2",
+    "section": "8"
+   },
+   {
+    "doc_id": "D2",
+    "section": "7"
+   },
+   {
+    "doc_id": "K8",
+    "section": ""
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C01"
+ },
+ {
+  "id": "M-C01-vi",
+  "category": "다국어",
+  "question": "Khi xử lý axit flohydric cần chú ý gì và cần đồ bảo hộ nào?",
+  "language": "vi",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D2",
+    "section": "8"
+   },
+   {
+    "doc_id": "D2",
+    "section": "7"
+   },
+   {
+    "doc_id": "K8",
+    "section": ""
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C01"
+ },
+ {
+  "id": "M-C01-en",
+  "category": "다국어",
+  "question": "What precautions and protective equipment are needed when handling hydrofluoric acid?",
+  "language": "en",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D2",
+    "section": "8"
+   },
+   {
+    "doc_id": "D2",
+    "section": "7"
+   },
+   {
+    "doc_id": "K8",
+    "section": ""
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C01"
+ },
+ {
+  "id": "M-C01-km",
+  "category": "다국어",
+  "question": "តើត្រូវប្រុងប្រយ័ត្នអ្វីខ្លះ និងត្រូវការឧបករណ៍ការពារអ្វីខ្លះ នៅពេលប្រើអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិក?",
+  "language": "km",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D2",
+    "section": "8"
+   },
+   {
+    "doc_id": "D2",
+    "section": "7"
+   },
+   {
+    "doc_id": "K8",
+    "section": ""
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C01"
+ },
+ {
+  "id": "M-C05-zh",
+  "category": "다국어",
+  "question": "盐酸溅入眼睛怎么办？",
+  "language": "zh",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D5",
+    "section": "4"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C05"
+ },
+ {
+  "id": "M-C05-vi",
+  "category": "다국어",
+  "question": "Nếu axit clohydric bắn vào mắt thì phải làm gì?",
+  "language": "vi",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D5",
+    "section": "4"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C05"
+ },
+ {
+  "id": "M-C05-en",
+  "category": "다국어",
+  "question": "What should I do if hydrochloric acid gets in my eyes?",
+  "language": "en",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D5",
+    "section": "4"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C05"
+ },
+ {
+  "id": "M-C05-km",
+  "category": "다국어",
+  "question": "ប្រសិនបើអាស៊ីតអ៊ីដ្រូក្លរិចចូលភ្នែក តើត្រូវធ្វើដូចម្តេច?",
+  "language": "km",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D5",
+    "section": "4"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C05"
+ },
+ {
+  "id": "M-C07-zh",
+  "category": "다국어",
+  "question": "TMAH沾到皮肤上了，该怎么办？",
+  "language": "zh",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D8",
+    "section": "4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "13.1"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C07"
+ },
+ {
+  "id": "M-C07-vi",
+  "category": "다국어",
+  "question": "TMAH dính vào da, tôi phải làm gì?",
+  "language": "vi",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D8",
+    "section": "4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "13.1"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C07"
+ },
+ {
+  "id": "M-C07-en",
+  "category": "다국어",
+  "question": "TMAH got on my skin. What should I do?",
+  "language": "en",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D8",
+    "section": "4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "13.1"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C07"
+ },
+ {
+  "id": "M-C07-km",
+  "category": "다국어",
+  "question": "TMAH ប្រឡាក់ស្បែករបស់ខ្ញុំ។ តើខ្ញុំត្រូវធ្វើដូចម្តេច?",
+  "language": "km",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "D8",
+    "section": "4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "13.1"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C07"
+ },
+ {
+  "id": "M-C20-zh",
+  "category": "다국어",
+  "question": "在Wet Bench更换氢氟酸供应容器之前，需要确认什么？",
+  "language": "zh",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "3.4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "2.2"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C20"
+ },
+ {
+  "id": "M-C20-vi",
+  "category": "다국어",
+  "question": "Trước khi thay bình cấp axit flohydric ở Wet Bench, cần kiểm tra những gì?",
+  "language": "vi",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "3.4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "2.2"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C20"
+ },
+ {
+  "id": "M-C20-en",
+  "category": "다국어",
+  "question": "What should I check before replacing the hydrofluoric acid supply container on the Wet Bench?",
+  "language": "en",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "3.4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "2.2"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C20"
+ },
+ {
+  "id": "M-C20-km",
+  "category": "다국어",
+  "question": "មុនពេលប្តូរធុងផ្គត់ផ្គង់អាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិកនៅ Wet Bench តើត្រូវពិនិត្យអ្វីខ្លះ?",
+  "language": "km",
+  "topic": "chemical_safety",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "S1",
+    "section": "3.4"
+   },
+   {
+    "doc_id": "S1",
+    "section": "2.2"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "C20"
+ },
+ {
+  "id": "M-LQ01-zh",
+  "category": "다국어",
+  "question": "重大产业灾害的标准是什么？",
+  "language": "zh",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제2조 제2호"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "LQ01"
+ },
+ {
+  "id": "M-LQ01-vi",
+  "category": "다국어",
+  "question": "Tiêu chuẩn của tai nạn lao động nghiêm trọng là gì?",
+  "language": "vi",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제2조 제2호"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "LQ01"
+ },
+ {
+  "id": "M-LQ01-en",
+  "category": "다국어",
+  "question": "What are the criteria for a serious industrial accident?",
+  "language": "en",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제2조 제2호"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "LQ01"
+ },
+ {
+  "id": "M-LQ01-km",
+  "category": "다국어",
+  "question": "តើលក្ខណៈវិនិច្ឆ័យនៃគ្រោះថ្នាក់ការងារធ្ងន់ធ្ងរមានអ្វីខ្លះ?",
+  "language": "km",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "사망 1명 이상, 동일 사고로 6개월 이상 치료가 필요한 부상 2명 이상, 동일 유해요인으로 직업성 질병자 1년 이내 3명 이상 중 하나",
+  "expected_sources": [
+   {
+    "doc_id": "L2",
+    "section": "제2조 제2호"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "LQ01"
+ },
+ {
+  "id": "M-LQ11-zh",
+  "category": "다국어",
+  "question": "如果有危险，可以停止作业并撤离吗？",
+  "language": "zh",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "L1",
+    "section": "제52조"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "LQ11"
+ },
+ {
+  "id": "M-LQ11-vi",
+  "category": "다국어",
+  "question": "Nếu nguy hiểm, tôi có thể dừng công việc và sơ tán không?",
+  "language": "vi",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "L1",
+    "section": "제52조"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "LQ11"
+ },
+ {
+  "id": "M-LQ11-en",
+  "category": "다국어",
+  "question": "If there is danger, can I stop work and evacuate?",
+  "language": "en",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "L1",
+    "section": "제52조"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "LQ11"
+ },
+ {
+  "id": "M-LQ11-km",
+  "category": "다국어",
+  "question": "ប្រសិនបើមានគ្រោះថ្នាក់ តើខ្ញុំអាចឈប់ការងារ ហើយជម្លៀសខ្លួនបានទេ?",
+  "language": "km",
+  "topic": "serious_accident_law",
+  "product_id": null,
+  "expected_answer": "",
+  "expected_sources": [
+   {
+    "doc_id": "L1",
+    "section": "제52조"
+   }
+  ],
+  "expected_behavior": "answer",
+  "base": "LQ11"
+ }
 ]
