@@ -501,7 +501,18 @@ def _verified_product(draft: EvidenceDraft, originals, metadata_by_id, reference
         if any(metadata_by_id[c.chunk_id].doc_type != DOC_TYPE_MSDS for c in fact.citations):
             return False
         value_pattern = re.compile(r"(?<![\w.%-])" + re.escape(fact.value) + r"(?![\w.%-])")
-        if not any(value_pattern.search(c.quote) and re.search(labels[fact.field], c.quote, re.I) for c in fact.citations):
+        # MSDS tables can put the concentration header above the cited row.
+        # The value must still match this exact quote; only its label may come
+        # from elsewhere in that same cited chunk, never from another chunk.
+        if not any(
+            value_pattern.search(c.quote)
+            and re.search(
+                labels[fact.field],
+                originals[c.chunk_id].page_content if fact.field == "concentration" else c.quote,
+                re.I,
+            )
+            for c in fact.citations
+        ):
             return False
         if fact.field in fields and fields[fact.field] != fact.value:
             return False
@@ -570,7 +581,11 @@ def generate_answer(
     msds = [doc for doc in usable if doc.metadata.get("doc_type") == DOC_TYPE_MSDS]
     product_specific = bool(msds) or (topic != TOPIC_LAW and product_question(question)) or product_id is not None
     if product_specific:
-        if not product_id or not msds or any(doc.metadata.get("product_id") != product_id for doc in msds):
+        if product_id is None:
+            # A selected equipment or retrieved MSDS is not a selected product.
+            # Keep existing response fields/reason; the UI owns product selection.
+            return _review_result("product_unverified", answer=text["product_selection_required"], language=language)
+        if not msds or any(doc.metadata.get("product_id") != product_id for doc in msds):
             return review("product_unverified")
         # Refuse known cross-substance retrieval mismatches, even with a supplied ID.
         aliases = [("불산", "氢氟酸", "hydrofluoric", "flohydric"),

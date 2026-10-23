@@ -59,7 +59,7 @@ def test_missing_product_identifier_stops_without_llm(language):
     llm = StubLLM(error=AssertionError("not permitted"))
     result = generate_answer("황산 취급 정보를 알려줘", [synthetic_msds()], language=language, structured_llm=llm)
     assert result.review_reasons == ["product_unverified"]
-    assert result.answer == TEXT[language]["product_unverified"]
+    assert result.answer == TEXT[language]["product_selection_required"]
     assert not llm.calls and result.sources == []
 
 
@@ -210,7 +210,7 @@ def test_real_faiss_results_to_generation_with_test_embeddings_and_mock_llm(monk
 
 
 @pytest.mark.parametrize("change", ["partial_number", "wrong_label", "value_without_label"])
-def test_product_fact_cannot_use_partial_value_or_wrong_label(change):
+def test_product_fact_value_and_label_validation(change):
     doc = synthetic_msds(); draft = synthetic_draft(doc)
     fact = draft["product_facts"][2]
     if change == "partial_number": fact["value"] = "0%"
@@ -219,7 +219,12 @@ def test_product_fact_cannot_use_partial_value_or_wrong_label(change):
         draft["product_facts"][1]["field"] = "concentration"
     if change == "value_without_label": fact["citations"][0]["quote"] = "1.0%"
     result, _ = call(doc, output=draft)
-    assert result.review_reasons == ["product_unverified"]
+    if change == "value_without_label":
+        # The concentration label is present in the same cited chunk.
+        assert result.sources and "농도: 1.0%" in result.answer
+        assert result.review_reasons == ["msds_applicability_unverified"]
+    else:
+        assert result.review_reasons == ["product_unverified"]
 
 
 @pytest.mark.parametrize("prohibition", ["请勿将此资料用于真实现场作业。", "切勿将此资料用于真实现场作业。"])
