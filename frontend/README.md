@@ -1,63 +1,61 @@
 # ChemBridge frontend
 
-Vue 3 + Vite로 만든 디자인 미리보기입니다. 로그인 → 6개 작업 상황 선택 → 질문·답변 흐름을 구현했습니다. 실제 인증·RAG·음성 API는 아직 연결하지 않았습니다.
+Vue 3 + Vite. 기존 투명 유리 디자인을 유지하며 Java 회원가입·로그인과 RAG 질문·답변 API를 연결했습니다. 음성 입력·재생만 미리보기입니다.
 
 ## 실행
 
+루트 README의 백엔드 설정을 먼저 준비합니다. 인증 서버에는 실제 `DB_PASSWORD`, `JWT_SECRET`이 필요하고 RAG에도 같은 `JWT_SECRET`을 전달해야 합니다. OpenAI 키는 RAG 서버에서만 사용합니다.
+
 ```sh
-cd frontend
+# 저장소 루트, 별도 터미널
+./dev.sh
+# frontend/
 npm ci
 npm run dev
 ```
 
-- 브라우저: http://localhost:5174 (포트 고정)
-- 빌드: `npm run build`
-- 빌드 미리보기: `npm run preview`
-- 백엔드·DB·API 키가 필요하지 않으며 로그인은 입력 없이 가능합니다.
-- `dev.sh`와 별도로 실행합니다.
+http://localhost:5174 에서 회원가입 후 로그인합니다. 실제 계정 없이 로그인할 수 있는 디자인 모드는 제거했습니다. `dev.sh`는 프론트를 실행하지 않습니다.
 
-## 확인 가능한 흐름
+## 연결
 
-- 로그인 → 작업 상황 선택 또는 자유 질문
-- 추천 질문 선택 → 수정 → 전송 → 임시 답변·출처 표시
-- 취급·보관·작업 중 주의: 추가 확인 / 사고·노출: 비상 안내 상태
-- 음성 버튼 → 시뮬레이션 시작 → 녹음 종료 → 예시 문장 수정 → 전송
-- 답변 듣기·정지: 상태 전환 시뮬레이션 (실제 녹음·오디오 출력 없음)
-- 한국어·중국어·베트남어 전환 (선택 언어만 브라우저에 저장)
-- 출처 버튼: 가상 문서 설명. 실제 검색 결과와 원문은 연결하지 않았습니다.
+Vite가 동일 출처 요청을 아래 서버로 프록시합니다. 쿠키는 `credentials: include`로 전달하며 JWT는 프론트에서 읽거나 저장하지 않습니다.
 
-새로고침하면 로그인 화면으로 돌아갑니다. 계정 정보와 대화 내용은 저장하거나 전송하지 않습니다. 모든 답변은 디자인 검토용 예시이며 실제 작업 판단에 사용하지 않습니다. 번역은 검토용 초안입니다.
+| 경로 | 대상 | 처리 |
+|---|---|---|
+| `/api/signup` | Java :8080 | form 전송, 성공 리다이렉트 수신 후 로그인 폼 |
+| `/api/login` | Java :8080 | form 전송, 성공 후 인증 쿠키 확인 |
+| `/api/auth/check` | Java :8080 | 새로고침 시 로그인 상태 확인 |
+| `/api/logout` | Java :8080 | 쿠키 삭제 후 인증 종료 확인 |
+| `/rag-query` | FastAPI :8001 | 질문·영역·언어 전송, 실제 답변·출처 표시 |
+| `/health` | FastAPI :8001 | 서버·인덱스 상태 |
 
-## 구조
+배포 서버에서도 같은 경로로 reverse proxy를 구성해야 합니다. `npm run preview`는 정적 빌드 확인용으로 API 프록시를 제공하지 않습니다.
 
-| 파일 | 역할 |
-|---|---|
-| `src/App.vue` | 화면 이동, 질문·음성 상태, 대화 UI |
-| `src/views/LoginView.vue` | 로그인 화면 |
-| `src/views/HomeView.vue` | 작업 상황 카드 화면 |
-| `src/components/SceneBackground.vue` | 공통 배경, 질문 화면의 주황색 완화, 전환 효과 |
-| `src/components/SandTitle.vue` | 다국어 줄바꿈을 반영한 Canvas 입자 제목 모션 |
-| `src/components/Icon.vue` | SVG 아이콘 |
-| `src/directives/spring.js` | 포인터·키보드에 반응하는 버튼 탄성 모션 |
-| `src/login-glass.css` | 로그인 유리 패널·블러·반사 |
-| `src/home-glass.css` | 투명 작업 상황 카드·컬러 아이콘·반응형 |
-| `src/chat-glass.css` | 투명 대화 패널·입력창·출처·음성 UI |
-| `src/style.css` | 공통 스타일 |
-| `src/locales/index.js` | 3개 언어 UI·임시 답변 문구 |
-| `src/mocks/service.js` | 네트워크 없는 임시 로그인·RAG·STT |
-| `src/api/index.js` | 실제 API 요청으로 교체할 연결 지점 |
+- 화학물질 안전·중대재해 법령 선택, ko/zh/vi 지원.
+- 질문 실패: 입력 내용 유지, 해당 질문 재시도. 화면 이동 시 요청 취소.
+- RAG 401: 로그인 화면으로 이동하고 작성 질문을 메모리에 보관, 재로그인 후 복원. 자동 재전송하지 않음.
+- 422·503·연결 실패·시간 초과: 해당 언어로 오류 표시.
+- `handoff`는 담당자 확인 경고, `needs_review`는 추가 확인 안내.
+- 출처 제목·조항과 실제 http(s) 원문 링크 표시. 원문 링크가 없으면 문서 정보만 표시.
+- 회원가입: 비밀번호 확인·중복 아이디 안내. 서버의 trim/BCrypt 특성 때문에 앞뒤 공백과 72바이트 초과 비밀번호는 가입 전 차단.
+- 계정·비밀번호·토큰·대화는 브라우저 저장소에 보관하지 않음. 선택 언어만 저장. 새로고침하면 대화는 초기화.
+- 현재 질문은 각각 독립 요청. 대화 이력을 백엔드에 보내는 계약은 없음.
+- 음성 버튼과 듣기는 명시된 미리보기이며 실제 녹음·오디오 출력 없음.
+- 로컬 인덱스가 없으면 답변·출처 생성 검증이 제한되며, 백엔드의 근거 없음/handoff 응답을 그대로 표시.
 
-## 현재 디자인
+## 공통 계약과 검증
 
-- 로그인: 파랑 → 보라 → 코럴 → 주황 그라데이션과 블러 유리 패널.
-- 메인: 같은 색상 팔레트에 곡선 패턴, 투명 카드 6개와 색이 있는 둥근 사각 아이콘. 데스크톱 3열·모바일 2열.
-- 질문·답변: 공통 배경을 유지하면서 이 화면에서만 주황색 비중을 줄임. 흰색 본문, 블러 없는 투명 대화 영역·입력창, 테두리 없는 추천 질문, 검정 음성 버튼과 파랑 전송 버튼.
-- 메인·질문은 헤더와 배경을 공유하며 패널을 이동·페이드 전환. 메인 제목은 모래 입자처럼 모이고 카드 6개는 동시에 천천히 내려옴.
-- 동작 줄이기 환경에서는 모션을 생략하고 투명도 줄이기·블러 미지원 환경에는 대체 표면을 사용함.
-- 배경·아이콘은 코드로 구성하며 외부 이미지·폰트 다운로드가 필요하지 않음.
+프론트에서 Python 모듈을 직접 import할 수 없어 `rag/schema.py`를 읽는 생성기로 공개 계약 JSON을 만듭니다. 백엔드 계약 변경 시 재생성하고 diff를 확인합니다.
 
-## 실제 연동 시
+```sh
+# 저장소 루트
+.venv/bin/python frontend/scripts/generate-contract.py
+.venv/bin/python frontend/scripts/generate-contract.py --check
+cd frontend
+npm test
+npm run build
+# 저장소 루트/rag-service
+../.venv/bin/python -m pytest -q tests
+```
 
-RAG 요청 `{ question, topic, product_id, language }`, 응답 `{ answer, sources, needs_review, handoff, latency_ms }`는 `rag-service/rag/schema.py`의 필드 형식을 따릅니다. 현재 작업 상황 6종은 화면 분류이며 임시 요청의 topic은 `chemical_safety`입니다. 제품 선택·회원가입·이력 관리는 추가하지 않았습니다.
-
-실제 연동 작업은 `src/api/index.js`에서 시작합니다. 로그인 폼·쿠키 인증, `/rag-query`, STT/TTS와 파일 URL, API 오류·401 처리 및 실제 자료 구분은 연동 시 구현·검증해야 합니다. 이 미리보기는 백엔드 연결 완료 상태가 아닙니다.
+`src/api/client.js`는 요청·응답 검증, `src/api/contract.json`은 공유 계약, `src/locales/api.js`는 API 상태 문구, `src/App.vue`는 인증·질문 상태를 담당합니다. 레이아웃·모션은 기존 Vue 컴포넌트와 glass CSS를 유지합니다. 새 런타임 패키지는 추가하지 않았습니다.

@@ -102,3 +102,11 @@
 .chat-page .clear-chat-header .home-brand { color: #fff; }
 
 .chat-page .modal, .chat-page .modal h2, .chat-page .modal-icon, .chat-page .modal-actions button { color: #253b50; }
+.chat-topic-picker { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 20px; }
+.chat-topic-picker button { padding:11px 18px; color:#fff; border-radius:16px; background:#151d3440; font-size:16px; }
+.chat-topic-picker button[aria-pressed="true"] { background:#1771e8c9; box-shadow:inset 0 1px #ffffff30; }
+.chat-api-error { padding:16px; border-radius:16px; background:#421d3980; color:#fff; }
+.chat-api-error p { margin:0 0 12px; }
+.chat-api-error button { padding:10px 16px; border-radius:12px; background:#ffffff20; color:#fff; }
+.api-global-error { position:relative; z-index:5; margin:12px auto; width:min(90%,700px); background:#421d39d9; color:white; padding:15px 20px; border-radius:16px; }
+a.clear-source { text-decoration:none; }

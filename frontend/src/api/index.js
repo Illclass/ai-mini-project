@@ -1,3 +1,6 @@
-// UI preview adapter: replace these exports with real requests when integrating APIs.
-// RAG request/response follows rag-service/rag/schema.py.
-export { login, ask, transcribe } from '../mocks/service'
+import { createApi } from './client.js'
+export { ApiError } from './client.js'
+export { default as contract } from './contract.json' with { type: 'json' }
+export const { login, signup, logout, checkSession, ask } = createApi()
+// Voice integration is outside this change; these controls remain explicit previews.
+export { transcribe } from '../mocks/service'
