@@ -503,6 +503,15 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   "보호복을 착용해야 합니다", "저장 장소는 떨어진 곳이어야 합니다"처럼 원문의 강도를 유지하세요.
   문장에 "해야"가 있다는 이유만으로 legal_obligation으로 분류하지 마세요.
   권고만 있는 원문을 필수 요구로 강화하지 마세요. 법적 의무 면책 설명은 요구 문장에 섞지 마세요.
+- 한 문장에는 원문의 한 조치만 설명하세요. 조건부 문의·확인 조치를 장비나 보호구의
+  선택·사용 권장으로 바꾸지 마세요. 예를 들어 "다른 물질과 혼합하거나 명시된 표준과
+  다른 조건에서 사용하면 장갑 공급자에게 연락"은 그 조건에서의 공급자 문의입니다.
+  이를 "승인된 장갑을 사용하도록 권장"으로 요약하면 조치와 적용 조건이 달라집니다.
+  문의 조건은 statements.text에 남기고 conditions에도 실제 원문 인용과 함께 기록하세요.
+- 원문이 "권장 보관온도: 제품 라벨 참조"라면 "권장 보관온도는 제품 라벨을 참조하도록
+  기재되어 있습니다"처럼 참고 위치를 설명하세요. 온도·용기 호환성·현장 적합성을
+  추측하거나 "반드시/해야 한다"라는 새로운 필수 강도로 바꾸지 마세요.
+  반대로 "사용하지 말 것", "잠글 것" 같은 실제 금지·요구는 그 강도를 유지하세요.
 - kind=information은 그 외 원문에 근거한 일반 설명입니다. 의무인지 모르면 이 구분을 쓰고
   의무 여부는 판단할 수 없다고 설명하세요.
 
@@ -584,6 +593,9 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   product_facts.value와 citations.quote는 자리표시자가 아닌 원문 그대로 추출하세요.
 - 제품명·제품번호·성분명은 원문 식별자를 그대로 유지하세요. 제품명 일부만 번역하는 것도 금지합니다.
   제품명 교육액-A를 教育액-A로 바꾸지 마세요. 식별자를 번역할 필요 없이 주변 설명만 번역하세요.
+- 제품명을 매 문장의 주어로 반복할 필요는 없습니다. "이 MSDS에서는"처럼 설명하면 됩니다.
+  CB_PRODUCT_NAME 자리표시자를 사용한다면 조치 인용과 제품명 인용을 citations에 각각 넣으세요.
+  제품명 인용 없이 조치 문장에 자리표시자를 붙이지 마세요.
 - 여러 항목의 인용은 각각 별도 citations로 나누세요. 중간 표 행을 지우고 두 줄을 하나의 quote로 합치지 마세요.
 - product_facts는 답변 요약이 아니라 제품 식별 검증용입니다. MSDS가 있으면 질문이 제품명만
   물어도 원문에서 확인 가능한 네 항목 모두를 추출하세요. 농도와 개정일을 생략하지 마세요.
@@ -603,6 +615,9 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   베트남어 hai로 바꾸지 마세요. 1.0%, ppm, 온도 단위와 날짜도 그대로 보존하세요.
 - product_facts의 quote에는 '제품명:', '제품번호:', '개정일:'처럼 값의 의미를
   확인할 수 있는 원문 항목명과 값을 함께 인용하세요.
+- quote는 JSON 문자열의 줄바꿈뿐 아니라 줄 시작 공백도 원문 그대로 복사하세요.
+  보기 좋게 정렬하거나 들여쓰기를 없애지 마세요. product_facts.concentration의 quote는
+  라벨이 같은 청크에 있다면 값이 있는 한 행을 우선 사용해 불필요한 표 머리글 결합을 피하세요.
 - 농도(concentration)는 표의 '농도' 또는 '함유량' 라벨이 같은 chunk_id의 본문에 있으면
   값이 있는 표 행만 quote로 인용할 수 있습니다. value는 해당 quote 안의 원문 표기 그대로
   추출하세요. 다른 청크나 metadata에만 있는 라벨로 보완하거나 범위·단위를 바꾸지 마세요.
@@ -613,12 +628,17 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
 
 
 def product_name_tokens(documents: list[Document]) -> dict[str, str]:
-    """Opaque text placeholders; source quotes and product facts stay literal."""
+    """Opaque placeholders; accept a name on the next line, never a next field.
+
+    PDF layout may put the value below its label. Keep wrapped wt.% suffixes
+    and exact source quotes; do not skip blank lines or invent missing names.
+    """
     names = dict.fromkeys(
         match.group(1).strip() for doc in documents if doc.metadata.get("doc_type") == DOC_TYPE_MSDS
         for match in re.finditer(
             r"(?:제품명|product[ \t]*(?:name|identifier)|产品名称|tên[ \t]*sản[ \t]*phẩm)[ \t]*[:：][ \t]*"
-            r"([^\n]+(?:\n[ \t]*(?:wt\.?|vol\.?)[ \t]*%[^\n]*)?)",
+            r"(?:\r?\n[ \t]*(?![^\r\n:：]{1,80}[:：]))?"
+            r"([^\r\n]+(?:\r?\n[ \t]*(?:wt\.?|vol\.?)[ \t]*%[^\r\n]*)?)",
             doc.page_content, re.I)
         if match.group(1).strip()
     )
@@ -643,7 +663,13 @@ def build_document_messages(
                       + ("\n한국어(ko)는 경고 원문을 서버가 직접 표시합니다. critical_translations는 []로 반환하세요."
                          if language == "ko" else "\n질문이 제품명이나 적용 범위만 묻더라도 이 경고 목록은 생략하지 마세요.")
                       + "\n번역하지 않을 원문 제품명: " + json.dumps(source_names, ensure_ascii=False)
-                      + "\n이 식별자는 음역·의역하지 마세요. MSDS의 착용 지시는 recommend/advice/建议/khuyến nghị로 약화하지 마세요."),
+                      + "\n이 식별자는 음역·의역하지 마세요. MSDS의 착용 지시는 recommend/advice/建议/khuyến nghị로 약화하지 마세요."
+                      + "\n마지막 점검: 조건부 공급자 문의는 문의 그대로 쓰고 conditions에도 조건을 기록하세요. "
+                      + "원문의 금지·필수는 유지하되, 권장 보관온도의 라벨 참조 안내에는 새로운 해야/반드시를 붙이지 마세요. "
+                      + "보호구·취급·보관 조치의 text에는 제품명이나 제품명 자리표시자를 주어로 쓰지 마세요. "
+                      + "지정 언어의 '이 자료에는' 같은 비인칭 표현을 사용하세요. 제품 정보는 product_facts에서 따로 표시됩니다. "
+                      + "보관온도 참조는 '권장 보관온도 항목에는 제품 라벨 참조로 기재되어 있습니다'라는 정보 강도로 설명하세요. "
+                      + "이는 원문에 그 참조 안내가 있을 때만 사용하며, 온도나 적용 조건을 새로 만들지 마세요."),
         HumanMessage(content="UNTRUSTED_RETRIEVED_DOCUMENTS_JSON\n" + json.dumps(payload, ensure_ascii=False, default=str)),
         HumanMessage(content="QUESTION_JSON\n" + json.dumps({"question": question}, ensure_ascii=False)),
         HumanMessage(content="CRITICAL_PASSAGES_JSON\n" + json.dumps(

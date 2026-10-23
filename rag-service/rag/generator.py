@@ -206,9 +206,9 @@ class EvidenceStatement(BaseModel):
     """One claim, its type, its sources, and any evidenced conditions."""
     model_config = ConfigDict(extra="forbid", strict=True)
     kind: Literal["legal_obligation", "recommendation", "information"]
-    text: str
-    citations: list[Citation]
-    conditions: list[EvidenceCondition]
+    text: str = Field(description="One source action per sentence, preserving its force. Supplier contact is not PPE selection. A label/reference location is information, not a new must/shall requirement. For handling/storage/PPE actions use an impersonal subject such as the document, NOT a product name or product placeholder. Product identity is rendered separately from product_facts. Describe label/reference locations as information without adding must/shall.")
+    citations: list[Citation] = Field(description="Exact contiguous source quotes including indentation and line breaks. Use only the source lines directly needed for the action and its conditions. Every identifier asserted in text must also be supported by an exact source citation.")
+    conditions: list[EvidenceCondition] = Field(description="Include every cited source applicability condition or exception, with its exact quote, even when already mentioned in text. Use [] only when the source gives no condition; never invent one.")
 
 
 class EvidenceDraft(BaseModel):
