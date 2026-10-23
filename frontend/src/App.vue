@@ -235,7 +235,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
 </main>
 </Transition>
 <EmergencyContacts v-if="contacts" :language="language" @close="contacts=false" />
-<ReportModal v-if="report" :message="report" :title="title" :language="language" @close="report=null" />
+<ReportModal v-if="report" :message="report" :title="title" :source="guideUrl?(isLaw?'국가법령정보센터':'KOSHA GUIDE'):''" :language="language" @close="report=null" />
 <div v-if="modal" class="modal-backdrop" @click.self="modal=null"><section ref="modalElement" @keydown="trapFocus" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="modal"><span class="modal-icon"><Icon :name="modal==='voice'?'mic':'file'" :size="28"/></span><h2 id="modal-title">{{modal==='voice'?t.permissionTitle:t.sourceTitle}}</h2><p>{{modal==='voice'?t.permissionBody:t.sourceBody}}</p><div class="modal-actions"><button class="secondary" autofocus @click="modal=null">{{t.close}}</button><button v-if="modal==='voice'" class="primary" @click="modal=null;voice='recording'">{{t.startVoice}}<Icon name="arrow" :size="17"/></button></div></section></div>
 </div>
 </template>
