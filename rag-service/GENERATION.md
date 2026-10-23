@@ -1,90 +1,52 @@
-# ChemBridge Generation — 현재 VS Code 저장소 작업 안내
+# ChemBridge Generation — 구현 및 팀 연결 안내
 
-## 반영 범위
+2026-10-23 기준. 박진근 담당인 `rag/prompt.py`, `rag/generator.py`, `rag/llm.py`와 Generation 전용 테스트를 구현했습니다. 공통 API 계약은 유지합니다. 최신 원격 main의 데이터 적재 변경은 이 작업 브랜치에 아직 병합하지 않았습니다.
 
-2026-10-23, `/Users/jingeun/Downloads/ai-mini-project`의 pull 완료 커밋 `c7c4771`을 기준으로 작업했습니다. 시작 당시 main과 origin/main이 같고 미커밋 변경은 없었습니다. `feat/rag-generation` 브랜치를 만들었으며 main 수정·commit·push는 하지 않았습니다.
-
-사용자가 **Generation 파일만 반영하고 공동 변경은 남겨 두도록** 지정했습니다. 따라서 `rag/chain.py`, `rag/schema.py`, 기존 `tests/test_contract.py`와 Retriever·적재·JWT·API·프론트·팀 README는 그대로입니다. 이전 Generation 코어를 재사용했으며 별도 RAG 엔진은 만들지 않았습니다. 이후 프롬프트 연결 정리에서도 기존 미커밋 작업을 보존했습니다.
-
-## 파일과 담당
-
-```text
-rag-service/
-├── rag/
-│   ├── prompt.py       # 박진근: 프롬프트·메시지 조립·다국어 문구/번역 규칙
-│   ├── generator.py    # 박진근: Hit/Document 입력·생성 연결·근거/출처/보류 검증
-│   └── llm.py          # 박진근: 기존 평문 호출 + 구조화 LLM 호출·timeout 설정
-├── tests/generation/   # 생성 전용 Mock/실제 호출 구분 테스트
-└── GENERATION.md
-```
-
-팀원들이 공유한 담당 파일 구조에 맞췄습니다. 추가했던 generation.py, generation_policy.py, generation_response.py의 기능은 위 세 파일로 옮겼고 해당 추가 파일은 제거했습니다. 원본은 작업 폴더에 백업했습니다. 공동 schema.py와 chain.py는 그대로입니다.
-
-호출 경로는 `generator.generate()` → 같은 파일의 `generate_answer()` → `prompt.build_document_messages()` → `llm.build_structured_llm()` → generator의 인용·출처 검증입니다.
-
-- 규칙 문구와 컨텍스트 조립: prompt.py의 SYSTEM_PROMPT/build_document_messages. 기존 build_messages(question, hits, language) 입력·dict 반환 형식 유지.
-- 생성 및 검증: generator.py. 기존 generate(question, hits, language) 진입점과 needs_review/needs_handoff 함수 유지. 선택 keyword는 내부 직접 호출용이며 HTTP 계약은 변경하지 않음.
-- 제공자 호출: llm.py. 기존 call_llm 인터페이스 유지. 검증된 생성 경로는 build_structured_llm을 쓰며 timeout 기본 30초·자동 재시도 0회.
-- 생성 보조 데이터 타입은 generator 안에서 관리하며 팀 API 타입과 enum은 schema.py에서 가져옵니다.
-
-## 호출 계약
+## 호출 방법
 
 ```python
-from rag.generator import generate_answer
-from rag.generator import generate
+from rag.generator import generate, generate_answer, preflight_result
 
-# Generation 단독: Retriever의 실제 원문과 metadata를 보존한 Document 목록
-result = generate_answer(
-    question, documents,                  # str, list[Document]
-    language="ko",                       # ko / zh / vi
-    product_id=None, topic=None,
-    mode="qa",                           # qa / learn / precheck (내부 옵션)
-    structured_llm=None,                  # Mock: invoke(messages) 구현
-    model=None, timeout_seconds=30.0,
+# 검색 담당이 반환한 실제 Hit 목록을 그대로 전달합니다.
+response = generate(
+    question, hits, language,
+    product_id=product_id,
+    topic=topic,
 )
-# result.model_dump(): answer, sources, needs_review, handoff
+# RagResponse: answer, sources, needs_review, handoff, latency_ms
 
-# 기존 팀 함수의 위치 인자 호환 유지
-response = generate(question, hits, language)
-# MSDS 검증에는 요청에서 받은 제품 식별자가 필요
-response = generate(question, hits, language, product_id=product_id, topic=topic)
+# Document 직접 연결: 검색/적재/API 처리는 수행하지 않습니다.
+result = generate_answer(
+    question, documents,  # str, list[Document]
+    language="ko", product_id=product_id, topic=topic,
+    mode="qa",           # qa / learn / precheck: 내부 옵션
+    timeout_seconds=30.0,
+)
+# model_dump(): answer, sources, needs_review, handoff
+
+# 공동 chain에서 검색 전에 사용할 수 있는 Generation의 사전 검사입니다.
+early = preflight_result(question, language)
 ```
 
-기존 HTTP 요청 필드는 question/topic/product_id/language, 응답은 answer/sources/needs_review/handoff/latency_ms 그대로입니다. mode는 API 필드로 추가하지 않았습니다. 질문의 '신입', '작업 전' 표현으로 표시 방식을 선택할 수도 있습니다.
+`mode`와 내부 검토 사유는 HTTP 최상위 필드로 추가하지 않았습니다. `generate()`가 반환하는 `latency_ms=0`은 공동 chain이 전체 소요 시간으로 채워야 합니다.
 
-## 구현된 기능
+## Generation 구현
 
-- 문서 원문과 메타데이터 전체를 비신뢰 데이터로 프롬프트에 전달합니다. 문서 안의 지시를 시스템 지시로 취급하지 않습니다.
-- 모델은 문장, 분류, 적용 조건, chunk_id와 원문 인용을 반환합니다. 서버가 존재하는 chunk_id와 원문 부분 문자열을 검증하고 출처를 만듭니다. 조문명·문서명·URL은 모델 출력에서 받지 않습니다.
-- 법령 의무와 권고 지침을 구분합니다. 시행일만으로 현행성을 단정하지 않고, 적용 조건·현행성 불명확 시 needs_review/handoff를 표시합니다. 오래된 법령을 곧바로 폐지된 법령이라고 단정하지 않습니다.
-- MSDS는 요청 product_id와 검색 제품의 일치, 제품명·제품번호·농도·개정일의 원문 근거를 확인합니다. 불명확하거나 서로 다르면 보류합니다.
-- ko/zh/vi의 쉬운 안내문을 제공하고 경고·조건의 원문을 보존합니다. 번역의 수치·단위·금지·제외 조건 누락을 검사합니다.
-- 법적 책임 판단, 작업 승인, 위험한 현장 조작 요청은 답변을 보류합니다.
-- Generation 함수 자체는 긴급 질문에서 LLM을 호출하지 않고 현장 비상절차·한국 119·담당자 연락을 우선 안내합니다.
-- LLM의 네트워크 timeout은 기본 30초, 자동 재시도 0회입니다. 원시 오류·키는 응답에 노출하지 않으며 제공자 장애는 기존 API의 503 처리로 전달합니다. 전체 요청의 절대 시간 제한은 아닙니다.
+- `prompt.py`: 문서만 근거로 답변, 쉬운 표현, 법령 의무/기술지침 권고 구분, ko/zh/vi 안내·번역 규칙.
+- `generator.py`: 실제 문서 인용과 chunk_id 검증, 제품 식별, 수치 비교, 별도 LLM의 주장 검증, 답변/출처/검토 플래그 구성.
+- `llm.py`: 구조화된 생성/검증 LLM 호출. 각각 기본 timeout 30초, SDK 자동 재시도 없음. 전체 요청의 절대 시간 제한은 아닙니다.
+- 정상 근거 답변은 생성과 검증으로 보통 LLM을 2회 호출합니다. 비상·범위 밖 요청·일부 근거 오류는 먼저 보류합니다. 제공자 오류는 원시 오류나 키를 노출하지 않습니다.
+- 법령 시행일만으로 현행성·현장 적용을 확정하지 않습니다. MSDS는 제품명·제품번호·농도·개정일의 본문 근거와 요청 product_id를 확인합니다.
+- 출처는 모델이 생성한 이름/URL을 사용하지 않습니다. 내부 메타데이터를 보존하고, 외부에는 공통 `Source`의 `doc_id`, `section`, `title`, `url`을 반환합니다.
+- `needs_review`/`handoff`는 추가 확인 필요 표시이며, 실제 연락 또는 작업 승인 완료를 의미하지 않습니다.
 
-인용 검사는 출처 존재와 인용문 일치를 확인할 뿐, 모든 문장의 의미적 정당성이나 번역 품질을 보증하지 않습니다. 실제 자료와 전문가 검토가 추가로 필요합니다.
+## 이번에 확인하고 수정한 오류
 
-## 아직 공동 연결이 필요한 부분 — 현재 API의 제한
+1. MSDS 원문의 `2026.07.14`와 메타데이터의 `2026-07-14`를 같은 날짜로 비교합니다. 원문 인용과 메타데이터는 바꾸지 않습니다. 모호한 날짜·잘못된 날짜·미래 날짜·개정일 불일치는 계속 거부합니다.
+2. PDF 줄바꿈을 문장 끝으로 오인하던 경고 추출을 보완했습니다. 같은 원문 안의 연속 문자열을 보존하고 표시할 때만 줄바꿈을 정리합니다. 연락처/공휴일 안내, 약어 설명, 문서 안내가 경고에 섞이지 않도록 했습니다.
+3. 경고의 앞뒤가 잘려 문맥을 확인할 수 없는 MSDS는 조각을 임의 완성하지 않고 LLM 호출 전에 보류합니다. 추출은 규칙 기반이므로 모든 문서 형태를 완벽히 판별하지는 못합니다.
 
-**현재 chain.py는 그대로이므로 다음 두 가지는 완성되지 않았습니다.**
-
-1. chain이 검색을 먼저 실행합니다. Generation은 긴급 질문에서 LLM을 생략하지만, HTTP 요청은 검색을 기다릴 수 있습니다. 검색 전 preflight를 실행하는 공동 변경이 필요합니다. 현재 상태를 '긴급 상황 즉시 안내가 API 전체에 구현됐다'고 표현하면 안 됩니다.
-2. chain은 generate(question, hits, language)만 호출합니다. product_id/topic이 생성 단계까지 전달되지 않으므로 현재 HTTP MSDS 질문은 제품 확인 보류가 됩니다. 직접 Generation을 호출할 때는 product_id를 전달해 검증할 수 있습니다. 검색 결과의 제품 ID를 사용자 선택값으로 추측해 채우지 않습니다.
-
-공동 연결안은 별도 `chembridge-shared-connection.patch`에 남겼습니다. 이 패치는 chain.py와 기존 계약 테스트의 가짜 자료·Mock 연결점만 변경하며 현재 저장소에는 적용하지 않았습니다. API 응답 필드 변경은 없습니다.
-
-## 출처 계약
-
-- 내부: 기존 law_name/article_no/source_url/doc_type/chunk_id를 보존하고 확인 가능한 팀 메타데이터를 함께 유지합니다.
-- 외부: 팀 Source의 doc_id/section/title/url만 반환합니다. 공통 schema.py를 바꾸지 않았습니다.
-- doc_id는 문서 ID, chunk_id는 개별 청크 ID입니다. 하나를 다른 것으로 임의 대체하지 않습니다.
-- 필수 메타데이터가 없거나 ID가 충돌하면 출처를 지어내지 않고 보류합니다.
-- MSDS에 해당하지 않는 law_name/article_no는 내부에서 빈 문자열로 취급합니다. 외부 sources의 필드 확장·null 정책은 데이터/API 담당의 합의가 필요합니다.
-
-## 테스트와 결과
-
-이번 작업은 기존 검증용 Python 3.12 가상환경으로 실행했습니다. 새 저장소에는 아직 .venv가 없습니다. 프로젝트의 권장 Python은 3.11이며 새 패키지/requirements 변경은 없습니다.
+## 검사 결과
 
 ```bash
 cd rag-service
@@ -92,47 +54,35 @@ python -m pytest -q tests/generation
 python -m pytest -q tests
 ```
 
-| 구분 | 이번 실제 반영본 결과 |
+2026-10-23 현재 로컬 코드에서 전체 오프라인 검사: **378 통과, 기존 공동 테스트 1 실패, 실제 호출용 12개 건너뜀**. Generation 전용 범위는 **369 통과, 12개 건너뜀**입니다. 날짜 회귀 검사 25개, 경고문 회귀 검사 18개, pull된 API와 Generation의 Mock 연결 검사 6개가 포함됩니다. 새 의존성은 추가하지 않았습니다. 검증 환경은 Python 3.12이며 프로젝트 권장은 3.11입니다.
+
+기존 실패는 `tests/test_contract.py::test_answer_has_contract_fields`입니다. 가짜 Hit에 검증용 메타데이터가 부족하고 Mock이 기존 평문 LLM 호출에 연결되어, 검증 후 `sources=[]`가 반환되는 것과 기대가 충돌합니다. 공동 테스트를 수정하거나 검증을 약화해 우회하지 않았습니다. 따라서 전체 CI 통과 상태는 아닙니다.
+
+실제 호출은 위 오프라인 검사와 별도로 수행했습니다.
+
+| 실제 호출 사례 | 확인한 결과 |
 |---|---|
-| Generation 오프라인 테스트 | 195 통과, 실제 LLM 9개 건너뜀 |
-| 전체 오프라인 테스트 | 204 통과, 1 실패, 실제 LLM 9개 건너뜀 |
-| 문법 검사 | 팀 담당 Python 3개와 생성 테스트 문법 검사 통과 |
-| 실제 LLM | 이번 프롬프트 연결 정리에서도 실행하지 않음 |
+| 가상 색상 원문과 고정 초안의 일치/모순 | 실제 검증 LLM이 청록색 일치를 통과, 빨간색 모순을 차단. 초안 생성은 고정값이었음 |
+| 저장소의 실제 법령 PDF → 임시 FAISS → 생성·검증 | 법의 목적 설명과 실제 출처 확인. 문서에 없는 질문은 보류 |
+| 실제 황산 MSDS의 1·3·16항 제공 | 원문 날짜/제품 식별 검증 후 답변 생성·검증 완료 |
+| 실제 황산 MSDS의 폐기 주의사항도 제공 | 불필요한 경고는 제거되고 “다른 폐기물과 혼합 금지.”는 유지 |
+| MSDS 기본 검색 상위 5건 | 제품 식별 근거 부족 또는 잘린 경고 문맥 때문에 보류 |
 
-전체 테스트의 유일한 실패는 기존 `test_answer_has_contract_fields`입니다. 그 가짜 Hit에 필수 chunk_id/doc_type이 없고, Mock도 예전 평문 호출에 연결되어 있습니다. 새 생성기는 검증할 수 없는 출처를 반환하지 않으므로 sources=[]가 되어 기존 기대와 충돌합니다. 테스트를 건너뛰거나 검증을 약화하지 않았습니다. 사용자 요청대로 공동 테스트는 수정하지 않았습니다. 따라서 현재 전체 CI가 성공했다고 보고하면 안 됩니다.
+실제 MSDS 정상 사례는 필요한 실제 항목을 명시적으로 고른 진단입니다. 기본 검색 전체 흐름의 성공을 의미하지 않습니다. 테스트용 FAISS는 메모리에만 만들었고 운영 인덱스·API·JWT·프론트 전체 연결을 검증하지 않았습니다. 최근 실제 MSDS 호출은 한국어 기준이며 다국어 규칙은 오프라인 회귀 검사로 확인했습니다. 사용한 출처 URL 일부는 기관/공급자 홈페이지이므로 정확한 개정본 링크는 데이터 담당과 확인해야 합니다.
 
-공동 연결안까지 적용한 검증용 사본에서는 205 통과·9 건너뜀을 확인했지만, 이는 **현재 VS Code 저장소에 적용된 결과가 아닙니다.** 추가 HTTP 연결 테스트는 검토용 파일로 따로 보관했습니다.
-
-가상 테스트에는 실사용 금지 문구가 포함된 제품 자료를 사용합니다. 실제 FAISS 엔진 테스트는 가짜 임베딩과 Mock LLM을 사용하므로 실제 OpenAI 검색·답변 성공과 구분합니다. 공개 OSHA 짧은 발췌는 별도 fixture이며 한국 현행 법령이나 실제 MSDS라고 취급하지 않습니다.
-
-이전 작업에서 실제 LLM 9개 사례를 확인한 이력은 있으나 이번 저장소의 실제 서비스 성공을 의미하지 않습니다. 이전 마지막 전체 실행은 8 통과·제공자 오류 1 실패, 해당 1개 재실행은 통과였습니다.
-
-실제 LLM을 별도로 검증하려면 허용된 자료만 사용하고 키가 있는 환경에서 실행합니다.
+실제 모델용 기존 테스트는 명시적으로 활성화할 때만 호출합니다. 키는 Git에 포함되지 않는 `.env` 또는 환경변수로 설정합니다.
 
 ```bash
 RAG_RUN_GENERATION_LIVE=1 python -m pytest -q tests/generation -m live
 ```
 
-## Swagger 확인 방법
+위 명령은 저장소에 있는 가상/공개 발췌 테스트이며, 위 MSDS 임시 인덱스 진단을 그대로 재현하는 명령은 아닙니다.
 
-현재 이 저장소에는 .env, .venv, 법령/MSDS FAISS 인덱스가 없습니다. 이전 폴더의 비밀키와 데이터를 임의 복사하지 않았습니다.
+## 팀 통합 때 함께 해결할 항목
 
-1. 팀 README에 따라 가상환경과 의존성을 준비하고, 키/JWT_SECRET을 기존 .env 방식으로 설정합니다.
-2. 데이터 담당에게 팀 메타데이터가 보존된 법령/MSDS 인덱스를 받거나 공식 적재 절차로 만듭니다.
-3. `rag-service`에서 `python -m uvicorn app.main:app --port 8001 --reload`로 실행합니다.
-4. Java를 실행하고 `http://localhost:8080`에서 로그인한 뒤 `http://localhost:8001/docs`로 접속합니다. localhost와 127.0.0.1을 섞으면 쿠키가 전달되지 않을 수 있습니다.
-5. /health의 주제별 인덱스를 확인하고 POST /rag-query를 실행합니다.
+- 공동 `chain.py`: 요청의 `product_id`, `topic`을 Generation에 전달하고 검색 전에 `preflight_result()`를 실행해야 합니다. 현재 chain은 그대로이며 긴급 질문도 검색을 먼저 기다릴 수 있습니다.
+- 검색/데이터: MSDS의 제품 식별(1항), 농도(3항), 개정일(16항) 등 필요한 실제 근거가 함께 전달되도록 연결하고, 잘린 경고 문맥을 복구해야 합니다. 검색 결과에서 요청 제품 ID를 임의 추측해 채우지 않습니다.
+- API/공동 테스트: 최신 구조화 LLM·검증 LLM 연결에 맞춰 공통 테스트의 가짜 자료와 Mock을 정비해야 합니다.
+- 통합 검증: 운영 FAISS, Swagger/JWT, 실제 제품 선택, ko/zh/vi 답변·경고 유지, 지연을 팀 코드와 합친 뒤 확인해야 합니다.
 
-```json
-{"question":"신입에게 법령 자료의 적용 조건을 쉽게 설명해줘","topic":"serious_accident_law","product_id":null,"language":"ko"}
-```
-
-language를 zh/vi로 바꾸어 확인할 수 있습니다. 401은 로그인/쿠키, 503은 모델·설정·인덱스 장애 등을 확인합니다. 출처가 비어 있고 두 플래그가 true라면 근거/메타데이터/제품 식별 보류일 수 있습니다. MSDS의 정상 HTTP 검증과 긴급 질문의 검색 생략은 공동 연결 후 확인해야 합니다.
-
-## 팀에 공유할 사항
-
-- 규빈 님: list[Hit]의 text와 metadata를 보존합니다. chain의 검색 전 preflight와 product_id/topic 전달은 공동 변경안에 남겨 두었습니다. zh/vi 검색어 번역은 여전히 query.py의 TODO이며 생성 번역과 별개입니다.
-- 서진 님: 각 청크의 실제 doc_id/chunk_id/doc_type/source_url을 보존합니다. 법령의 law_name/article_no와 시행본, MSDS의 제품 식별·농도·개정일 원문이 필요합니다. 현재 legacy 법령 적재의 doc_id 보완과 MSDS 적재 TODO는 그대로입니다.
-- 정지우 님: API 필드·JWT·503 정책은 유지했습니다. 공동 계약 테스트의 가짜 자료와 Mock 연결점 보완, sources의 추가 필드/null 정책은 별도 협의가 필요합니다.
-- 지훈 님: needs_review/handoff는 담당자 확인 필요 표시이며 실제 연락 완료가 아닙니다. 긴급 안내는 API 응답 대기 없이도 표시하는 설계가 필요합니다.
-- 진근 님: 현재 브랜치에서 Generation 프롬프트·검증·다국어 테스트를 이어서 개발하면 됩니다. 팀 담당 파일 prompt.py/generator.py/llm.py에서 이어서 개발합니다. 추가 런타임 모듈은 제거했습니다.
+이번 공유 시점에는 기능을 추가로 늘리지 않고, 위 연결 항목을 담당자들과 함께 검증합니다. 기존 `chembridge-shared-connection.patch`는 과거 제안이며 최신 코드를 확인하지 않고 그대로 적용하지 않습니다.

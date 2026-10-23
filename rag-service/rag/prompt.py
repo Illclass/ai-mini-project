@@ -41,16 +41,104 @@ def resolve_mode(question: str, mode: str) -> str:
 
 
 
-def critical_passages(documents):
-    """Keep warning/condition sentences intact, with IDs separate from source IDs."""
-    passages = {}
-    pattern = re.compile(r"경고|위험|금지|하지\s*마|안\s*됩니다|한정|제외|적용|경우|아니|않|미만|이상|이하|초과|warning|danger|must not|do not|only|except|unless|not |警告|危险|禁止|不得|仅|除外|canh bao|nguy hiem|khong|chi ap dung", re.I)
+_CRITICAL_PATTERN = re.compile(
+    r"경고|위험|금지|하지\s*(?:마|말)|안\s*됩니다|한정|제외|적용|경우|미만|이상|이하|초과|"
+    r"화상|치명|폭발|부식|착용|흡입|보관하|누출|"
+    r"\b[HP][0-9]{3}\b|warning|danger|must not|do not|only|except|unless|"
+    r"警告|危险|禁止|不得|仅|除外|canh bao|nguy hiem|khong|chi ap dung", re.I,
+)
+_SENTENCE_END = re.compile(r"[.!?。！？](?=\s|[가-힣]|$)")
+_HARD_BOUNDARY = re.compile(
+    r"^(?:\[.*\|.*\]$|[0-9]{1,2}\.\s+|"
+    r"(?:제품명|제품 번호|브랜드|회사명|전화|팩스|긴급전화|영업시간|최종 개정일자|"
+    r"최초 작성일자|개정 횟수|날짜 형식)\s*(?:[:：]|$)|영업시간\s*[-:]|저작권\b|"
+    r"[가-하]\.\s*(?:제품명|회사명|제품의 권고|최초 작성|개정 횟수|기타)|"
+    r"\(?공휴일\s*제외\)?$|.*\b쪽\s*\d+\s*/\s*\d+|"
+    r"The life science business|the US and Canada)", re.I,
+)
+_SECTION_HEADING = re.compile(
+    r"^(?:[가-하]\.\s*)?(?:화학제품과 회사에 관한 정보|그 밖의 참고사항|"
+    r"유해성[·ㆍ]위험성(?: 분류)?|예방조치 문구(?:를 포함한 경고 표지 항목)?|"
+    r"유해[·ㆍ]위험 문구|그림문자|신호어|신체 보호|위생상 주의사항|"
+    r"예방|대응|저장|폐기)\s*[:：]?$"
+)
+_GLOSSARY_HEADING = re.compile(r"^(?:기타\s*)?약어(?:에 대한 전문|\s*설명)?$|^abbreviations\b", re.I)
+_ADMIN_SENTENCE = re.compile(
+    r"^:?\s*(?:위 정보는 정확|이 문서의 정보는|제품 특\s*성에 관한|"
+    r"판매에 대한 부가적인|저작권)|"
+    r"^(?:[A-Z][A-Z0-9 /]*\s*[-:]\s*[^;]+;){2,}"
+)
+
+
+def _scan_critical_passages(documents):
+    """Return exact contiguous source spans and IDs with incomplete warnings.
+
+    PDF line breaks are soft breaks. Headers/metadata and glossary blocks are
+    boundaries, never text to stitch through. No missing text is reconstructed.
+    This is a conservative lexical extractor, not exhaustive hazard detection.
+    """
+    passages, incomplete = {}, set()
     for doc in documents:
-        for index, sentence in enumerate(re.split(r"(?<=[.!?。！？])\s+|\n+", doc.page_content)):
-            if sentence.strip() and (pattern.search(sentence) or pattern.search(normalized(sentence))):
-                key = f"{doc.metadata['chunk_id']}::s{index}"
-                passages[key] = (doc.metadata['chunk_id'], sentence.strip())
-    return passages
+        cid = doc.metadata['chunk_id']
+        raw = doc.page_content
+        start = None
+        position = 0
+        glossary = False
+
+        def emit(a, b):
+            quote = raw[a:b].strip()
+            flat = re.sub(r"\s+", " ", quote)
+            if not flat or _ADMIN_SENTENCE.search(flat):
+                return
+            if not (_CRITICAL_PATTERN.search(flat) or _CRITICAL_PATTERN.search(normalized(flat))):
+                return
+            # Reject tails cut from a preceding chunk, and open-ended clauses.
+            dangling = re.match(r"^(?:며|않으며|경우는|경우,|적용됩니다)\b", flat)
+            complete = re.search(r"[.!?。！？]$|(?:금지|없음|있음|필요|일으킴|치명적임|하시오|마시오|됩니다|합니다|말 것|할 것|잠글 것)$", flat.rstrip("]）)"))
+            if dangling or not complete:
+                incomplete.add(cid)
+                return
+            passages[f"{cid}::s{a}"] = (cid, quote)
+
+        for line in raw.splitlines(keepends=True):
+            end = position + len(line)
+            text = line.strip()
+            if _GLOSSARY_HEADING.search(text):
+                if start is not None:
+                    emit(start, position)
+                start = None
+                glossary = True
+            elif glossary or _HARD_BOUNDARY.search(text) or _SECTION_HEADING.fullmatch(text):
+                if start is not None:
+                    emit(start, position)
+                start = None
+            elif text:
+                # New coded warning cannot complete the preceding warning.
+                if re.match(r"^(?::\s*)?[HP][0-9]{3}\b|^경고\s*:|^[가-하]\.\s+", text) and start is not None:
+                    emit(start, position)
+                    start = None
+                if start is None:
+                    start = position + len(line) - len(line.lstrip())
+                for match in _SENTENCE_END.finditer(raw, position, end):
+                    if re.fullmatch(r"[가-하]\.", raw[position:match.end()].strip()):
+                        continue  # A list label is not a sentence terminator.
+                    emit(start, match.end())
+                    start = match.end()
+            position = end
+        if start is not None:
+            emit(start, len(raw))
+    return passages, incomplete
+
+
+def critical_passages(documents):
+    """Warning/condition quotes remain exact substrings of retrieved Documents."""
+    return _scan_critical_passages(documents)[0]
+
+
+def incomplete_critical_chunks(documents):
+    """Incomplete warning context must defer, rather than silently disappear."""
+    return _scan_critical_passages(documents)[1]
+
 
 
 def translation_valid(original: str, translated: str, language: str) -> bool:
@@ -251,6 +339,9 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
 - 제품 MSDS는 실제 제품과 같다고 가정하지 마세요. product_facts에 제품명(product_name),
   제품번호(product_number), 농도(concentration), 개정일(revision_date)의 원문 값과 인용을 추출하세요.
   원문에 없는 값은 추측하지 말고 해당 fact를 생략하세요. product_id에서 제품번호를 임의 추출하지 마세요.
+- revision_date의 value와 quote는 원문의 날짜 표기를 그대로 유지하세요.
+  예: 원문이 2026.07.14이면 2026-07-14로 바꾸지 마세요. 날짜 형식 비교는 서버가 처리합니다.
+  메타데이터에만 있는 개정일을 본문에서 인용한 것처럼 만들지 마세요.
 - 법령 문서는 MSDS가 아닙니다. MSDS에서 제조자가 요구하는 주의사항은 법령상 의무로 바꾸지 마세요.
 - 법적 책임 확정·위험한 현장 조작·혼합/희석/중화 절차·작업 승인을 제공하지 마세요.
   긴급 상황은 AI가 대응 절차를 만들어 안내하는 범위가 아닙니다.

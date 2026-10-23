@@ -288,6 +288,7 @@ _REVIEW_MESSAGES = {
     "emergency": "검색·LLM을 기다리지 않고 현장 비상절차와 긴급 신고를 우선해야 합니다.",
     "product_unverified": "제품명·제품번호·농도·개정일 또는 현장 제품 일치 여부가 미확인입니다.",
     "invalid_translation": "경고·조건·수치의 번역을 확인해야 합니다.",
+    "incomplete_warning_context": "검색 문서의 경고·조건이 잘려 전체 문맥을 확인해야 합니다.",
     "msds_applicability_unverified": "MSDS 제품·농도·개정본과 실제 현장 제품의 일치를 별도로 확인해야 합니다.",
     "precheck_requires_review": "작업 전 정보 확인은 현장 승인 또는 완료된 안전 점검이 아닙니다.",
 }
@@ -464,6 +465,20 @@ def preflight_result(question: str, language: str = "ko") -> GenerationOutput | 
     return None
 
 
+def _parse_msds_revision_date(value: str | None) -> date:
+    """Compare explicit YYYY-MM-DD / YYYY.MM.DD without rewriting evidence.
+
+    Reject partial/ambiguous dates, mixed separators and invalid calendar dates.
+    This is only a format conversion, not proof of currentness or applicability.
+    """
+    if not isinstance(value, str):
+        raise ValueError("MSDS revision date is missing")
+    match = re.fullmatch(r"([0-9]{4})([-.])([0-9]{2})\2([0-9]{2})", value)
+    if match is None:
+        raise ValueError("Unsupported MSDS revision date format")
+    return date(int(match[1]), int(match[3]), int(match[4]))
+
+
 def _verified_product(draft: EvidenceDraft, originals, metadata_by_id, reference_date: date, question: str) -> bool:
     fields = {}
     labels = {
@@ -493,13 +508,16 @@ def _verified_product(draft: EvidenceDraft, originals, metadata_by_id, reference
     if requested_percentages and {value.replace(" ", "") for value in requested_percentages} != set(re.findall(r"\d+(?:\.\d+)?%", fields["concentration"].replace(" ", ""))):
         return False
     try:
-        revision = date.fromisoformat(fields["revision_date"])
+        # Original values/quotes have already passed exact evidence checks.
+        # Normalize only for comparison; preserve original metadata and display.
+        revision = _parse_msds_revision_date(fields["revision_date"])
+        dates = {_parse_msds_revision_date(m.effective_date)
+                 for m in metadata_by_id.values() if m.doc_type == DOC_TYPE_MSDS}
     except ValueError:
         return False
     if revision > reference_date:
         return False
-    dates = {m.effective_date for m in metadata_by_id.values() if m.doc_type == DOC_TYPE_MSDS}
-    return dates == {fields["revision_date"]}
+    return dates == {revision}
 
 
 def generate_answer(
@@ -567,6 +585,9 @@ def generate_answer(
             return review("invalid_metadata")
         originals[metadata.chunk_id] = doc
         metadata_by_id[metadata.chunk_id] = metadata
+
+    if prompt.incomplete_critical_chunks(msds):
+        return review("incomplete_warning_context")
 
     try:
         llm = structured_llm if structured_llm is not None else build_document_llm(model or os.getenv(ENV_LLM_MODEL, "gpt-4o"), timeout_seconds=timeout_seconds)
@@ -674,7 +695,8 @@ def generate_answer(
     if required:
         parts.append(text["warnings"])
         for pid, (cid, original) in required.items():
-            translated_text = original if language == "ko" else translated[pid]
+            # Display soft line breaks as spaces; citation evidence stays verbatim.
+            translated_text = re.sub(r"\s+", " ", original) if language == "ko" else translated[pid]
             parts.append(f"- {translated_text} [{source_numbers[cid]}]")
             if language != "ko":
                 parts.append(f"  {text['original']}: {original}")
