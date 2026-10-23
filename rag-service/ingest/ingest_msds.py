@@ -12,6 +12,7 @@
 """
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import List
@@ -90,7 +91,10 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="청킹 결과만 출력, 임베딩/저장 안 함")
     a = ap.parse_args()
 
-    chunks = build_chunks(read_input(Path(a.input)), a.doc_id, a.product_id, a.substance, a.supplier,
+    # MSDS 는 '항목 : 값' 표라서 layout 모드로 읽어야 값이 항목명 옆에 붙는다. 남는 공백은 줄인다.
+    text = re.sub(r"[ \t]{2,}", " ", read_input(Path(a.input), layout=True))
+    text = re.sub(r"\n\s*\n+", "\n", text)
+    chunks = build_chunks(text, a.doc_id, a.product_id, a.substance, a.supplier,
                           a.cas_no, a.revision_date, a.source_url, a.title)
     found = sorted({c["metadata"]["msds_section_no"] for c in chunks})
     if not chunks:
