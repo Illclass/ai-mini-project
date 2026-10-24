@@ -41,6 +41,7 @@ export function speechText(answer, tail = '') {
   const lines = String(answer || '').split('\n').map(line => line.replace(/\s*\[\d+\]/g, '').trim())
   const kept = lines.filter(line => line &&
     !/^(원문|原文|Bản gốc|Original|អត្ថបទដើម)\s*[:：]/i.test(line) &&      // 원문 인용 (번역 답변 아래 붙는 줄)
+    !/^(근거 MSDS|依据MSDS|MSDS căn cứ|Based on MSDS|MSDS មូលដ្ឋាន)\s*[:：]/i.test(line) &&   // 제품 정보 줄 (화면에서 확인)
     !/[:：]$/.test(line) &&                                                // "적용 조건 (…):" 같은 제목
     !(line.length <= 40 && !/[.!?。！？។]$/.test(line)))                    // 짧은 제목 줄 ("자료에 근거한 일반 정보")
     .map(line => line.replace(/^[-•·]\s*/, ''))

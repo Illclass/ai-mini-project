@@ -221,7 +221,7 @@ def test_product_fact_value_and_label_validation(change):
     result, _ = call(doc, output=draft)
     if change == "value_without_label":
         # The concentration label is present in the same cited chunk.
-        assert result.sources and "농도: 1.0%" in result.answer
+        assert result.sources and "농도 1.0%" in result.answer
         assert result.review_reasons == ["msds_applicability_unverified"]
     else:
         assert result.review_reasons == ["product_unverified"]

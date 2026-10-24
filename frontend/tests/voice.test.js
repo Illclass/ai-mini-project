@@ -6,6 +6,9 @@ test('speech text drops citation numbers, headings and source quote lines but ke
  const answer='자료에 근거한 일반 정보\n\n보호장갑을 착용해야 합니다. [1]\n\n적용 조건 (실제 현장 해당 여부는 별도 확인):\n\n중요 경고·적용 조건 (원문 기준)\n\n- 피부에 묻으면 즉시 물로 씻으시오. [2]\n  원문: 피부에 묻으면 즉시 물로 씻으시오.'
  assert.equal(speechText(answer,'화면에서 확인하세요.'),'보호장갑을 착용해야 합니다. 피부에 묻으면 즉시 물로 씻으시오.')
 })
+test('product info line is not read aloud',()=>{
+ assert.equal(speechText('보호구를 착용하세요. [1]\n\n근거 MSDS: Sulfuric acid · 제품번호 339741 [2]'),'보호구를 착용하세요.')
+})
 test('long speech is cut at a sentence end and points to the screen',()=>{
  const text=speechText(Array(60).fill('보호구를 착용해야 합니다.').join(' '),'화면에서 확인하세요.')
  assert(text.length<=430);assert(text.endsWith('다. 화면에서 확인하세요.'))

@@ -1075,45 +1075,67 @@ def generate_answer(
     def markers(citations: list[Citation]) -> str:
         return " ".join(f"[{source_numbers[chunk_id]}]" for chunk_id in dict.fromkeys(c.chunk_id for c in citations))
 
-    parts = []
+    # 답변은 대화하듯 짧게 (김규빈 2026-10-24, 팀 결정): 제목을 매 문장 달지 않고, 같은 종류 문장은 한 단락으로 잇는다.
+    # 법령 문구·지침 권고만 짧은 꼬리표로 구분한다 (의무와 권고를 섞지 않는 안전 규칙은 그대로).
+    parts, paragraph = [], []
+
+    def flush():
+        if paragraph:
+            parts.append("\n".join(paragraph)); paragraph.clear()
+
     if mode != "qa":
         parts.append(text[mode])
     previous_kind = None
     for statement in draft.statements:
         if statement.kind != previous_kind:
-            parts.append(labels[statement.kind])
-        parts.append(f"{statement.text.strip()} {markers(statement.citations)}")
+            flush()
+            if statement.kind != "information":
+                paragraph.append(labels[statement.kind])
+        paragraph.append(f"{statement.text.strip()} {markers(statement.citations)}")
         previous_kind = statement.kind
         if statement.conditions:
-            parts.append(text["conditions"])
-            parts.extend(f"- {condition.text.strip()} {markers(condition.citations)}" for condition in statement.conditions)
-    if "conditions_unverified" in reasons:
-        parts.append(text["missing_conditions"])
+            paragraph.append(text["conditions"] + " " + " / ".join(
+                f"{condition.text.strip()} {markers(condition.citations)}" for condition in statement.conditions))
+    flush()
     if required:
-        parts.append(text["warnings"])
+        # 한국어는 본문이 이미 인용한 경고 문장은 다시 싣지 않는다 (같은 내용 반복 방지). 번역 답변은 번역 확인을 위해 모두 싣는다.
+        quoted = [c.quote for st in draft.statements for c in [*st.citations, *(x for cond in st.conditions for x in cond.citations)]]
+        lines = []
         for pid, (cid, original) in required.items():
+            if language == "ko" and any(_same_text(q, original) or _same_text(original, q) for q in quoted):
+                continue
             # Display soft line breaks as spaces; citation evidence stays verbatim.
             translated_text = re.sub(r"\s+", " ", original) if language == "ko" else translated[pid]
-            parts.append(f"- {translated_text} [{source_numbers[cid]}]")
+            lines.append(f"- {translated_text} [{source_numbers[cid]}]")
             if language != "ko":
-                parts.append(f"  {text['original']}: {original}")
-    if any(source.doc_type == DOC_TYPE_LAW for source in sources):
-        parts.append(text["law_review"])
+                lines.append(f"  {text['original']}: {original}")
+        if lines:
+            parts.append(text["warnings"] + "\n" + "\n".join(lines))
+    closing = []
     if msds:
         product_labels = {
-            "ko": {"product_name": "자료의 제품명", "product_number": "제품번호", "concentration": "농도", "revision_date": "MSDS 개정일"},
-            "zh": {"product_name": "资料中的产品名称", "product_number": "产品编号", "concentration": "浓度", "revision_date": "MSDS修订日期"},
-            "vi": {"product_name": "Tên sản phẩm trong tài liệu", "product_number": "Mã sản phẩm", "concentration": "Nồng độ", "revision_date": "Ngày sửa đổi MSDS"},
-            "en": {"product_name": "Product name in the document", "product_number": "Product number", "concentration": "Concentration", "revision_date": "MSDS revision date"},
-            "km": {"product_name": "ឈ្មោះផលិតផលក្នុងឯកសារ", "product_number": "លេខផលិតផល", "concentration": "កំហាប់", "revision_date": "កាលបរិច្ឆេទកែប្រែ MSDS"},
+            "ko": {"product_number": "제품번호", "concentration": "농도", "revision_date": "개정"},
+            "zh": {"product_number": "产品编号", "concentration": "浓度", "revision_date": "修订"},
+            "vi": {"product_number": "Mã", "concentration": "Nồng độ", "revision_date": "Sửa đổi"},
+            "en": {"product_number": "No.", "concentration": "Conc.", "revision_date": "Rev."},
+            "km": {"product_number": "លេខ", "concentration": "កំហាប់", "revision_date": "កែប្រែ"},
         }
-        for fact in draft.product_facts:
-            parts.append(f"{product_labels[language][fact.field]}: {fact.value} {markers(fact.citations)}")
-        parts.append(text["msds_review"])
+        facts = {fact.field: re.sub(r"\s+", " ", fact.value).strip() for fact in draft.product_facts}
+        fields = [facts.get("product_name")] + [f"{product_labels[language][field]} {facts[field]}"
+                                                for field in ("product_number", "concentration", "revision_date") if field in facts]
+        fact_marks = markers([c for fact in draft.product_facts for c in fact.citations])
+        parts.append(f"{text['basis']}: {' · '.join(v for v in fields if v)} {fact_marks}".rstrip())
+        closing.append(text["msds_review"])   # 실제 제품과 같은지 확인
+    if "conditions_unverified" in reasons:
+        closing.append(text["missing_conditions"])
+    if any(source.doc_type == DOC_TYPE_LAW for source in sources):
+        closing.append(text["law_review"])
     if "effective_date_future" in reasons:
-        parts.append(text["future"])
+        closing.append(text["future"])
     if "law_version_conflict" in reasons:
-        parts.append(text["versions"])
+        closing.append(text["versions"])
+    if closing:
+        parts.append(" ".join(closing))
     result = GenerationOutput(
         answer="\n\n".join(parts), sources=sources,
         needs_review=bool(reasons), handoff=False,

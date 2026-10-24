@@ -12,6 +12,7 @@ from langchain_core.documents import Document
 
 from rag import generator, prompt
 from chembridge_fixtures import PRODUCT_ID, StubLLM, synthetic_draft, synthetic_msds
+from rag.prompt import TEXT
 
 
 NAME = "교육액-A"
@@ -175,7 +176,7 @@ def test_technical_source_requirements_keep_strength_without_becoming_legal_duty
     doc, draft = technical_case(doc_type, quote, text)
     result = run([doc], draft, product_id=PRODUCT_ID if doc_type == "msds" else None)
     assert result.sources and text in result.answer
-    assert "법령 자료의 의무 문구" not in result.answer
+    assert TEXT["ko"]["legal_obligation"] not in result.answer
     assert result.needs_review is True and result.handoff is False
 
 
@@ -205,8 +206,7 @@ def test_technical_requirement_must_not_be_mislabelled_as_recommendation(doc_typ
     doc, draft = technical_case(doc_type, "보호복을 착용하시오.", "보호복을 착용해야 합니다.", kind="recommendation")
     result = run([doc], draft, product_id=PRODUCT_ID if doc_type == "msds" else None)
     assert result.sources and not result.handoff
-    assert "자료에 근거한 일반 정보" in result.answer
-    assert "권고 지침" not in result.answer
+    assert TEXT["ko"]["recommendation"] not in result.answer and TEXT["ko"]["legal_obligation"] not in result.answer   # 일반 정보: 꼬리표 없음 (대화형 답변)
     assert "보호복을 착용해야 합니다." in result.answer
 
 
