@@ -70,6 +70,12 @@ _ADMIN_SENTENCE = re.compile(
 )
 
 
+# MSDS 표 항목: 9 물리화학적 특성 · 14 운송 · 15 법적 규제 · 16 그 밖의 참고사항(약어·NFPA 표).
+# 값·라벨이 나열된 표라 문장 끝이 없어 전부 '잘린 경고'로 판정되던 것을 경고 추출·잘림 판정에서 뺀다.
+# 경고·조치 문장이 있는 항목(2 유해성 · 4 응급조치 · 7 취급저장 · 8 보호구 · 10 안정성 등)은 그대로 검사한다.
+MSDS_DATA_SECTIONS = frozenset({9, 14, 15, 16})
+
+
 def _scan_critical_passages(documents):
     """Return exact contiguous source spans and IDs with incomplete warnings.
 
@@ -79,6 +85,8 @@ def _scan_critical_passages(documents):
     """
     passages, incomplete = {}, set()
     for doc in documents:
+        if doc.metadata.get("doc_type") == DOC_TYPE_MSDS and doc.metadata.get("msds_section_no") in MSDS_DATA_SECTIONS:
+            continue
         cid = doc.metadata['chunk_id']
         raw = doc.page_content
         start = None

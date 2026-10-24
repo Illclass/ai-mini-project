@@ -54,3 +54,14 @@ def test_translation_allows_won_amount_and_korean_gloss_only():
     assert translation_valid("", "tai nạn lao động nghiêm trọng (중대산업재해) là", "vi")
     assert not translation_valid("", "tai nạn lao động 중대산업재해 là", "vi")   # 괄호 없는 한글은 여전히 거부
     assert not translation_valid("", "Phải đeo găng tay. 보호구를 착용하세요", "vi")
+
+
+def test_msds_data_tables_are_not_truncated_warnings():
+    from rag.prompt import incomplete_critical_chunks
+
+    def doc(no, text):
+        return Document(page_content=text, metadata={"chunk_id": f"D9-s{no}", "doc_type": "msds", "msds_section_no": no})
+    nfpa = "NFPA:\n 인화성\n 3\n 건강 불안정\n 2 0\n 특수 위험성"
+    assert incomplete_critical_chunks([doc(16, nfpa), doc(9, "인화점 : 12 °C\n인화 하한값 : 자료없음 인화 하한값")]) == set()
+    # 경고 문장이 있는 항목은 그대로 검사한다 (잘린 P 문구 → 잘림)
+    assert incomplete_critical_chunks([doc(2, "P305 + P351 + P338 + P310 눈에 묻으면: 몇 분간 물로")]) == {"D9-s2"}
