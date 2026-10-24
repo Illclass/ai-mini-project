@@ -93,6 +93,10 @@ body .glass-language-menu button[aria-selected='true'], body .glass-language-men
 #app .clear-listen { color:var(--c-ink); border-color:#C5D1CD; font-weight:500; }
 #app .clear-alert { background:#FDF1DC; color:#7A4E0A; border:0; border-radius:10px; box-shadow:none; }
 #app .clear-alert.emergency { background:var(--c-danger-soft); color:var(--c-danger); }
+/* 답변 보류·비상: 빨간 띠로 강조 / 참고용 안내: 회색 작은 글씨 (매 답변마다 떠서 강조하면 보류가 묻힌다) */
+#app .clear-alert.is-hold { background:var(--c-danger-soft); color:var(--c-danger); border-left:4px solid var(--c-danger); font-size:15px; padding:12px 14px; }
+#app .clear-alert.is-hold .emergency-btn { margin-left:auto; }
+#app .clear-review-note { display:flex; align-items:center; gap:6px; margin:0 0 8px; color:var(--c-muted); font-size:13px; }
 #app .clear-composer { background:#fff; border:1px solid #C5D1CD; border-radius:14px; box-shadow:none; padding:12px 14px; backdrop-filter:none; }
 #app .clear-composer:focus-within { border-color:var(--c-teal); box-shadow:0 0 0 3px var(--c-teal-soft); }
 #app .clear-composer textarea { color:var(--c-ink); background:transparent; }

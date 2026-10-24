@@ -147,6 +147,9 @@ async function send(retryMessage){
 async function chooseProduct(){await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});productPicker.value?.open()}
 function cancelRequest(){requestController?.abort()}
 function editQuestion(message){if(busy.value)return;const scope=requestScope(message.topic,message.equipment_id,message.product_id);equipmentId.value=scope.equipment_id||'';productId.value=scope.product_id||'';fill(message.question)}
+// 비상 안내는 서버(rag/prompt.py TEXT.emergency)가 언어별로 정해진 머리말로 시작한다
+const EMERGENCY_PREFIXES=['긴급 안내:','紧急提示：','Thông báo khẩn cấp:','Emergency notice:','សេចក្តីជូនដំណឹងបន្ទាន់៖']
+function isEmergency(response){return response.handoff&&EMERGENCY_PREFIXES.some(prefix=>response.answer.startsWith(prefix))}
 function sourceUrl(value){try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)?url.href:null}catch{return null}}
 
 // 음성 모드: 녹음 → STT(/voice/stt) → 질문 확인·수정 → 전송 → 답변을 TTS(/voice/tts)로 자동 재생
@@ -246,7 +249,10 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
           <button type="button" class="chat-cancel-request" @click="cancelRequest">{{feedback.cancel}}</button>
         </div>
         <template v-else>
-          <div v-if="message.response.needs_review || message.response.handoff" class="clear-alert" role="note"><Icon name="alert" :size="18" />{{message.response.handoff?a.handoff:t.review}}</div>
+          <!-- 답변 보류·비상(handoff)은 눈에 띄게, 답변은 했지만 현장 확인이 필요한 경우(needs_review, MSDS·법령 답변이면 거의 항상)는 작게 -->
+          <div v-if="isEmergency(message.response)" class="clear-alert is-hold emergency" role="alert"><Icon name="alert" :size="20" /><b>{{a.emergencyBadge}}</b><button type="button" class="emergency-btn" @click="contacts=true">{{c.emergency}}</button></div>
+          <div v-else-if="message.response.handoff" class="clear-alert is-hold" role="alert"><Icon name="alert" :size="20" /><b>{{a.handoff}}</b></div>
+          <p v-else-if="message.response.needs_review" class="clear-review-note"><Icon name="check" :size="15" />{{a.answerNote}}</p>
           <p class="clear-answer-text">{{message.response.answer}}</p>
           <div class="clear-answer-tools">
             <template v-for="(source,i) in message.response.sources" :key="`${source.doc_id}-${i}`"><a v-if="sourceUrl(source.url)" v-spring class="clear-source" :href="sourceUrl(source.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span></span></template>
