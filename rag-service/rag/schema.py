@@ -41,7 +41,7 @@ INDEX_DIRS: Dict[str, str] = {
 # ---------------------------------------------------------------------------
 ENV_OPENAI_API_KEY = "OPENAI_API_KEY"
 ENV_JWT_SECRET = "JWT_SECRET"             # Java 인증서버와 같은 값
-ENV_LLM_MODEL = "LLM_MODEL"               # 예: gpt-4o
+ENV_LLM_MODEL = "LLM_MODEL"               # 비우면 gpt-6-luna (rag/llm.py DEFAULT_MODEL)
 ENV_EMBEDDING_MODEL = "EMBEDDING_MODEL"   # 비우면 DEFAULT_EMBEDDING_MODEL (rag/embeddings.py 참고)
 ENV_TOP_K = "RAG_TOP_K"                   # 기본 5
 

@@ -263,6 +263,8 @@ def translation_valid(original: str, translated: str, language: str, *, preserve
     for term in sorted(set(preserved_terms), key=len, reverse=True):
         if term:
             script_text = script_text.replace(term, " ")
+    # 원문 목록 기호 (가) 나. 등은 번호이지 한국어 문장이 아니므로 문자 체계 검사에서만 뺀다
+    script_text = re.sub(r"[(（]\s*[가-하]\s*[)）]|(?<![가-힣])[가-하]\.(?=\s)", " ", script_text)
     if language == "zh" and (not re.search(r"[\u4e00-\u9fff]", script_text) or re.search(r"[가-힣]", script_text)):
         return False
     if language == "vi" and (not re.search(r"[a-zA-ZÀ-ỹ]", script_text) or re.search(r"[가-힣\u4e00-\u9fff]", script_text)):
@@ -608,6 +610,12 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   추출하세요. 다른 청크나 metadata에만 있는 라벨로 보완하거나 범위·단위를 바꾸지 마세요.
 - 적용 조건은 statements의 조건 설명 문장만으로 대신하지 말고 conditions에도 인용과 함께
   기록하세요. 같은 내용을 반복하는 statements는 합쳐 간결하게 설명하세요.
+- quote는 짧게: 주장을 뒷받침하는 원문 한 문장(또는 표 한 행)만 복사하세요. 떨어진 두 문장을
+  '…'이나 공백으로 이어 붙이지 마세요. 근거가 두 곳이면 citations를 두 개로 나누세요.
+- text의 숫자·단위·범위는 인용한 quote에 있는 표기만 쓰세요. 단위 환산·반올림·계산·요약 수치를
+  만들지 마세요. quote에 없는 숫자가 필요하면 그 숫자를 빼거나 해당 문장을 쓰지 마세요.
+- legal_obligation은 그 statement의 quote 자체에 의무 표현(하여야 한다·해서는 아니 된다 등)이
+  있을 때만 쓰세요. 적용범위·정의·목적 조문은 kind=information으로 설명하세요.
 """
 
 
@@ -617,7 +625,7 @@ def product_name_tokens(documents: list[Document]) -> dict[str, str]:
     names = dict.fromkeys(
         match.group(1).strip() for doc in documents if doc.metadata.get("doc_type") == DOC_TYPE_MSDS
         for match in re.finditer(
-            r"(?:제품명|product[ \t]*(?:name|identifier)|产品名称|tên[ \t]*sản[ \t]*phẩm)[ \t]*[:：][ \t]*"
+            r"(?:제품명|product[ \t]*(?:name|identifier)|产品名称|tên[ \t]*sản[ \t]*phẩm)[ \t]*[:：][ \t]*(?:\n[ \t]*)?"
             r"([^\n]+(?:\n[ \t]*(?:wt\.?|vol\.?)[ \t]*%[^\n]*)?)",
             doc.page_content, re.I)
         if match.group(1).strip()
@@ -642,6 +650,9 @@ def build_document_messages(
                       + json.dumps(list(critical_passages(documents)), ensure_ascii=False)
                       + ("\n한국어(ko)는 경고 원문을 서버가 직접 표시합니다. critical_translations는 []로 반환하세요."
                          if language == "ko" else "\n질문이 제품명이나 적용 범위만 묻더라도 이 경고 목록은 생략하지 마세요.")
+                      + ("\n답변 언어가 한국어가 아니므로 statements·conditions 문장에 한글을 쓰지 마세요. "
+                         "법령명·용어(예: 중대산업재해)도 번역 용어집이나 해당 언어로 옮겨 쓰세요. 인용(quote)만 원문 그대로 둡니다."
+                         if language != "ko" else "")
                       + "\n번역하지 않을 원문 제품명: " + json.dumps(source_names, ensure_ascii=False)
                       + "\n이 식별자는 음역·의역하지 마세요. MSDS의 착용 지시는 recommend/advice/建议/khuyến nghị로 약화하지 마세요."),
         HumanMessage(content="UNTRUSTED_RETRIEVED_DOCUMENTS_JSON\n" + json.dumps(payload, ensure_ascii=False, default=str)),

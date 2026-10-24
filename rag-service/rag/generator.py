@@ -20,7 +20,7 @@ from langchain_core.documents import Document
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import BaseMessage
 from rag import prompt, llm
-from rag.llm import call_llm, RAGConfigurationError, validate_timeout as _valid_timeout
+from rag.llm import call_llm, RAGConfigurationError, validate_timeout as _valid_timeout, DEFAULT_MODEL as DEFAULT_LLM_MODEL
 from openai import APITimeoutError
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, field_validator, model_validator
 from rag.prompt import (
@@ -79,7 +79,7 @@ def is_emergency(question: str) -> bool:
 def is_prohibited_request(question: str) -> bool:
     compact = re.sub(r"\s+", "", question.lower())
     text = normalized(question)
-    ko = r"(?:우리|저희|회사|대표|내가|제가|당사|이사고).{0,35}(?:법적책임|유죄|무죄|처벌받|책임져|책임을져)|무조건처벌|(?:법적|형사|민사)책임.{0,8}(?:판단|확정|결정)|누가.{0,10}책임|(?:작업|가동|진입|재가동).{0,20}(?:승인해|허가해|해도돼|해도되|안전한지판단)|(?:중화|희석|혼합|누출차단).{0,20}(?:방법|순서|절차|비율|해줘|알려)|(?:보호구|장갑).{0,8}없이.{0,15}(?:작업|취급)|(?:불산|황산|화학물질).{0,20}(?:섞는법|처리순서)"
+    ko = r"(?:우리|저희|회사|대표|내가|제가|당사|이사고).{0,35}(?:법적책임|유죄|무죄|처벌받|책임져|책임을져)|무조건처벌|(?:법적|형사|민사)책임.{0,8}(?:판단|확정|결정)|누가.{0,10}책임|(?:작업|가동|진입|재가동)(?!을?(?:멈추|중지|중단|그만))(?!.{0,20}(?:멈추|중지|중단|대피))(?:.{0,20})(?:승인해|허가해|해도돼|해도되|안전한지판단)|(?:중화|희석|혼합|누출차단).{0,20}(?:방법|순서|절차|비율|해줘|알려)|(?:보호구|장갑).{0,8}없이.{0,15}(?:작업|취급)|(?:불산|황산|화학물질).{0,20}(?:섞는법|처리순서)"
     zh = r"(?:法律责任|刑事责任|民事责任).{0,12}(?:判断|确定|谁|承担)|(?:我们|公司|我).{0,20}(?:有罪|无罪|处罚|负责|承担法律责任)|(?:批准|允许).{0,12}(?:作业|工作|开机)|可以.{0,12}(?:开工|进入|重启)|(?:中和|稀释|混合).{0,15}(?:步骤|比例|方法)|不戴.{0,10}(?:手套|防护)"
     vi = r"(?:toi|cong ty|chung toi).{0,30}(?:chiu trach nhiem|bi phat|co toi)|(?:phe duyet|cho phep).{0,20}(?:lam viec|van hanh)|(?:cach|huong dan|ty le).{0,20}(?:trung hoa|pha loang|tron axit)|khong deo.{0,15}(?:gang|bao ho)"
     en = r"(?:am i|are we|is our|who is).{0,35}(?:liable|guilty|legally responsible)|(?:approve|authorize|safe to).{0,35}(?:work|enter|operate|restart)|(?:how to|steps to|ratio).{0,20}(?:neutralize|dilute|mix acid)"
@@ -172,7 +172,7 @@ def _is_out_of_scope(question: str) -> bool:
     text = re.sub(r"\s+", " ", question.strip().lower())
     compact = re.sub(r"\s+", "", text)
     approval = bool(
-        re.search(r"(?:작업|가동|재가동|입장|진입).{0,20}(?:승인(?:을)?해|허가(?:를)?해|해도돼|해도되|해도될|안전하다고|안전한지판단)", compact)
+        re.search(r"(?:작업|가동|재가동|입장|진입)(?!을?(?:멈추|중지|중단|그만))(?!.{0,20}(?:멈추|중지|중단|대피))(?:.{0,20})(?:승인(?:을)?해|허가(?:를)?해|해도돼|해도되|해도될|안전하다고|안전한지판단)", compact)
         or re.search(r"(?:승인|허가)(?:을|를)?(?:해줘|해주세요|해주십시오|해줄래|해주시겠|요청합니다|바랍니다).{0,12}(?:작업|가동)", compact)
         or re.search(r"(?:approve|authorize|safe to).{0,35}(?:work|enter|operate|restart)", text)
     )
@@ -314,12 +314,12 @@ def _review_result(reason: str, answer: str | None = None, *, language: str = "k
 
 
 
-def build_document_llm(model: str = "gpt-4o", *, timeout_seconds: float = 30.0) -> DocumentStructuredLLM:
+def build_document_llm(model: str = DEFAULT_LLM_MODEL, *, timeout_seconds: float = 30.0) -> DocumentStructuredLLM:
     """생성 출력 규격을 llm.py의 공급자 팩토리에 전달한다."""
     return llm.build_structured_llm(EvidenceDraft, model, timeout_seconds=timeout_seconds)
 
 
-def build_verification_llm(model: str = "gpt-4o", *, timeout_seconds: float = 30.0):
+def build_verification_llm(model: str = DEFAULT_LLM_MODEL, *, timeout_seconds: float = 30.0):
     """Use a separate structured call; the generator cannot approve its own draft."""
     return llm.build_structured_llm(EvidenceVerification, model, timeout_seconds=timeout_seconds)
 
@@ -358,10 +358,18 @@ def _unsafe_critical_translation(text: str, original: str) -> bool:
     return _unsafe_text(text)
 
 
+def _same_text(quote: str, source: str) -> bool:
+    """원문 인용 일치. PDF 줄바꿈·공백 차이만 무시한다 (글자·순서는 그대로 일치해야 함).
+    PDF 는 단어 중간에서도 줄을 바꾸므로("추정하\n지") 공백을 모두 지우고 비교한다.
+    숫자 사이 공백은 경계로 남긴다 ("10 0" 이 "100" 으로 붙지 않도록)."""
+    squash = lambda s: re.sub(r"\s+", "", re.sub(r"(?<=\d)\s+(?=\d)", "|", s))
+    return quote in source or squash(quote) in squash(source)
+
+
 def _verify_citations(citations: list[Citation], originals: dict[str, Document]) -> bool:
     return bool(citations) and all(
         citation.chunk_id in originals and bool(citation.quote.strip())
-        and citation.quote in originals[citation.chunk_id].page_content
+        and _same_text(citation.quote, originals[citation.chunk_id].page_content)
         for citation in citations
     )
 
@@ -827,7 +835,7 @@ def generate_answer(
         return review("incomplete_warning_context")
 
     try:
-        llm = structured_llm if structured_llm is not None else build_document_llm(model or os.getenv(ENV_LLM_MODEL, "gpt-4o"), timeout_seconds=timeout_seconds)
+        llm = structured_llm if structured_llm is not None else build_document_llm(model or os.getenv(ENV_LLM_MODEL, DEFAULT_LLM_MODEL), timeout_seconds=timeout_seconds)
         raw = llm.invoke(build_document_messages(question, usable, as_of=reference_date, language=language, mode=mode, product_id=product_id))
     except (APITimeoutError, httpx.TimeoutException, TimeoutError):
         return review("llm_timeout")
@@ -856,6 +864,14 @@ def generate_answer(
 
     # Product names were verified by _verified_product above; allow those exact
     # identifiers in translated prose without allowing arbitrary source-language text.
+    # 적용범위·정의 조문처럼 의무 문구가 없는 법령 인용을 '법적 의무'로 분류했으면 보류 대신 일반 정보로 낮춘다
+    draft = draft.model_copy(update={"statements": [
+        st.model_copy(update={"kind": "information"})
+        if st.kind == "legal_obligation" and not _supports_legal_duty(st.citations, metadata_by_id)
+        and all(metadata_by_id[c.chunk_id].doc_type == DOC_TYPE_LAW for c in st.citations)
+        and not _has_duty_assertion(st.text)
+        and not re.search(r"규정|의무|하도록|obligat|requir|规定|义务|quy định|nghĩa vụ", st.text, re.I) else st
+        for st in draft.statements]})
     preserved_terms = tuple(fact.value for fact in draft.product_facts if fact.field == "product_name") if msds else ()
     selected_ids = []
     reasons = ["msds_applicability_unverified"] if msds else []
@@ -881,7 +897,8 @@ def generate_answer(
         )
         if direct_ppe and re.search(r"recommend|advis|suggest|建议|推荐|khuyen|권장", normalized(statement.text), re.I):
             return review("invalid_translation")
-        if statement.kind == "recommendation" and _has_duty_assertion(statement.text):
+        if (statement.kind == "recommendation" and _has_duty_assertion(statement.text)
+                and not any(_has_duty_assertion(c.quote) for c in statement.citations)):
             return review("invalid_evidence")
         if statement.kind != "legal_obligation" and _invalid_nonlaw_duty(statement.text, statement.citations, metadata_by_id):
             return review("invalid_evidence")
@@ -936,7 +953,7 @@ def generate_answer(
         return review("invalid_translation")
     verification_failure = _verify_draft_support(
         question, draft, originals, required, translated, language=language,
-        as_of=reference_date, model=model or os.getenv(ENV_LLM_MODEL, "gpt-4o"),
+        as_of=reference_date, model=model or os.getenv(ENV_LLM_MODEL, DEFAULT_LLM_MODEL),
         timeout_seconds=timeout_seconds,
     )
     if verification_failure:
