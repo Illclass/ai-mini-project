@@ -115,3 +115,11 @@ def test_document_and_clause_numbers_may_come_from_chunk_header():
     assert g._quantities_supported("K-1-2023 지침의 7.2항에 응급조치가 있습니다.", cit, source_headers=heads)
     assert not g._quantities_supported("K-1-2023 지침은 16개 항목입니다.", cit, source_headers=heads)   # 머리글에 없는 숫자
     assert not g._quantities_supported("2023 % 농도", cit, source_headers=heads)                       # 수치·단위는 머리글로 통과 안 됨
+
+
+def test_only_cited_or_hazard_warnings_are_attached():
+    msds = lambda no: type("M", (), {"doc_type": "msds", "msds_section_no": no})()
+    md = {"D1-s2": msds(2), "D1-s6": msds(6)}
+    assert g._is_hazard_statement(("D1-s2", "H314 피부에 심한 화상과 눈에 손상을 일으킴"), md)
+    assert not g._is_hazard_statement(("D1-s2", "P280 보호장갑을 착용하시오."), md)      # 예방조치 문구는 인용될 때만
+    assert not g._is_hazard_statement(("D1-s6", "H314 피부에 심한 화상"), md)              # 2항이 아니면 아님

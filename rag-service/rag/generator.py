@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 import re
+from collections import Counter
 import unicodedata
 from typing import Any, Literal, Protocol, List
 from collections.abc import Mapping
@@ -392,6 +393,17 @@ def _cited_cas_identifiers(citations, originals) -> tuple[str, ...]:
             if sum(int(digit) * weight for weight, digit in enumerate(reversed(digits[:-1]), 1)) % 10 == int(digits[-1]):
                 identifiers.append(value)
     return tuple(dict.fromkeys(identifiers))
+
+
+MAX_CHUNK_WARNINGS = 3   # 지침·법령 청크에서 경고를 전부 붙이는 상한 (넘으면 인용과 겹치는 것만)
+
+
+def _is_hazard_statement(passage, metadata_by_id) -> bool:
+    """MSDS 2항의 유해·위험 문구 (H314 피부에 심한 화상… 처럼 H 로 시작). 예방조치 P 문구는 넣지 않는다."""
+    cid, quote = passage
+    meta = metadata_by_id[cid]
+    return (meta.doc_type == DOC_TYPE_MSDS and meta.msds_section_no == 2
+            and bool(re.match(r"\s*:?\s*H\d{3}", quote)))
 
 
 def _cited_headers(citations, originals) -> str:
@@ -1011,8 +1023,21 @@ def generate_answer(
     if msds:
         selected_ids.extend(c.chunk_id for fact in draft.product_facts for c in fact.citations)
     passages = critical_passages(usable)
+    # 답변에 붙이는 경고: 답변이 인용한 청크의 경고 + MSDS 2항 유해·위험 문구(H코드: 물질의 기본 위험).
+    # 예전에는 검색된 MSDS 청크의 경고를 전부 붙여, 보호구 질문에도 흡입·누출 처리 경고 10여 개가 나왔다 (김규빈 2026-10-24, 팀 결정).
+    # MSDS 청크는 항목별로 짧아 인용한 청크의 경고를 모두 둔다. 지침·법령 청크도 경고가 3개 이하면 모두 둔다
+    # (인용 문장 바로 옆의 "실제 작업에 사용하지 마세요" 같은 경고가 빠지지 않도록).
+    # 그보다 많으면(KOSHA 목록 청크는 10여 개) 답변이 실제로 인용한 문장과 겹치는 경고만 둔다.
+    quotes = [c.quote for st in draft.statements for c in [*st.citations, *(x for cond in st.conditions for x in cond.citations)]]
+    per_chunk = Counter(cid for cid, _ in passages.values())
+    def cited_warning(cid, original):
+        if cid not in selected_ids:
+            return False
+        if metadata_by_id[cid].doc_type == DOC_TYPE_MSDS or per_chunk[cid] <= MAX_CHUNK_WARNINGS:
+            return True
+        return any(_same_text(q, original) or _same_text(original, q) for q in quotes)
     required = {pid: pair for pid, pair in passages.items()
-                if pair[0] in selected_ids or metadata_by_id[pair[0]].doc_type == DOC_TYPE_MSDS}
+                if cited_warning(*pair) or _is_hazard_statement(pair, metadata_by_id)}
     translated = {}
     for item in draft.critical_translations:
         if item.passage_id not in passages or item.passage_id in translated:
