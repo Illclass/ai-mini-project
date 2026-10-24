@@ -265,6 +265,9 @@ def translation_valid(original: str, translated: str, language: str, *, preserve
             script_text = script_text.replace(term, " ")
     # 원문 목록 기호 (가) 나. 등은 번호이지 한국어 문장이 아니므로 문자 체계 검사에서만 뺀다
     script_text = re.sub(r"[(（]\s*[가-하]\s*[)）]|(?<![가-힣])[가-하]\.(?=\s)", " ", script_text)
+    # 금액의 한국어 단위(10억원·5천만 원)와 괄호 속 한국어 용어 병기 "(중대산업재해)"는 현장 용어 그대로 둔 것이므로
+    # 문자 체계 검사에서만 뺀다. 숫자·금지·제외 비교는 그대로 한다.
+    script_text = re.sub(r"(?<=\d)\s*(?:[천백십]?(?:만|억|조)\s*)*원|[(（][가-힣 ·]{1,20}[)）]", " ", script_text)
     if language == "zh" and (not re.search(r"[\u4e00-\u9fff]", script_text) or re.search(r"[가-힣]", script_text)):
         return False
     if language == "vi" and (not re.search(r"[a-zA-ZÀ-ỹ]", script_text) or re.search(r"[가-힣\u4e00-\u9fff]", script_text)):
@@ -603,6 +606,7 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   그 JSON이 {}이면 반드시 []를 반환하세요. chunk_id를 passage_id 대신 넣지 마세요.
 - 번역에서도 숫자는 원문 아라비아 숫자 표기를 그대로 유지하세요. 예: 2를 중국어 两/二나
   베트남어 hai로 바꾸지 마세요. 1.0%, ppm, 온도 단위와 날짜도 그대로 보존하세요.
+  서수·조문 번호도 같습니다: '제3자' → 'bên thứ 3' / '3rd party' / '第3方' (ba·third·三으로 쓰지 마세요).
 - product_facts의 quote에는 '제품명:', '제품번호:', '개정일:'처럼 값의 의미를
   확인할 수 있는 원문 항목명과 값을 함께 인용하세요.
 - 농도(concentration)는 표의 '농도' 또는 '함유량' 라벨이 같은 chunk_id의 본문에 있으면
@@ -616,18 +620,25 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   만들지 마세요. quote에 없는 숫자가 필요하면 그 숫자를 빼거나 해당 문장을 쓰지 마세요.
 - legal_obligation은 그 statement의 quote 자체에 의무 표현(하여야 한다·해서는 아니 된다 등)이
   있을 때만 쓰세요. 적용범위·정의·목적 조문은 kind=information으로 설명하세요.
+- 원문의 강도를 바꾸지 마세요. 지침·MSDS 원문이 '하여야 한다/이어야 한다'면 '해야 합니다'로 쓰고
+  '바람직합니다/권장합니다'로 약하게 바꾸지 마세요. 원문이 '바람직하다'면 '해야 한다'로 강화하지 마세요.
+- 법조문을 풀어 쓸 때 주체(누가), 대상, 처벌 종류(징역·벌금·과태료), 금액·기간을 바꾸거나 넓히지 마세요.
+  예: '행위자를 벌하는 외에'를 '행위자에게 벌금을 부과하는 것 외에'로 바꾸지 마세요. 애매하면 원문 표현을 그대로 쓰세요.
 """
 
+
+
+# MSDS 제품명 항목: 라벨 + 값(다음 줄에 있어도 됨, 단위 줄 'wt. %' 까지). 서버 제품 식별(generator)도 같은 식을 쓴다.
+PRODUCT_NAME_RE = re.compile(
+    r"(?:제품명|product[ \t]*(?:name|identifier)|产品名称|tên[ \t]*sản[ \t]*phẩm)[ \t]*[:：][ \t]*(?:\n[ \t]*)?"
+    r"([^\n]+(?:\n[ \t]*(?:wt\.?|vol\.?)[ \t]*%[^\n]*)?)", re.I)
 
 
 def product_name_tokens(documents: list[Document]) -> dict[str, str]:
     """Opaque text placeholders; source quotes and product facts stay literal."""
     names = dict.fromkeys(
         match.group(1).strip() for doc in documents if doc.metadata.get("doc_type") == DOC_TYPE_MSDS
-        for match in re.finditer(
-            r"(?:제품명|product[ \t]*(?:name|identifier)|产品名称|tên[ \t]*sản[ \t]*phẩm)[ \t]*[:：][ \t]*(?:\n[ \t]*)?"
-            r"([^\n]+(?:\n[ \t]*(?:wt\.?|vol\.?)[ \t]*%[^\n]*)?)",
-            doc.page_content, re.I)
+        for match in PRODUCT_NAME_RE.finditer(doc.page_content)
         if match.group(1).strip()
     )
     return {f"CB_PRODUCT_NAME_{index}": name for index, name in enumerate(names, start=1)}

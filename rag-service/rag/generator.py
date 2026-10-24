@@ -694,6 +694,40 @@ def _verified_product(draft: EvidenceDraft, originals, metadata_by_id, reference
 
 
 
+def _source_product_facts(documents) -> list[ProductFact]:
+    """MSDS 1·3·16항 원문에서 제품 식별 4항목을 서버가 직접 뽑는다 (LLM 추출이 빠지거나 흔들릴 때의 대안).
+
+    값과 인용은 원문 부분 문자열 그대로이고, 결과는 _verified_product 의 같은 검증을 다시 통과해야 쓰인다.
+    MSDS 가 한 제품일 때만 만든다. 하나라도 못 찾으면 [] (→ 기존대로 보류).
+    """
+    msds = [d for d in documents if d.metadata.get("doc_type") == DOC_TYPE_MSDS]
+    if len({d.metadata.get("product_id") for d in msds}) != 1:
+        return []
+    cas = msds[0].metadata.get("cas_no") or ""
+    found = {}
+
+    def add(field, doc, match, group=1):
+        value = match.group(group).strip()
+        if field not in found and value:
+            found[field] = ProductFact(field=field, value=value, citations=[
+                Citation(chunk_id=doc.metadata["chunk_id"], quote=match.group(0).strip())])
+
+    for doc in sorted(msds, key=lambda d: d.metadata.get("chunk_id", "")):
+        text, no = doc.page_content, doc.metadata.get("msds_section_no")
+        if no == 1:
+            if m := prompt.PRODUCT_NAME_RE.search(text):
+                add("product_name", doc, m)
+            if m := re.search(r"(?:제품\s*번호|product\s*(?:number|code))[ \t]*[:：][ \t]*([\w.\-]+)", text, re.I):
+                add("product_number", doc, m)
+        elif no == 3 and cas and re.search(r"농도|함유량", text):
+            if m := re.search(r"^[^\n]*" + re.escape(cas) + r"[ \t]+([^\n]*\d[^\n]*)$", text, re.M):
+                add("concentration", doc, m)
+        elif no == 16:
+            if m := re.search(r"최종\s*개정\s*일자?[ \t]*[:：][ \t]*(\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2})", text):
+                add("revision_date", doc, m)
+    return list(found.values()) if len(found) == 4 else []
+
+
 def _restore_product_name_tokens(draft: EvidenceDraft, documents) -> EvidenceDraft | None:
     """Restore text only from already source-validated product name facts.
 
@@ -853,7 +887,10 @@ def generate_answer(
         return review("no_evidence")
 
     if msds and not _verified_product(draft, originals, metadata_by_id, reference_date, question):
-        return review("product_unverified")
+        # LLM 이 식별 항목을 빠뜨리거나 잘못 뽑았으면 서버가 원문에서 뽑은 값으로 같은 검증을 한 번 더 한다
+        draft = draft.model_copy(update={"product_facts": _source_product_facts(usable)})
+        if not _verified_product(draft, originals, metadata_by_id, reference_date, question):
+            return review("product_unverified")
 
     draft = _restore_product_name_tokens(draft, usable)
     if draft is None:
