@@ -3,7 +3,9 @@
 - 인용 비교: PDF 줄바꿈(단어 중간 포함)만 무시, 숫자 경계는 유지
 - 제품 식별 4항목을 MSDS 원문에서 서버가 직접 추출
 - 번역 문자 검사: 금액 단위(억원)·괄호 속 한국어 용어 병기만 허용
+- 응급 감지: 몸에 묻음·튐·삼킴을 과거형으로 말하면 응급
 """
+import pytest
 from langchain_core.documents import Document
 
 from rag import generator as g
@@ -123,3 +125,20 @@ def test_only_cited_or_hazard_warnings_are_attached():
     assert g._is_hazard_statement(("D1-s2", "H314 피부에 심한 화상과 눈에 손상을 일으킴"), md)
     assert not g._is_hazard_statement(("D1-s2", "P280 보호장갑을 착용하시오."), md)      # 예방조치 문구는 인용될 때만
     assert not g._is_hazard_statement(("D1-s6", "H314 피부에 심한 화상"), md)              # 2항이 아니면 아님
+
+
+@pytest.mark.parametrize("question", [
+    "황산이 묻고 마셨는데 어떻게 해", "황산이 손에 묻었어요", "황산을 마셨어요", "눈에 황산이 들어갔어",
+    "불산이 손에 닿았어요", "硫酸溅到手上了", "I drank some sulfuric acid", "Axit ban vao tay toi",
+])
+def test_body_contact_and_swallowing_are_emergencies(question):
+    from rag.generator import is_emergency
+    assert is_emergency(question)
+
+
+@pytest.mark.parametrize("question", [
+    "황산 피부 접촉 시 조치는?", "희석할 때 손에 묻지 않게 하려면?", "황산을 옮겨 담을 때 보호구는?", "물 마시는 곳은 어디 두나요?",
+])
+def test_contact_prevention_questions_are_not_emergencies(question):
+    from rag.generator import is_emergency
+    assert not is_emergency(question)

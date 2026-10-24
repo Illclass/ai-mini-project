@@ -67,10 +67,23 @@ def is_emergency(question: str) -> bool:
         r"(?:dang keu|da keu|vang len|dang bao)"
         r"|(?<!khong )co mui (?:la|bat thuong|khong ro)"
     )
+    # 몸에 묻음·튐·삼킴을 과거형으로 말한 경우 (김규빈 추가). "황산이 손에 묻었어요", "황산을 마셨어요"가
+    # 일반 질문으로 처리됐다. "묻으면"처럼 가정하는 말은 여기서 잡지 않는다.
+    contact = r"(?:묻었|묻어서|묻어있|묻고|튀었|튀어서|튀고|닿았|닿아서|닿고|들어갔|들어가서|뒤집어썼)"
+    body = r"(?:눈|피부|손|손등|손가락|손목|팔|다리|발|얼굴|몸|목|입|등|가슴|머리)"
+    ko_body = (
+        rf"{body}(?:에|에도|으로|쪽에)\S{{0,15}}{contact}"
+        rf"|(?:산|약품|약액|용액|시약|물질|가스)(?:이|가)\S{{0,12}}{contact}"
+        r"|(?:마셨|마셔버|먹었|먹어버|삼켰|삼켜버|흡입했)"
+    )
+    zh_body = r"(?:溅|沾|碰)到?了?.{0,6}(?:手|脸|胳膊|腿|身上)|(?:喝|吃)了.{0,8}(?:酸|碱|药液|化学品)|(?:酸|碱|药液|化学品).{0,8}(?:喝|吃)了"
+    vi_body = r"(?:ban|dinh|vang).{0,15}(?:vao|len).{0,4}(?:tay|mat toi|chan|nguoi)|(?:uong|nuot) phai"
+    en_body = r"(?:on|onto|into) my (?:hand|hands|arm|arms|face|skin|leg|eye|eyes)|\b(?:drank|ingested)\b"
     # 부정 표현 전체를 제거하지 않는다. 같은 질문에 실제 사고가 함께 있을 수 있다.
     # 어휘 규칙이므로 모든 표현이나 문맥을 이해하는 분류기는 아니다.
     return bool(
-        re.search(ko, compact) or re.search(ko_incident, compact)
+        re.search(ko, compact) or re.search(ko_incident, compact) or re.search(ko_body, compact)
+        or re.search(zh_body, text) or re.search(vi_body, normalized(text)) or re.search(en_body, text)
         or re.search(zh, text) or re.search(zh_incident, text)
         or re.search(vi, normalized(text)) or re.search(vi_incident, normalized(text))
         or re.search(en, text) or re.search(en_incident, text)
