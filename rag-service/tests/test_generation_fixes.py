@@ -91,3 +91,27 @@ def test_kosha_numbered_item_counts_as_source_requirement():
     plain = g.Citation(chunk_id="K8-8_2", quote="이 지침은 불산 취급 사업장에 적용한다.")   # 번호 없는 설명 문장
     assert g._source_technical_requirement(item, md) and g._source_technical_requirement(must, md)
     assert not g._source_technical_requirement(plain, md)
+
+
+def test_generate_retries_once_only_for_verification_failures(monkeypatch):
+    def result(reason, ok=False):
+        r = g.GenerationOutput(answer="ok" if ok else "보류", sources=[], needs_review=not ok, handoff=not ok)
+        r._review_reasons = [reason]
+        return r
+    hits = [{"text": "원문", "score": 0.1, "metadata": {"chunk_id": "K1-1", "doc_id": "K1"}}]
+    for first, expected_calls in [("claim_mismatch", 2), ("no_evidence", 1), ("verification_unavailable", 1)]:
+        calls = []
+        monkeypatch.setattr(g, "generate_answer", lambda *a, **k: calls.append(1) or result(first))
+        monkeypatch.setattr(g, "build_api_response", lambda r, **k: g.RagResponse(answer=r.answer, sources=[], needs_review=True, handoff=True, latency_ms=0))
+        g.generate("보호구는?", hits, "ko")
+        assert len(calls) == expected_calls, first
+
+
+def test_document_and_clause_numbers_may_come_from_chunk_header():
+    doc = Document(page_content="[KOSHA K-1-2023 유해화학물질 저장 관련 지침 7.2 응급조치]\n7.2 응급조치\n응급조치를 취하여야 한다.",
+                   metadata={"chunk_id": "K1-7_2"})
+    cit = [g.Citation(chunk_id="K1-7_2", quote="응급조치를 취하여야 한다.")]
+    heads = g._cited_headers(cit, {"K1-7_2": doc})
+    assert g._quantities_supported("K-1-2023 지침의 7.2항에 응급조치가 있습니다.", cit, source_headers=heads)
+    assert not g._quantities_supported("K-1-2023 지침은 16개 항목입니다.", cit, source_headers=heads)   # 머리글에 없는 숫자
+    assert not g._quantities_supported("2023 % 농도", cit, source_headers=heads)                       # 수치·단위는 머리글로 통과 안 됨

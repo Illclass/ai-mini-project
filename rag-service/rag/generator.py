@@ -394,7 +394,17 @@ def _cited_cas_identifiers(citations, originals) -> tuple[str, ...]:
     return tuple(dict.fromkeys(identifiers))
 
 
-def _quantities_supported(text: str, citations: list[Citation], *, source_identifiers=()) -> bool:
+def _cited_headers(citations, originals) -> str:
+    """인용한 청크의 첫 줄 머리글 "[KOSHA K-1-2023 … 7.2 응급조치]". 답변이 출처 문서·조항 번호를 말할 때의 숫자 근거."""
+    heads = []
+    for cid in dict.fromkeys(c.chunk_id for c in citations):
+        first = (originals[cid].page_content.split("\n", 1)[0] if cid in originals else "").strip()
+        if first.startswith("[") and first.endswith("]"):
+            heads.append(first)
+    return "\n".join(heads)
+
+
+def _quantities_supported(text: str, citations: list[Citation], *, source_identifiers=(), source_headers: str = "") -> bool:
     """Reject new numeric facts/units/dates using ONLY this claim's quotes.
 
     Conservative: no unit conversion or inferred shelf life. Omission can be a
@@ -407,12 +417,15 @@ def _quantities_supported(text: str, citations: list[Citation], *, source_identi
     evidence = prompt.calendar_text_with_identifiers(canonical("\n".join(c.quote for c in citations)), source_identifiers)
     if claim is None or evidence is None:
         return False
+    # 문서·조항 번호(K-1-2023, 7.2)는 인용 청크 머리글에서도 찾는다. 수치·단위·날짜 비교에는 쓰지 않는다
+    headers = canonical(source_headers)
     number = r"[+-]?\d+(?:[.,]\d+)?"
     unit = r"ppm|ppb|mg/m3|μg/m3|g/l|mg/l|°c|°f|%|kg|mg|μg|ml|l|g"
     measurements = rf"({number})\s*({unit})(?![a-z])"
     dates = r"\d{4}[-/.]\d{1,2}[-/.]\d{1,2}"
     return all(
-        set(re.findall(pattern, claim)).issubset(set(re.findall(pattern, evidence)))
+        set(re.findall(pattern, claim)).issubset(
+            set(re.findall(pattern, evidence)) | (set(re.findall(pattern, headers)) if pattern == number else set()))
         for pattern in (number, measurements, dates)
     )
 
@@ -971,7 +984,8 @@ def generate_answer(
         if statement.kind == "legal_obligation" and not _supports_legal_duty(statement.citations, metadata_by_id):
             return review("invalid_evidence")
         if not _quantities_supported(statement.text, statement.citations,
-                source_identifiers=_cited_cas_identifiers(statement.citations, originals)):
+                source_identifiers=_cited_cas_identifiers(statement.citations, originals),
+                source_headers=_cited_headers(statement.citations, originals)):
             return review("claim_mismatch")
         selected_ids.extend(c.chunk_id for c in statement.citations)
         if not statement.conditions:
@@ -980,7 +994,8 @@ def generate_answer(
             if _unsafe_text(condition.text) or not _verify_citations(condition.citations, originals):
                 return review("invalid_evidence")
             if not _quantities_supported(condition.text, condition.citations,
-                    source_identifiers=_cited_cas_identifiers(condition.citations, originals)):
+                    source_identifiers=_cited_cas_identifiers(condition.citations, originals),
+                    source_headers=_cited_headers(condition.citations, originals)):
                 return review("claim_mismatch")
             if not translation_valid("", condition.text, language,
                                      preserved_terms=preserved_terms + _cited_ingredient_terms(condition.citations, originals)):
@@ -1182,6 +1197,11 @@ def needs_handoff(question: str, hits: List[Hit]) -> bool:
     return not hits or preflight_result(question, "ko") is not None
 
 
+GENERATION_RETRIES = int(os.getenv("GENERATION_RETRIES", "1"))   # 0 이면 재시도 안 함
+# 검증 시간 초과(verification_unavailable)는 다시 하면 대기 시간만 두 배라 넣지 않는다
+RETRYABLE_REASONS = {"claim_mismatch", "invalid_evidence", "invalid_translation", "product_unverified", "invalid_output"}
+
+
 def generate(question: str, hits: List[Hit], language: str, *,
              product_id: str | None = None, topic: str | None = None,
              mode: str = "qa", structured_llm=None) -> RagResponse:
@@ -1200,6 +1220,14 @@ def generate(question: str, hits: List[Hit], language: str, *,
         documents.append(Document(page_content=hit["text"], metadata=dict(metadata)))
     result = generate_answer(question, documents, language=language, mode=mode,
                              product_id=product_id, topic=topic, structured_llm=structured_llm)
+    # LLM 초안은 실행마다 달라서, 같은 질문이 한 번은 검증을 통과하고 한 번은 보류된다 (화면 추천 질문 14개 중 3~5개).
+    # 검증 실패로 보류됐으면 한 번 더 생성한다. 다시 만든 초안도 같은 검증을 모두 거치므로 기준은 낮아지지 않는다.
+    # "근거 없음"(no_evidence)은 LLM 이 답할 수 없다고 판단한 것이라 다시 묻지 않는다.
+    for _ in range(GENERATION_RETRIES):
+        if result.sources or not RETRYABLE_REASONS.intersection(result.review_reasons):
+            break
+        result = generate_answer(question, documents, language=language, mode=mode,
+                                 product_id=product_id, topic=topic, structured_llm=structured_llm)
     if {"llm_timeout", "llm_error", "configuration_error"}.intersection(result.review_reasons):
         # Preserve app.main's existing 503 policy without exposing raw errors.
         raise GenerationUnavailable("Generation provider is temporarily unavailable")
