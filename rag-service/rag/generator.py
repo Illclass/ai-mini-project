@@ -27,7 +27,7 @@ from rag.prompt import (
     LANGUAGES, MODES, TEXT, critical_passages, normalized,
     translation_valid, resolve_mode,
 )
-from rag.schema import DocType, ENV_LLM_MODEL, DOC_TYPE_LAW, DOC_TYPE_MSDS, TOPIC_LAW, Hit, Source, RagResponse
+from rag.schema import DocType, ENV_LLM_MODEL, DOC_TYPE_GUIDE, DOC_TYPE_LAW, DOC_TYPE_MSDS, TOPIC_LAW, Hit, Source, RagResponse
 
 # 요청 범위 검사
 
@@ -360,9 +360,9 @@ def _unsafe_critical_translation(text: str, original: str) -> bool:
 
 def _same_text(quote: str, source: str) -> bool:
     """원문 인용 일치. PDF 줄바꿈·공백 차이만 무시한다 (글자·순서는 그대로 일치해야 함).
-    PDF 는 단어 중간에서도 줄을 바꾸므로("추정하\n지") 공백을 모두 지우고 비교한다.
+    PDF 는 단어 중간에서도 줄을 바꾸므로("추정하\n지") 공백을 모두 지우고 비교한다. 법령의 한자 병기 "과(科)한다" 도 무시.
     숫자 사이 공백은 경계로 남긴다 ("10 0" 이 "100" 으로 붙지 않도록)."""
-    squash = lambda s: re.sub(r"\s+", "", re.sub(r"(?<=\d)\s+(?=\d)", "|", s))
+    squash = lambda s: re.sub(r"\s+|[(（][\u4e00-\u9fff]{1,4}[)）]", "", re.sub(r"(?<=\d)\s+(?=\d)", "|", s))
     return quote in source or squash(quote) in squash(source)
 
 
@@ -506,7 +506,7 @@ def _has_duty_assertion(text: str) -> bool:
     # that pair; a separate phải/must/legal duty in the same text remains.
     text = re.sub(r"\bkhông\s+phải\b", " ", text, flags=re.I)
     return bool(re.search(
-        r"하\s*여야|되\s*어야|이\s*어야|있\s*어야|없\s*어야|해\s*야\s*(?:합|한|할|해|되|만)|반드시|"
+        r"하\s*여야|되\s*어야|이\s*어야|있\s*어야|없\s*어야|해\s*야\s*(?:합|한|할|해|되|만)|져\s*야\s*(?:합|한|할|하)|반드시|"
         r"의무\s*(?:입니다|이다|가\s*있|를\s*진|를\s*부담)|"
         r"\bmust\b|\bshall\b|required\s+to|必须|有义务|应当|\bphải\b|có nghĩa vụ", text, re.IGNORECASE,
     ))
@@ -548,6 +548,12 @@ def _source_technical_requirement(citation, metadata) -> bool:
         r"하\s*(?:시오|십시오)|입으십시오|(?:할|말)\s*것(?=\s*(?:[.!?]|$))|금지|필수", quote, re.I | re.M,
     ):
         return True
+    # KOSHA 지침의 번호 항목 "(5) …를 철저하게 착용한다." 와 "…착용을 해야 …" 도 지침의 요구 문체다
+    if metadata[citation.chunk_id].doc_type == DOC_TYPE_GUIDE and (
+        (re.match(r"\s*(?:\(\d+\)|\d+\)|[가-하]\.)\s", quote) and re.search(r"한다\.?\s*$", quote))
+        or re.search(r"해\s*야(?=\s)", quote)
+    ):
+        return True
     return bool(
         metadata[citation.chunk_id].doc_type == DOC_TYPE_MSDS
         and re.search(r"(?:신체|피부)\s*(?:[/·]\s*(?:신체|피부))?\s*보호\s*[:：]", quote)
@@ -581,6 +587,27 @@ def _supports_legal_duty(citations: list[Citation], metadata: dict[str, SourceMe
     return all(metadata[c.chunk_id].doc_type == DOC_TYPE_LAW for c in citations) and any(
         _has_duty_assertion(c.quote) for c in citations
     )
+
+
+_DUTY_CHAPEAU = re.compile(r"[^.\n]*(?:\n[^.\n]*){0,3}다음\s*각\s*호[^.]{0,40}?(?:하여야|해야)\s*한다\.")
+
+
+def _with_duty_chapeau(statement, originals, metadata):
+    """법령 '다음 각 호' 목록(1. 2. …)만 인용한 의무 문장에, 같은 조문 청크의 '…다음 각 호에 따른 조치를 하여야 한다.'
+    본문을 인용으로 덧붙인다. 목록 항목은 그 본문의 의무 내용이므로 의무 문구는 원문에서 그대로 가져온다."""
+    if statement.kind != "legal_obligation" or _supports_legal_duty(statement.citations, metadata):
+        return statement
+    if not statement.citations or not all(
+        metadata[c.chunk_id].doc_type == DOC_TYPE_LAW and re.match(r"\s*1\.\s", c.quote) for c in statement.citations
+    ):
+        return statement
+    extra = []
+    for cid in dict.fromkeys(c.chunk_id for c in statement.citations):
+        match = _DUTY_CHAPEAU.search(originals[cid].page_content)
+        if match is None:
+            return statement
+        extra.append(Citation(chunk_id=cid, quote=match.group(0).strip()))
+    return statement.model_copy(update={"citations": extra + list(statement.citations)})
 
 
 def _law_review_reasons(sources: list[SourceMetadata], as_of: date) -> list[str]:
@@ -901,6 +928,8 @@ def generate_answer(
 
     # Product names were verified by _verified_product above; allow those exact
     # identifiers in translated prose without allowing arbitrary source-language text.
+    draft = draft.model_copy(update={"statements": [
+        _with_duty_chapeau(st, originals, metadata_by_id) for st in draft.statements]})
     # 적용범위·정의 조문처럼 의무 문구가 없는 법령 인용을 '법적 의무'로 분류했으면 보류 대신 일반 정보로 낮춘다
     draft = draft.model_copy(update={"statements": [
         st.model_copy(update={"kind": "information"})

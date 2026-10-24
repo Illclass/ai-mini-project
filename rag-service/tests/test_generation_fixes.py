@@ -65,3 +65,29 @@ def test_msds_data_tables_are_not_truncated_warnings():
     assert incomplete_critical_chunks([doc(16, nfpa), doc(9, "인화점 : 12 °C\n인화 하한값 : 자료없음 인화 하한값")]) == set()
     # 경고 문장이 있는 항목은 그대로 검사한다 (잘린 P 문구 → 잘림)
     assert incomplete_critical_chunks([doc(2, "P305 + P351 + P338 + P310 눈에 묻으면: 몇 분간 물로")]) == {"D9-s2"}
+
+
+def test_law_item_list_gets_its_duty_sentence():
+    text = ("제4조(사업주와 경영책임자등의 안전 및 보건 확보의무) ① 사업주 또는 경영책임자등은 종사자의 안전ㆍ보건상 유해 또는 위험을 방지하기 위하여\n"
+            "그 사업 또는 사업장의 특성 및 규모 등을 고려하여 다음 각 호에 따른 조치를 하여야 한다.\n"
+            "1. 재해예방에 필요한 인력 및 예산 등 안전보건관리체계의 구축 및 그 이행에 관한 조치\n2. 재해 발생 시 재발방지 대책의 수립 및 그 이행에 관한 조치")
+    originals = {"L2-4": Document(page_content=text, metadata={"chunk_id": "L2-4"})}
+    law = type("M", (), {"doc_type": "law"})()
+    st = g.EvidenceStatement(kind="legal_obligation", text="안전보건관리체계 구축 조치가 열거되어 있습니다.",
+                     citations=[g.Citation(chunk_id="L2-4", quote="1. 재해예방에 필요한 인력 및 예산 등 안전보건관리체계의 구축 및 그 이행에 관한 조치")], conditions=[])
+    out = g._with_duty_chapeau(st, originals, {"L2-4": law})
+    assert out.citations[0].quote.endswith("다음 각 호에 따른 조치를 하여야 한다.") and out.citations[0].quote in text
+    assert g._supports_legal_duty(out.citations, {"L2-4": law})
+    # 목록이 아닌 인용(벌칙 조항 등)은 손대지 않는다
+    other = st.model_copy(update={"citations": [g.Citation(chunk_id="L2-4", quote="재해 발생 시 재발방지 대책의 수립")]})
+    assert g._with_duty_chapeau(other, originals, {"L2-4": law}) is other
+
+
+def test_kosha_numbered_item_counts_as_source_requirement():
+    guide = type("M", (), {"doc_type": "guide"})()
+    md = {"K8-8_2": guide}
+    item = g.Citation(chunk_id="K8-8_2", quote="(5) 개인보호구(내산성 보호복 등)를 철저하게 착용한다.")
+    must = g.Citation(chunk_id="K8-8_2", quote="불산을 다룰 때는 보호안경까지 착용을 해야 사고로 인한 피해를 막을 수 있다.")
+    plain = g.Citation(chunk_id="K8-8_2", quote="이 지침은 불산 취급 사업장에 적용한다.")   # 번호 없는 설명 문장
+    assert g._source_technical_requirement(item, md) and g._source_technical_requirement(must, md)
+    assert not g._source_technical_requirement(plain, md)
