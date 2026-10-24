@@ -178,7 +178,7 @@ POST /rag-query   (쿠키 ACCESS_TOKEN 필요)
       "needs_review": false, "handoff": false, "latency_ms": 1250}
 ```
 
-- `topic`: `chemical_safety` · `serious_accident_law` / `language`: `ko` · `zh` · `vi`
+- `topic`: `chemical_safety` · `serious_accident_law` / `language`: `ko` · `zh` · `vi` · `en` · `km`
 - 401 토큰 없음·만료·위조 / 422 형식 오류 / 503 LLM·인덱스 문제
 - `GET /health` → 200 준비 · 503 미준비, topic 별 인덱스 상태 포함
 - Swagger: http://localhost:8001/docs
@@ -186,10 +186,12 @@ POST /rag-query   (쿠키 ACCESS_TOKEN 필요)
 ## 실행 참고
 
 - 설치·실행 순서는 위 **"팀원은 여기부터"** 2~3단계를 따릅니다.
-- `./dev.sh --voice` → 음성 서비스(:8008)까지 실행 (ffmpeg, `voice-service/app/.env` 필요)
+- `./dev.sh --voice` → 음성 서비스(:8008)까지 실행 (ffmpeg, `voice-service/app/.env` 필요). 프론트 음성 모드는 이 옵션으로 띄워야 동작합니다
+  - 흐름: 마이크 녹음 → `POST /voice/stt` → 인식된 질문 확인·전송 → `/rag-query` → `POST /voice/tts` 로 답변 자동 재생
+  - 크메르어(km)는 음성 인식·합성 품질이 낮아 음성 모드에서 제외 (글 질문만)
 - 기존 템플릿 서버로 띄우기: `RAG_APP=rag_external-web_pdf_closed_llm:app ./dev.sh`
 - DB 컨테이너 `ai-mini-db` 와 `users` 테이블은 `dev.sh` 가 자동으로 만듭니다. 로그는 `logs/` 에 쌓입니다.
-- 선택 환경변수 (`rag-service/.env`): `LLM_MODEL`(기본 gpt-4o), `EMBEDDING_MODEL` — 적재와 검색에 **같은 값**을 써야 합니다.
+- 선택 환경변수 (`rag-service/.env`): `LLM_MODEL`(기본 gpt-6-luna), `EMBEDDING_MODEL` — 적재와 검색에 **같은 값**을 써야 합니다.
 
 ## 테스트 · CI
 

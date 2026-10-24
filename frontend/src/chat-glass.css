@@ -149,3 +149,8 @@ a.clear-source { text-decoration:none; }
 .chat-product-required button {padding:10px 14px;border-radius:11px;background:#493509;color:#fff9de;font-size:15px;}
 
 .clear-source>.clear-source-number { flex-shrink:0; overflow:visible; font-weight:650; font-variant-numeric:tabular-nums; color:#fff; }
+
+/* 음성 모드 오류 (마이크 거부·인식 실패·재생 실패) */
+.chat-voice-error { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-radius: 14px;
+  background: rgba(220, 60, 60, .12); color: #b42318; font-size: .92rem; line-height: 1.4; }
+@media (prefers-color-scheme: dark) { .chat-voice-error { color: #ffb4a8; background: rgba(255, 110, 90, .16); } }

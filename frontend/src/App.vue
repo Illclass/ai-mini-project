@@ -18,10 +18,12 @@ import { apiCopy } from './locales/api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
 const topic=ref(api.contract.topics.chemical), a=computed(()=>apiCopy[language.value])
-const productRequired=ref(false), productPicker=ref(null), scopePanel=ref(null)
+const productRequired=ref(false), productPicker=ref(null), scopePanel=ref(null), voiceError=ref('')
+let recorder, audio, audioUrl, voiceDraft=false   // 음성 모드: 녹음기 · 재생 중 오디오 · 음성으로 만든 질문 여부(답변 자동 재생)
 const equipmentId=ref(''), productId=ref(''), s=computed(()=>scopeCopy[language.value])
 watch(productId,value=>{if(value)productRequired.value=false})
 const selectedEquipment=computed(()=>equipmentFor(equipmentId.value))
+const voiceReady=computed(()=>api.VOICE_LANGUAGES.includes(language.value))   // 크메르어는 음성 모드 미지원
 const equipmentOptions=computed(()=>[{value:'',label:s.value.allEquipment},...availableEquipment.map(item=>({value:item.equipment_id,label:equipmentLabel(item,language.value,s.value.demo)}))])
 const productOptions=computed(()=>[{value:'',label:s.value.allProducts},...productsFor(equipmentId.value).map(item=>({value:item.product_id,label:productLabel(item,language.value)}))])
 function selectEquipment(value){equipmentId.value=value;productId.value=normalizeScope(value,productId.value).product_id||''}
@@ -64,12 +66,12 @@ function trapFocus(event) {
  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
 }
-let version=0, timer
+let version=0
 watch(language,v=>{document.documentElement.lang=v;document.title=`ChemBridge · ${copy[v].service}`;try{localStorage.setItem('chembridge-language',v)}catch{}})
 document.documentElement.lang=language.value
 document.title=`ChemBridge · ${copy[language.value].service}`
-function stop(){clearTimeout(timer);playing.value=null}
-function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';modal.value=null;stop()}
+function stop(){audio?.pause();audio=null;if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}playing.value=null}
+function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;stop()}
 function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
 function open(key,selectedTopic=api.contract.topics.chemical){productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
 function changeTopic(value){if(busy.value)return;open('free',value)}
@@ -99,7 +101,7 @@ async function signup(credentials){
  catch(error){loginError.value=error.status===400?'signupDuplicate':errorKey(error)}
  finally{signingIn.value=false}
 }
-function fill(text){if(busy.value)return;voice.value='idle';question.value=text;nextTick(()=>input.value?.focus())}
+function fill(text){if(busy.value)return;voice.value='idle';voiceDraft=false;question.value=text;nextTick(()=>input.value?.focus())}
 async function scroll(){await nextTick();thread.value?.lastElementChild?.scrollIntoView({behavior:'smooth',block:'nearest'})}
 async function send(retryMessage){
  const retry=retryMessage?.error?retryMessage:null
@@ -109,9 +111,10 @@ async function send(retryMessage){
  const scope=retry||requestScope(topic.value,equipmentId.value,productId.value)
  if(scope.equipment_id&&!scope.product_id){question.value=text;equipmentId.value=scope.equipment_id;productId.value='';productRequired.value=true;await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});return}
  productRequired.value=false
- stop();voice.value='idle'
+ stop();voice.value='idle';voiceError.value=''
  const id=++version
- const message=retry||{id,question:text,response:null,error:null,topic:topic.value,language:language.value,...requestScope(topic.value,equipmentId.value,productId.value)}
+ const message=retry||{id,question:text,response:null,error:null,spoken:voiceDraft,topic:topic.value,language:language.value,...requestScope(topic.value,equipmentId.value,productId.value)}
+ voiceDraft=false
  if(retry){message.id=id;message.error=null}
  else {question.value='';messages.value.push(message)}
  pending.value=true;requestController=new AbortController();scroll()
@@ -122,17 +125,50 @@ async function send(retryMessage){
   if(version!==id)return
   if(error.status===401){question.value=text;expire(message)}
   else messages.value.find(m=>m.id===id).error=error.code==='CANCELLED'?'cancelled':errorKey(error)
- }finally{if(version===id){pending.value=false;scroll()}}
+ }finally{if(version===id){pending.value=false;scroll();const done=messages.value.find(m=>m.id===id);if(done?.spoken&&done.response)play(done)}}
 }
 async function chooseProduct(){await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});productPicker.value?.open()}
 function cancelRequest(){requestController?.abort()}
 function editQuestion(message){if(busy.value)return;const scope=requestScope(message.topic,message.equipment_id,message.product_id);equipmentId.value=scope.equipment_id||'';productId.value=scope.product_id||'';fill(message.question)}
 function sourceUrl(value){try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)?url.href:null}catch{return null}}
 
-function startVoice(){if(busy.value)return;stop();modal.value='voice'}
-async function finish(){voice.value='processing';const id=++version,result=await api.transcribe({language:language.value,situationIndex:index.value});if(id!==version)return;question.value=result.text;voice.value='review';nextTick(()=>input.value?.focus())}
-function cancel(){version++;voice.value='idle'}
-function play(id){if(busy.value)return;if(playing.value===id)return stop();stop();playing.value=id;timer=setTimeout(stop,5500)}
+// 음성 모드: 녹음 → STT(/voice/stt) → 질문 확인·수정 → 전송 → 답변을 TTS(/voice/tts)로 자동 재생
+function startVoice(){if(busy.value)return;stop();voiceError.value='';modal.value='voice'}
+function voiceFail(error){
+ voice.value='idle'
+ if(error.status===401){expire({question:question.value,topic:topic.value,...requestScope(topic.value,equipmentId.value,productId.value)});return}
+ voiceError.value=error.code==='MIC_DENIED'?'micDenied':error.code==='VOICE_UNSUPPORTED'?'voiceUnsupported':(error.code==='VOICE_EMPTY'||error.status===422)?'voiceEmpty':'voiceFailed'
+}
+async function beginRecording(){
+ modal.value=null;voiceError.value='';const id=++version
+ try{const started=await api.startRecording();if(id!==version){started.cancel();return}recorder=started;voice.value='recording'}
+ catch(error){if(id===version)voiceFail(error)}
+}
+async function finish(){
+ if(!recorder)return
+ const id=++version,current=recorder;recorder=null;voice.value='processing'
+ try{
+  const recording=await current.stop()
+  const result=await api.transcribe({...recording,language:language.value})
+  if(id!==version)return
+  question.value=result.text;voiceDraft=true;voice.value='review';nextTick(()=>input.value?.focus())
+ }catch(error){if(id===version)voiceFail(error)}
+}
+function cancel(){version++;recorder?.cancel();recorder=null;voice.value='idle'}
+async function play(message){
+ if(pending.value||['recording','processing'].includes(voice.value))return
+ if(playing.value===message.id)return stop()
+ stop();voiceError.value=''
+ const text=api.speechText(message.response.answer,apiCopy[message.language].speechTail)
+ if(!text)return
+ const id=message.id;playing.value=id
+ try{
+  const blob=await api.speak({text,language:message.language})
+  if(playing.value!==id)return
+  audioUrl=URL.createObjectURL(blob);audio=new Audio(audioUrl);audio.onended=stop
+  await audio.play()
+ }catch(error){if(playing.value===id){stop();voiceError.value=error.status===401?'expired':'speakFailed'}}
+}
 function escape(e){if(e.key==='Escape')modal.value=null}
 window.addEventListener('keydown',escape)
 onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
@@ -191,7 +227,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
           <p class="clear-answer-text">{{message.response.answer}}</p>
           <div class="clear-answer-tools">
             <template v-for="(source,i) in message.response.sources" :key="`${source.doc_id}-${i}`"><a v-if="sourceUrl(source.url)" v-spring class="clear-source" :href="sourceUrl(source.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span></span></template>
-            <button v-spring class="clear-listen" :disabled="busy" :aria-pressed="playing===message.id" @click="play(message.id)"><Icon :name="playing===message.id?'stop':'sound'" :size="19" />{{playing===message.id?t.stop:a.listenPreview}}</button>
+            <button v-if="api.VOICE_LANGUAGES.includes(message.language)" v-spring class="clear-listen" :disabled="busy" :aria-pressed="playing===message.id" @click="play(message)"><Icon :name="playing===message.id?'stop':'sound'" :size="19" />{{playing===message.id?t.stop:a.listenAnswer}}</button>
           </div>
         </template>
       </div>
@@ -207,10 +243,11 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
       <template v-else-if="voice==='processing'"><span class="clear-loading-dots"><i></i><i></i><i></i></span>{{t.converting}}</template>
       <template v-else><Icon name="check" :size="18" />{{t.reviewVoice}}</template>
     </div>
-    <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voicePreview}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
+    <p v-if="voiceError" class="chat-voice-error" role="alert"><Icon name="alert" :size="18" />{{a[voiceError]}}</p>
+    <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy||!voiceReady" :title="voiceReady?'':a.voiceLanguage" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voiceInput}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
   </form>
 </main>
 </Transition>
-<div v-if="modal" class="modal-backdrop" @click.self="modal=null"><section ref="modalElement" @keydown="trapFocus" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="modal"><span class="modal-icon"><Icon :name="modal==='voice'?'mic':'file'" :size="28"/></span><h2 id="modal-title">{{modal==='voice'?t.permissionTitle:t.sourceTitle}}</h2><p>{{modal==='voice'?t.permissionBody:t.sourceBody}}</p><div class="modal-actions"><button class="secondary" autofocus @click="modal=null">{{t.close}}</button><button v-if="modal==='voice'" class="primary" @click="modal=null;voice='recording'">{{t.startVoice}}<Icon name="arrow" :size="17"/></button></div></section></div>
+<div v-if="modal" class="modal-backdrop" @click.self="modal=null"><section ref="modalElement" @keydown="trapFocus" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="modal"><span class="modal-icon"><Icon :name="modal==='voice'?'mic':'file'" :size="28"/></span><h2 id="modal-title">{{modal==='voice'?t.permissionTitle:t.sourceTitle}}</h2><p>{{modal==='voice'?t.permissionBody:t.sourceBody}}</p><div class="modal-actions"><button class="secondary" autofocus @click="modal=null">{{t.close}}</button><button v-if="modal==='voice'" class="primary" @click="beginRecording">{{t.startVoice}}<Icon name="arrow" :size="17"/></button></div></section></div>
 </div>
 </template>

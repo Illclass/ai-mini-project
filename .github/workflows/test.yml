@@ -31,3 +31,15 @@ jobs:
 
       - name: 약속 확인 테스트
         run: python -m pytest -q tests
+
+      - name: 음성 API 테스트 (Whisper·OpenAI 는 가짜로 바꿔서 돈다)
+        working-directory: voice-service
+        run: python -m pytest -q tests   # 패키지는 위 RAG 설치(fastapi·python-multipart·jose)로 충분
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 프론트 테스트 (API 계약·음성 모드·다국어 문구)
+        working-directory: frontend
+        run: node --test tests/*.test.js
