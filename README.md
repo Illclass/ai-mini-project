@@ -189,6 +189,7 @@ POST /rag-query   (쿠키 ACCESS_TOKEN 필요)
 - `./dev.sh --voice` → 음성 서비스(:8008)까지 실행 (ffmpeg, `voice-service/app/.env` 필요). 프론트 음성 모드는 이 옵션으로 띄워야 동작합니다
   - 흐름: 마이크 녹음 → `POST /voice/stt` → 인식된 질문 확인·전송 → `/rag-query` → `POST /voice/tts` 로 답변 자동 재생
   - 크메르어(km)는 음성 인식·합성 품질이 낮아 음성 모드에서 제외 (글 질문만)
+  - **음성 대화 모드** (입력창 옆 [음성 대화], 손 없이): 한 번 켜면 말소리를 알아서 듣고 → 인식된 질문을 3초 뒤 자동 전송 → 답변을 읽고 → 다시 듣습니다. '취소'·'대화 종료'라고 말하거나 화면을 눌러 멈춥니다 (`frontend/src/api/listener.js`)
 - 기존 템플릿 서버로 띄우기: `RAG_APP=rag_external-web_pdf_closed_llm:app ./dev.sh`
 - DB 컨테이너 `ai-mini-db` 와 `users` 테이블은 `dev.sh` 가 자동으로 만듭니다. 로그는 `logs/` 에 쌓입니다.
 - 선택 환경변수 (`rag-service/.env`): `LLM_MODEL`(기본 gpt-6-luna), `EMBEDDING_MODEL` — 적재와 검색에 **같은 값**을 써야 합니다.

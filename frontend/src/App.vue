@@ -27,6 +27,9 @@ const topic=ref(api.contract.topics.chemical), a=computed(()=>apiCopy[language.v
 const contacts=ref(false), report=ref(null), c=computed(()=>clean[language.value]||clean.ko)
 const productRequired=ref(false), productPicker=ref(null), scopePanel=ref(null), voiceError=ref('')
 let recorder, audio, audioUrl, voiceDraft=false   // 음성 모드: 녹음기 · 재생 중 오디오 · 음성으로 만든 질문 여부(답변 자동 재생)
+// 음성 대화 모드(손 없이): 켜 두면 말소리를 알아서 듣고 → 3초 뒤 자동 전송 → 답변을 읽고 → 다시 듣는다
+const convo=ref(null)   // null = 꺼짐, { state, text, countdown, answer }
+let listener, convoTimer, audioDone, lastPlay
 const equipmentId=ref(''), productId=ref(''), s=computed(()=>scopeCopy[language.value])
 watch(productId,value=>{if(value)productRequired.value=false})
 const selectedEquipment=computed(()=>equipmentFor(equipmentId.value))
@@ -87,8 +90,8 @@ let version=0
 watch(language,v=>{document.documentElement.lang=v;document.title=`ChemBridge · ${copy[v].service}`;try{localStorage.setItem('chembridge-language',v)}catch{}})
 document.documentElement.lang=language.value
 document.title=`ChemBridge · ${copy[language.value].service}`
-function stop(){audio?.pause();audio=null;if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}playing.value=null}
-function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;stop()}
+function stop(){audio?.pause();audio=null;if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}playing.value=null;audioDone?.();audioDone=null}
+function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;endConvo();stop()}
 function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
 function open(key,selectedTopic=api.contract.topics.chemical){productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
 function changeTopic(value){if(busy.value)return;open(situation.value,value)}
@@ -142,7 +145,7 @@ async function send(retryMessage){
   if(version!==id)return
   if(error.status===401){question.value=text;expire(message)}
   else messages.value.find(m=>m.id===id).error=error.code==='CANCELLED'?'cancelled':errorKey(error)
- }finally{if(version===id){pending.value=false;scroll();const done=messages.value.find(m=>m.id===id);if(done?.spoken&&done.response)play(done)}}
+ }finally{if(version===id){pending.value=false;scroll();const done=messages.value.find(m=>m.id===id);if(done?.spoken&&done.response)lastPlay=play(done)}}
 }
 async function chooseProduct(){await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});productPicker.value?.open()}
 function cancelRequest(){requestController?.abort()}
@@ -186,10 +189,48 @@ async function play(message){
   const blob=await api.speak({text,language:message.language})
   if(playing.value!==id)return
   audioUrl=URL.createObjectURL(blob);audio=new Audio(audioUrl);audio.onended=stop
+  const finished=new Promise(resolve=>{audioDone=resolve})
   await audio.play()
+  await finished   // 음성 대화 모드는 다 읽은 뒤에 다시 듣는다
  }catch(error){if(playing.value===id){stop();voiceError.value=error.status===401?'expired':'speakFailed'}}
 }
-function escape(e){if(e.key==='Escape')modal.value=null}
+// ── 음성 대화 모드 ──
+async function startConvo(){
+ if(busy.value||!voiceReady.value||convo.value)return
+ stop();voiceError.value='';convo.value={state:'starting',text:'',countdown:0,answer:''}
+ try{listener=await api.startListening({onSpeechStart:convoHeard,onUtterance:convoUtterance});if(convo.value)convo.value.state='listening';else listener.stop()}
+ catch(error){convo.value=null;listener=null;voiceFail(error)}
+}
+function endConvo(){clearInterval(convoTimer);listener?.stop();listener=null;if(convo.value){convo.value=null;stop()}}
+function convoHeard(){if(convo.value&&['listening','confirm'].includes(convo.value.state)){clearInterval(convoTimer);convo.value.state='hearing'}}
+async function convoUtterance(recording){
+ if(!convo.value)return
+ convo.value.state='transcribing'
+ let text
+ try{text=(await api.transcribe({...recording,language:language.value})).text}
+ catch(error){if(!convo.value)return;if(error.status===401){endConvo();voiceFail(error);return}convo.value.state='listening';convo.value.missed=true;return}
+ if(!convo.value)return
+ const command=api.voiceCommand(text)
+ if(command==='exit')return endConvo()
+ if(command==='cancel'||!text){clearInterval(convoTimer);Object.assign(convo.value,{state:'listening',text:'',missed:false});return}
+ Object.assign(convo.value,{state:'confirm',text,countdown:3,missed:false})
+ clearInterval(convoTimer)
+ convoTimer=setInterval(()=>{if(!convo.value)return clearInterval(convoTimer);if(--convo.value.countdown<=0){clearInterval(convoTimer);convoSend()}},1000)
+}
+function convoCancel(){if(!convo.value)return;clearInterval(convoTimer);if(convo.value.state==='speaking')return stop();Object.assign(convo.value,{state:'listening',text:''})}
+async function convoSend(){
+ if(!convo.value?.text)return
+ clearInterval(convoTimer);listener?.pause()
+ convo.value.state='answering';question.value=convo.value.text;voiceDraft=true;lastPlay=null
+ await send()
+ if(!convo.value)return
+ const answered=messages.value[messages.value.length-1]
+ convo.value.answer=answered?.response?api.speechText(answered.response.answer):''
+ if(lastPlay){convo.value.state='speaking';await lastPlay}
+ if(!convo.value)return
+ Object.assign(convo.value,{state:'listening',text:''});listener?.resume()
+}
+function escape(e){if(e.key==='Escape'){modal.value=null;endConvo()}}
 window.addEventListener('keydown',escape)
 onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
 </script>
@@ -274,11 +315,21 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
       <template v-else><Icon name="check" :size="18" />{{t.reviewVoice}}</template>
     </div>
     <p v-if="voiceError" class="chat-voice-error" role="alert"><Icon name="alert" :size="18" />{{a[voiceError]}}</p>
-    <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy||!voiceReady" :title="voiceReady?'':a.voiceLanguage" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voiceInput}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
+    <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy||!voiceReady" :title="voiceReady?'':a.voiceLanguage" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voiceInput}}</span></button><button v-spring type="button" class="clear-mic convo-start" :disabled="busy||!voiceReady" :title="voiceReady?a.convoHint:a.voiceLanguage" @click="startConvo"><Icon name="sound" :size="21" /><span>{{a.convoStart}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
   </form>
   </div>
 </main>
 </Transition>
+<section v-if="convo" class="voice-convo" role="dialog" aria-modal="true" :aria-label="a.convoStart" @click.self="convoCancel">
+  <div class="voice-convo-orb" :class="`is-${convo.state}`" aria-hidden="true" @click="convoCancel"><Icon :name="convo.state==='speaking'?'sound':'mic'" :size="56" /></div>
+  <p class="voice-convo-state" role="status">{{convo.state==='confirm'?a.convoConfirm.replace('{n}',convo.countdown):a[`convo_${convo.state}`]}}</p>
+  <p v-if="convo.missed&&convo.state==='listening'" class="voice-convo-missed">{{a.convoMissed}}</p>
+  <p v-if="convo.text" class="voice-convo-text">“{{convo.text}}”</p>
+  <div v-if="convo.state==='confirm'" class="voice-convo-actions"><button type="button" class="primary" @click="convoSend">{{a.convoSendNow}}</button><button type="button" @click="convoCancel">{{a.convoCancel}}</button></div>
+  <p v-if="convo.answer&&['speaking','listening'].includes(convo.state)" class="voice-convo-answer">{{convo.answer}}</p>
+  <p class="voice-convo-hint">{{a.convoHint}}</p>
+  <button type="button" class="voice-convo-end" @click="endConvo">{{a.convoEnd}}</button>
+</section>
 <EmergencyContacts v-if="contacts" :language="language" @close="contacts=false" />
 <ReportModal v-if="report" :message="report" :title="title" :scope="scopeLabel(report)" :language="language" @close="report=null" @auth-expired="expire" />
 <div v-if="modal" class="modal-backdrop" @click.self="modal=null"><section ref="modalElement" @keydown="trapFocus" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="modal"><span class="modal-icon"><Icon :name="modal==='voice'?'mic':'file'" :size="28"/></span><h2 id="modal-title">{{modal==='voice'?t.permissionTitle:t.sourceTitle}}</h2><p>{{modal==='voice'?t.permissionBody:t.sourceBody}}</p><div class="modal-actions"><button class="secondary" autofocus @click="modal=null">{{t.close}}</button><button v-if="modal==='voice'" class="primary" @click="beginRecording">{{t.startVoice}}<Icon name="arrow" :size="17"/></button></div></section></div>
