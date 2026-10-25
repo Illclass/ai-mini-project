@@ -203,7 +203,7 @@ async function play(message){
   const finished=new Promise(resolve=>{audioDone=resolve})
   await audio.play()
   await finished   // 음성 대화 모드는 다 읽은 뒤에 다시 듣는다
- }catch(error){if(playing.value===id){stop();voiceError.value=error.status===401?'expired':'speakFailed'}}
+ }catch(error){if(playing.value===id){stop();if(error.status===401){expire(message);return}voiceError.value='speakFailed'}}
 }
 // ── 음성 대화 모드 ──
 async function startConvo(){
