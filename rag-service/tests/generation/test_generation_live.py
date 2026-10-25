@@ -6,6 +6,7 @@ import pytest
 from langchain_core.documents import Document
 
 from rag.generator import generate_answer
+from rag.prompt import TEXT
 
 pytestmark = [pytest.mark.live, pytest.mark.skipif(
     os.getenv("RAG_RUN_GENERATION_LIVE") != "1",
@@ -66,7 +67,7 @@ def test_live_old_law_and_guidance_are_distinguished():
     result = call("가상 알파 구역 자료의 기록철 보관 의무 문구와 표지 권고를 구분하고 적용 대상과 예외를 설명해줘.",
                   [law, guide_document()])
     assert "17" in result.answer and "청록" in result.answer
-    assert "법령 자료의 의무 문구" in result.answer and "권고 지침" in result.answer
+    assert TEXT["ko"]["legal_obligation"] in result.answer and TEXT["ko"]["recommendation"] in result.answer
     assert {s.chunk_id for s in result.sources} == {"fictional-law:999:1", "fictional-guide:1"}
     assert result.needs_review and result.handoff
     assert "law_currentness_unverified" in result.review_reasons

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 import re
+from collections import Counter
 import unicodedata
 from typing import Any, Literal, Protocol, List
 from collections.abc import Mapping
@@ -20,14 +21,15 @@ from langchain_core.documents import Document
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import BaseMessage
 from rag import prompt, llm
-from rag.llm import call_llm, RAGConfigurationError, validate_timeout as _valid_timeout
+from rag.diagnostics import record_failure
+from rag.llm import call_llm, RAGConfigurationError, validate_timeout as _valid_timeout, DEFAULT_MODEL as DEFAULT_LLM_MODEL
 from openai import APITimeoutError
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, field_validator, model_validator
 from rag.prompt import (
     LANGUAGES, MODES, TEXT, critical_passages, normalized,
     translation_valid, resolve_mode,
 )
-from rag.schema import DocType, ENV_LLM_MODEL, DOC_TYPE_LAW, DOC_TYPE_MSDS, TOPIC_LAW, Hit, Source, RagResponse
+from rag.schema import DocType, ENV_LLM_MODEL, DOC_TYPE_GUIDE, DOC_TYPE_LAW, DOC_TYPE_MSDS, TOPIC_LAW, Hit, Source, RagResponse
 
 # 요청 범위 검사
 
@@ -66,10 +68,23 @@ def is_emergency(question: str) -> bool:
         r"(?:dang keu|da keu|vang len|dang bao)"
         r"|(?<!khong )co mui (?:la|bat thuong|khong ro)"
     )
+    # 몸에 묻음·튐·삼킴을 과거형으로 말한 경우 (김규빈 추가). "황산이 손에 묻었어요", "황산을 마셨어요"가
+    # 일반 질문으로 처리됐다. "묻으면"처럼 가정하는 말은 여기서 잡지 않는다.
+    contact = r"(?:묻었|묻어서|묻어있|묻고|튀었|튀어서|튀고|닿았|닿아서|닿고|들어갔|들어가서|뒤집어썼)"
+    body = r"(?:눈|피부|손|손등|손가락|손목|팔|다리|발|얼굴|몸|목|입|등|가슴|머리)"
+    ko_body = (
+        rf"{body}(?:에|에도|으로|쪽에)\S{{0,15}}{contact}"
+        rf"|(?:산|약품|약액|용액|시약|물질|가스)(?:이|가)\S{{0,12}}{contact}"
+        r"|(?:마셨|마셔버|먹었|먹어버|삼켰|삼켜버|흡입했)"
+    )
+    zh_body = r"(?:溅|沾|碰)到?了?.{0,6}(?:手|脸|胳膊|腿|身上)|(?:喝|吃)了.{0,8}(?:酸|碱|药液|化学品)|(?:酸|碱|药液|化学品).{0,8}(?:喝|吃)了"
+    vi_body = r"(?:ban|dinh|vang).{0,15}(?:vao|len).{0,4}(?:tay|mat toi|chan|nguoi)|(?:uong|nuot) phai"
+    en_body = r"(?:on|onto|into) my (?:hand|hands|arm|arms|face|skin|leg|eye|eyes)|\b(?:drank|ingested)\b"
     # 부정 표현 전체를 제거하지 않는다. 같은 질문에 실제 사고가 함께 있을 수 있다.
     # 어휘 규칙이므로 모든 표현이나 문맥을 이해하는 분류기는 아니다.
     return bool(
-        re.search(ko, compact) or re.search(ko_incident, compact)
+        re.search(ko, compact) or re.search(ko_incident, compact) or re.search(ko_body, compact)
+        or re.search(zh_body, text) or re.search(vi_body, normalized(text)) or re.search(en_body, text)
         or re.search(zh, text) or re.search(zh_incident, text)
         or re.search(vi, normalized(text)) or re.search(vi_incident, normalized(text))
         or re.search(en, text) or re.search(en_incident, text)
@@ -79,7 +94,7 @@ def is_emergency(question: str) -> bool:
 def is_prohibited_request(question: str) -> bool:
     compact = re.sub(r"\s+", "", question.lower())
     text = normalized(question)
-    ko = r"(?:우리|저희|회사|대표|내가|제가|당사|이사고).{0,35}(?:법적책임|유죄|무죄|처벌받|책임져|책임을져)|무조건처벌|(?:법적|형사|민사)책임.{0,8}(?:판단|확정|결정)|누가.{0,10}책임|(?:작업|가동|진입|재가동).{0,20}(?:승인해|허가해|해도돼|해도되|안전한지판단)|(?:중화|희석|혼합|누출차단).{0,20}(?:방법|순서|절차|비율|해줘|알려)|(?:보호구|장갑).{0,8}없이.{0,15}(?:작업|취급)|(?:불산|황산|화학물질).{0,20}(?:섞는법|처리순서)"
+    ko = r"(?:우리|저희|회사|대표|내가|제가|당사|이사고).{0,35}(?:법적책임|유죄|무죄|처벌받|책임져|책임을져)|무조건처벌|(?:법적|형사|민사)책임.{0,8}(?:판단|확정|결정)|누가.{0,10}책임|(?:작업|가동|진입|재가동)(?!을?(?:멈추|중지|중단|그만))(?!.{0,20}(?:멈추|중지|중단|대피))(?:.{0,20})(?:승인해|허가해|해도돼|해도되|안전한지판단)|(?:중화|희석|혼합|누출차단).{0,20}(?:방법|순서|절차|비율|해줘|알려)|(?:보호구|장갑).{0,8}없이.{0,15}(?:작업|취급)|(?:불산|황산|화학물질).{0,20}(?:섞는법|처리순서)"
     zh = r"(?:法律责任|刑事责任|民事责任).{0,12}(?:判断|确定|谁|承担)|(?:我们|公司|我).{0,20}(?:有罪|无罪|处罚|负责|承担法律责任)|(?:批准|允许).{0,12}(?:作业|工作|开机)|可以.{0,12}(?:开工|进入|重启)|(?:中和|稀释|混合).{0,15}(?:步骤|比例|方法)|不戴.{0,10}(?:手套|防护)"
     vi = r"(?:toi|cong ty|chung toi).{0,30}(?:chiu trach nhiem|bi phat|co toi)|(?:phe duyet|cho phep).{0,20}(?:lam viec|van hanh)|(?:cach|huong dan|ty le).{0,20}(?:trung hoa|pha loang|tron axit)|khong deo.{0,15}(?:gang|bao ho)"
     en = r"(?:am i|are we|is our|who is).{0,35}(?:liable|guilty|legally responsible)|(?:approve|authorize|safe to).{0,35}(?:work|enter|operate|restart)|(?:how to|steps to|ratio).{0,20}(?:neutralize|dilute|mix acid)"
@@ -172,7 +187,7 @@ def _is_out_of_scope(question: str) -> bool:
     text = re.sub(r"\s+", " ", question.strip().lower())
     compact = re.sub(r"\s+", "", text)
     approval = bool(
-        re.search(r"(?:작업|가동|재가동|입장|진입).{0,20}(?:승인(?:을)?해|허가(?:를)?해|해도돼|해도되|해도될|안전하다고|안전한지판단)", compact)
+        re.search(r"(?:작업|가동|재가동|입장|진입)(?!을?(?:멈추|중지|중단|그만))(?!.{0,20}(?:멈추|중지|중단|대피))(?:.{0,20})(?:승인(?:을)?해|허가(?:를)?해|해도돼|해도되|해도될|안전하다고|안전한지판단)", compact)
         or re.search(r"(?:승인|허가)(?:을|를)?(?:해줘|해주세요|해주십시오|해줄래|해주시겠|요청합니다|바랍니다).{0,12}(?:작업|가동)", compact)
         or re.search(r"(?:approve|authorize|safe to).{0,35}(?:work|enter|operate|restart)", text)
     )
@@ -206,9 +221,9 @@ class EvidenceStatement(BaseModel):
     """One claim, its type, its sources, and any evidenced conditions."""
     model_config = ConfigDict(extra="forbid", strict=True)
     kind: Literal["legal_obligation", "recommendation", "information"]
-    text: str
-    citations: list[Citation]
-    conditions: list[EvidenceCondition]
+    text: str = Field(description="One source action per sentence, preserving its force. Supplier contact is not PPE selection. A label/reference location is information, not a new must/shall requirement. For handling/storage/PPE actions use an impersonal subject such as the document, NOT a product name or product placeholder. Product identity is rendered separately from product_facts. Describe label/reference locations as information without adding must/shall.")
+    citations: list[Citation] = Field(description="Exact contiguous source quotes including indentation and line breaks. Use only the source lines directly needed for the action and its conditions. Every identifier asserted in text must also be supported by an exact source citation.")
+    conditions: list[EvidenceCondition] = Field(description="Include every cited source applicability condition or exception, with its exact quote, even when already mentioned in text. Use [] only when the source gives no condition; never invent one.")
 
 
 class EvidenceDraft(BaseModel):
@@ -314,12 +329,12 @@ def _review_result(reason: str, answer: str | None = None, *, language: str = "k
 
 
 
-def build_document_llm(model: str = "gpt-4o", *, timeout_seconds: float = 30.0) -> DocumentStructuredLLM:
+def build_document_llm(model: str = DEFAULT_LLM_MODEL, *, timeout_seconds: float = 30.0) -> DocumentStructuredLLM:
     """생성 출력 규격을 llm.py의 공급자 팩토리에 전달한다."""
     return llm.build_structured_llm(EvidenceDraft, model, timeout_seconds=timeout_seconds)
 
 
-def build_verification_llm(model: str = "gpt-4o", *, timeout_seconds: float = 30.0):
+def build_verification_llm(model: str = DEFAULT_LLM_MODEL, *, timeout_seconds: float = 30.0):
     """Use a separate structured call; the generator cannot approve its own draft."""
     return llm.build_structured_llm(EvidenceVerification, model, timeout_seconds=timeout_seconds)
 
@@ -358,10 +373,18 @@ def _unsafe_critical_translation(text: str, original: str) -> bool:
     return _unsafe_text(text)
 
 
+def _same_text(quote: str, source: str) -> bool:
+    """원문 인용 일치. PDF 줄바꿈·공백 차이만 무시한다 (글자·순서는 그대로 일치해야 함).
+    PDF 는 단어 중간에서도 줄을 바꾸므로("추정하\n지") 공백을 모두 지우고 비교한다. 법령의 한자 병기 "과(科)한다" 도 무시.
+    숫자 사이 공백은 경계로 남긴다 ("10 0" 이 "100" 으로 붙지 않도록)."""
+    squash = lambda s: re.sub(r"\s+|[(（][\u4e00-\u9fff]{1,4}[)）]", "", re.sub(r"(?<=\d)\s+(?=\d)", "|", s))
+    return quote in source or squash(quote) in squash(source)
+
+
 def _verify_citations(citations: list[Citation], originals: dict[str, Document]) -> bool:
     return bool(citations) and all(
         citation.chunk_id in originals and bool(citation.quote.strip())
-        and citation.quote in originals[citation.chunk_id].page_content
+        and _same_text(citation.quote, originals[citation.chunk_id].page_content)
         for citation in citations
     )
 
@@ -386,7 +409,28 @@ def _cited_cas_identifiers(citations, originals) -> tuple[str, ...]:
     return tuple(dict.fromkeys(identifiers))
 
 
-def _quantities_supported(text: str, citations: list[Citation], *, source_identifiers=()) -> bool:
+MAX_CHUNK_WARNINGS = 3   # 지침·법령 청크에서 경고를 전부 붙이는 상한 (넘으면 인용과 겹치는 것만)
+
+
+def _is_hazard_statement(passage, metadata_by_id) -> bool:
+    """MSDS 2항의 유해·위험 문구 (H314 피부에 심한 화상… 처럼 H 로 시작). 예방조치 P 문구는 넣지 않는다."""
+    cid, quote = passage
+    meta = metadata_by_id[cid]
+    return (meta.doc_type == DOC_TYPE_MSDS and meta.msds_section_no == 2
+            and bool(re.match(r"\s*:?\s*H\d{3}", quote)))
+
+
+def _cited_headers(citations, originals) -> str:
+    """인용한 청크의 첫 줄 머리글 "[KOSHA K-1-2023 … 7.2 응급조치]". 답변이 출처 문서·조항 번호를 말할 때의 숫자 근거."""
+    heads = []
+    for cid in dict.fromkeys(c.chunk_id for c in citations):
+        first = (originals[cid].page_content.split("\n", 1)[0] if cid in originals else "").strip()
+        if first.startswith("[") and first.endswith("]"):
+            heads.append(first)
+    return "\n".join(heads)
+
+
+def _quantities_supported(text: str, citations: list[Citation], *, source_identifiers=(), source_headers: str = "") -> bool:
     """Reject new numeric facts/units/dates using ONLY this claim's quotes.
 
     Conservative: no unit conversion or inferred shelf life. Omission can be a
@@ -399,12 +443,15 @@ def _quantities_supported(text: str, citations: list[Citation], *, source_identi
     evidence = prompt.calendar_text_with_identifiers(canonical("\n".join(c.quote for c in citations)), source_identifiers)
     if claim is None or evidence is None:
         return False
+    # 문서·조항 번호(K-1-2023, 7.2)는 인용 청크 머리글에서도 찾는다. 수치·단위·날짜 비교에는 쓰지 않는다
+    headers = canonical(source_headers)
     number = r"[+-]?\d+(?:[.,]\d+)?"
     unit = r"ppm|ppb|mg/m3|μg/m3|g/l|mg/l|°c|°f|%|kg|mg|μg|ml|l|g"
     measurements = rf"({number})\s*({unit})(?![a-z])"
     dates = r"\d{4}[-/.]\d{1,2}[-/.]\d{1,2}"
     return all(
-        set(re.findall(pattern, claim)).issubset(set(re.findall(pattern, evidence)))
+        set(re.findall(pattern, claim)).issubset(
+            set(re.findall(pattern, evidence)) | (set(re.findall(pattern, headers)) if pattern == number else set()))
         for pattern in (number, measurements, dates)
     )
 
@@ -437,7 +484,8 @@ def _verify_draft_support(question, draft, originals, required, translated, *,
             question, claims, list(originals.values()), language=language, as_of=as_of,
         ))
         result = EvidenceVerification.model_validate(raw)
-    except Exception:
+    except Exception as exc:
+        record_failure(exc, stage="verification")
         # Timeouts, configuration/provider errors and malformed verdicts must
         # never release the original answer or expose raw exception contents.
         return "verification_unavailable"
@@ -498,7 +546,7 @@ def _has_duty_assertion(text: str) -> bool:
     # that pair; a separate phải/must/legal duty in the same text remains.
     text = re.sub(r"\bkhông\s+phải\b", " ", text, flags=re.I)
     return bool(re.search(
-        r"하\s*여야|되\s*어야|이\s*어야|있\s*어야|없\s*어야|해\s*야\s*(?:합|한|할|해|되|만)|반드시|"
+        r"하\s*여야|되\s*어야|이\s*어야|있\s*어야|없\s*어야|해\s*야\s*(?:합|한|할|해|되|만)|져\s*야\s*(?:합|한|할|하)|반드시|"
         r"의무\s*(?:입니다|이다|가\s*있|를\s*진|를\s*부담)|"
         r"\bmust\b|\bshall\b|required\s+to|必须|有义务|应当|\bphải\b|có nghĩa vụ", text, re.IGNORECASE,
     ))
@@ -540,6 +588,12 @@ def _source_technical_requirement(citation, metadata) -> bool:
         r"하\s*(?:시오|십시오)|입으십시오|(?:할|말)\s*것(?=\s*(?:[.!?]|$))|금지|필수", quote, re.I | re.M,
     ):
         return True
+    # KOSHA 지침의 번호 항목 "(5) …를 철저하게 착용한다." 와 "…착용을 해야 …" 도 지침의 요구 문체다
+    if metadata[citation.chunk_id].doc_type == DOC_TYPE_GUIDE and (
+        (re.match(r"\s*(?:\(\d+\)|\d+\)|[가-하]\.)\s", quote) and re.search(r"한다\.?\s*$", quote))
+        or re.search(r"해\s*야(?=\s)", quote)
+    ):
+        return True
     return bool(
         metadata[citation.chunk_id].doc_type == DOC_TYPE_MSDS
         and re.search(r"(?:신체|피부)\s*(?:[/·]\s*(?:신체|피부))?\s*보호\s*[:：]", quote)
@@ -573,6 +627,27 @@ def _supports_legal_duty(citations: list[Citation], metadata: dict[str, SourceMe
     return all(metadata[c.chunk_id].doc_type == DOC_TYPE_LAW for c in citations) and any(
         _has_duty_assertion(c.quote) for c in citations
     )
+
+
+_DUTY_CHAPEAU = re.compile(r"[^.\n]*(?:\n[^.\n]*){0,3}다음\s*각\s*호[^.]{0,40}?(?:하여야|해야)\s*한다\.")
+
+
+def _with_duty_chapeau(statement, originals, metadata):
+    """법령 '다음 각 호' 목록(1. 2. …)만 인용한 의무 문장에, 같은 조문 청크의 '…다음 각 호에 따른 조치를 하여야 한다.'
+    본문을 인용으로 덧붙인다. 목록 항목은 그 본문의 의무 내용이므로 의무 문구는 원문에서 그대로 가져온다."""
+    if statement.kind != "legal_obligation" or _supports_legal_duty(statement.citations, metadata):
+        return statement
+    if not statement.citations or not all(
+        metadata[c.chunk_id].doc_type == DOC_TYPE_LAW and re.match(r"\s*1\.\s", c.quote) for c in statement.citations
+    ):
+        return statement
+    extra = []
+    for cid in dict.fromkeys(c.chunk_id for c in statement.citations):
+        match = _DUTY_CHAPEAU.search(originals[cid].page_content)
+        if match is None:
+            return statement
+        extra.append(Citation(chunk_id=cid, quote=match.group(0).strip()))
+    return statement.model_copy(update={"citations": extra + list(statement.citations)})
 
 
 def _law_review_reasons(sources: list[SourceMetadata], as_of: date) -> list[str]:
@@ -684,6 +759,40 @@ def _verified_product(draft: EvidenceDraft, originals, metadata_by_id, reference
         return False
     return dates == {revision}
 
+
+
+def _source_product_facts(documents) -> list[ProductFact]:
+    """MSDS 1·3·16항 원문에서 제품 식별 4항목을 서버가 직접 뽑는다 (LLM 추출이 빠지거나 흔들릴 때의 대안).
+
+    값과 인용은 원문 부분 문자열 그대로이고, 결과는 _verified_product 의 같은 검증을 다시 통과해야 쓰인다.
+    MSDS 가 한 제품일 때만 만든다. 하나라도 못 찾으면 [] (→ 기존대로 보류).
+    """
+    msds = [d for d in documents if d.metadata.get("doc_type") == DOC_TYPE_MSDS]
+    if len({d.metadata.get("product_id") for d in msds}) != 1:
+        return []
+    cas = msds[0].metadata.get("cas_no") or ""
+    found = {}
+
+    def add(field, doc, match, group=1):
+        value = match.group(group).strip()
+        if field not in found and value:
+            found[field] = ProductFact(field=field, value=value, citations=[
+                Citation(chunk_id=doc.metadata["chunk_id"], quote=match.group(0).strip())])
+
+    for doc in sorted(msds, key=lambda d: d.metadata.get("chunk_id", "")):
+        text, no = doc.page_content, doc.metadata.get("msds_section_no")
+        if no == 1:
+            if m := prompt.PRODUCT_NAME_RE.search(text):
+                add("product_name", doc, m)
+            if m := re.search(r"(?:제품\s*번호|product\s*(?:number|code))[ \t]*[:：][ \t]*([\w.\-]+)", text, re.I):
+                add("product_number", doc, m)
+        elif no == 3 and cas and re.search(r"농도|함유량", text):
+            if m := re.search(r"^[^\n]*" + re.escape(cas) + r"[ \t]+([^\n]*\d[^\n]*)$", text, re.M):
+                add("concentration", doc, m)
+        elif no == 16:
+            if m := re.search(r"최종\s*개정\s*일자?[ \t]*[:：][ \t]*(\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2})", text):
+                add("revision_date", doc, m)
+    return list(found.values()) if len(found) == 4 else []
 
 
 def _restore_product_name_tokens(draft: EvidenceDraft, documents) -> EvidenceDraft | None:
@@ -827,15 +936,17 @@ def generate_answer(
         return review("incomplete_warning_context")
 
     try:
-        llm = structured_llm if structured_llm is not None else build_document_llm(model or os.getenv(ENV_LLM_MODEL, "gpt-4o"), timeout_seconds=timeout_seconds)
+        llm = structured_llm if structured_llm is not None else build_document_llm(model or os.getenv(ENV_LLM_MODEL, DEFAULT_LLM_MODEL), timeout_seconds=timeout_seconds)
         raw = llm.invoke(build_document_messages(question, usable, as_of=reference_date, language=language, mode=mode, product_id=product_id))
-    except (APITimeoutError, httpx.TimeoutException, TimeoutError):
+    except (APITimeoutError, httpx.TimeoutException, TimeoutError) as exc:
+        record_failure(exc, stage="generation")
         return review("llm_timeout")
     except RAGConfigurationError:
         return review("configuration_error")
     except (ValidationError, OutputParserException):
         return review("invalid_output")
-    except Exception:
+    except Exception as exc:
+        record_failure(exc, stage="generation")
         return review("llm_error")
     try:
         draft = EvidenceDraft.model_validate(raw)
@@ -845,7 +956,10 @@ def generate_answer(
         return review("no_evidence")
 
     if msds and not _verified_product(draft, originals, metadata_by_id, reference_date, question):
-        return review("product_unverified")
+        # LLM 이 식별 항목을 빠뜨리거나 잘못 뽑았으면 서버가 원문에서 뽑은 값으로 같은 검증을 한 번 더 한다
+        draft = draft.model_copy(update={"product_facts": _source_product_facts(usable)})
+        if not _verified_product(draft, originals, metadata_by_id, reference_date, question):
+            return review("product_unverified")
 
     draft = _restore_product_name_tokens(draft, usable)
     if draft is None:
@@ -856,7 +970,21 @@ def generate_answer(
 
     # Product names were verified by _verified_product above; allow those exact
     # identifiers in translated prose without allowing arbitrary source-language text.
-    preserved_terms = tuple(fact.value for fact in draft.product_facts if fact.field == "product_name") if msds else ()
+    draft = draft.model_copy(update={"statements": [
+        _with_duty_chapeau(st, originals, metadata_by_id) for st in draft.statements]})
+    # 적용범위·정의 조문처럼 의무 문구가 없는 법령 인용을 '법적 의무'로 분류했으면 보류 대신 일반 정보로 낮춘다
+    draft = draft.model_copy(update={"statements": [
+        st.model_copy(update={"kind": "information"})
+        if st.kind == "legal_obligation" and not _supports_legal_duty(st.citations, metadata_by_id)
+        and all(metadata_by_id[c.chunk_id].doc_type == DOC_TYPE_LAW for c in st.citations)
+        and not _has_duty_assertion(st.text)
+        and not re.search(r"규정|의무|하도록|obligat|requir|规定|义务|quy định|nghĩa vụ", st.text, re.I) else st
+        for st in draft.statements]})
+    # 같은 종류 문장을 한데 모은다 (처음 나온 종류 순서, 종류 안에서는 원래 순서). 종류가 번갈아 나오면
+    # 권고 꼬리표가 문단마다 반복됐다 (김규빈 2026-10-25). 출처 번호도 이 순서로 매긴다.
+    kind_order = list(dict.fromkeys(st.kind for st in draft.statements))
+    draft = draft.model_copy(update={"statements": sorted(draft.statements, key=lambda st: kind_order.index(st.kind))})
+    preserved_terms =tuple(fact.value for fact in draft.product_facts if fact.field == "product_name") if msds else ()
     selected_ids = []
     reasons = ["msds_applicability_unverified"] if msds else []
     if mode == "precheck":
@@ -881,14 +1009,16 @@ def generate_answer(
         )
         if direct_ppe and re.search(r"recommend|advis|suggest|建议|推荐|khuyen|권장", normalized(statement.text), re.I):
             return review("invalid_translation")
-        if statement.kind == "recommendation" and _has_duty_assertion(statement.text):
+        if (statement.kind == "recommendation" and _has_duty_assertion(statement.text)
+                and not any(_has_duty_assertion(c.quote) for c in statement.citations)):
             return review("invalid_evidence")
         if statement.kind != "legal_obligation" and _invalid_nonlaw_duty(statement.text, statement.citations, metadata_by_id):
             return review("invalid_evidence")
         if statement.kind == "legal_obligation" and not _supports_legal_duty(statement.citations, metadata_by_id):
             return review("invalid_evidence")
         if not _quantities_supported(statement.text, statement.citations,
-                source_identifiers=_cited_cas_identifiers(statement.citations, originals)):
+                source_identifiers=_cited_cas_identifiers(statement.citations, originals),
+                source_headers=_cited_headers(statement.citations, originals)):
             return review("claim_mismatch")
         selected_ids.extend(c.chunk_id for c in statement.citations)
         if not statement.conditions:
@@ -897,7 +1027,8 @@ def generate_answer(
             if _unsafe_text(condition.text) or not _verify_citations(condition.citations, originals):
                 return review("invalid_evidence")
             if not _quantities_supported(condition.text, condition.citations,
-                    source_identifiers=_cited_cas_identifiers(condition.citations, originals)):
+                    source_identifiers=_cited_cas_identifiers(condition.citations, originals),
+                    source_headers=_cited_headers(condition.citations, originals)):
                 return review("claim_mismatch")
             if not translation_valid("", condition.text, language,
                                      preserved_terms=preserved_terms + _cited_ingredient_terms(condition.citations, originals)):
@@ -913,8 +1044,21 @@ def generate_answer(
     if msds:
         selected_ids.extend(c.chunk_id for fact in draft.product_facts for c in fact.citations)
     passages = critical_passages(usable)
+    # 답변에 붙이는 경고: 답변이 인용한 청크의 경고 + MSDS 2항 유해·위험 문구(H코드: 물질의 기본 위험).
+    # 예전에는 검색된 MSDS 청크의 경고를 전부 붙여, 보호구 질문에도 흡입·누출 처리 경고 10여 개가 나왔다 (김규빈 2026-10-24, 팀 결정).
+    # MSDS 청크는 항목별로 짧아 인용한 청크의 경고를 모두 둔다. 지침·법령 청크도 경고가 3개 이하면 모두 둔다
+    # (인용 문장 바로 옆의 "실제 작업에 사용하지 마세요" 같은 경고가 빠지지 않도록).
+    # 그보다 많으면(KOSHA 목록 청크는 10여 개) 답변이 실제로 인용한 문장과 겹치는 경고만 둔다.
+    quotes = [c.quote for st in draft.statements for c in [*st.citations, *(x for cond in st.conditions for x in cond.citations)]]
+    per_chunk = Counter(cid for cid, _ in passages.values())
+    def cited_warning(cid, original):
+        if cid not in selected_ids:
+            return False
+        if metadata_by_id[cid].doc_type == DOC_TYPE_MSDS or per_chunk[cid] <= MAX_CHUNK_WARNINGS:
+            return True
+        return any(_same_text(q, original) or _same_text(original, q) for q in quotes)
     required = {pid: pair for pid, pair in passages.items()
-                if pair[0] in selected_ids or metadata_by_id[pair[0]].doc_type == DOC_TYPE_MSDS}
+                if cited_warning(*pair) or _is_hazard_statement(pair, metadata_by_id)}
     translated = {}
     for item in draft.critical_translations:
         if item.passage_id not in passages or item.passage_id in translated:
@@ -936,7 +1080,7 @@ def generate_answer(
         return review("invalid_translation")
     verification_failure = _verify_draft_support(
         question, draft, originals, required, translated, language=language,
-        as_of=reference_date, model=model or os.getenv(ENV_LLM_MODEL, "gpt-4o"),
+        as_of=reference_date, model=model or os.getenv(ENV_LLM_MODEL, DEFAULT_LLM_MODEL),
         timeout_seconds=timeout_seconds,
     )
     if verification_failure:
@@ -952,45 +1096,73 @@ def generate_answer(
     def markers(citations: list[Citation]) -> str:
         return " ".join(f"[{source_numbers[chunk_id]}]" for chunk_id in dict.fromkeys(c.chunk_id for c in citations))
 
-    parts = []
+    # 답변 모양 (김규빈 2026-10-25): 문단 = 문장 종류 하나 (위에서 종류별로 모아 일반 정보 / 권고 / 법령이 각각 최대 한 문단).
+    # 문단마다 소제목을 한 번 달고 문장은 "- " 목록으로 쓴다. 의무와 권고를 섞지 않는 안전 규칙은 그대로.
+    # 일반 정보만 있는 짧은 답에는 소제목을 달지 않는다 (제목 한 줄이 오히려 군더더기).
+    parts, paragraph = [], []
+
+    def flush():
+        if paragraph:
+            parts.append("\n".join(paragraph)); paragraph.clear()
+
     if mode != "qa":
         parts.append(text[mode])
+    headed = len(kind_order) > 1 or kind_order[:1] != ["information"] or bool(required)
     previous_kind = None
     for statement in draft.statements:
         if statement.kind != previous_kind:
-            parts.append(labels[statement.kind])
-        parts.append(f"{statement.text.strip()} {markers(statement.citations)}")
+            flush()
+            if headed:
+                paragraph.append(labels[statement.kind])
+        paragraph.append(f"- {statement.text.strip()} {markers(statement.citations)}")
         previous_kind = statement.kind
         if statement.conditions:
-            parts.append(text["conditions"])
-            parts.extend(f"- {condition.text.strip()} {markers(condition.citations)}" for condition in statement.conditions)
-    if "conditions_unverified" in reasons:
-        parts.append(text["missing_conditions"])
+            paragraph.append("  " + text["conditions"] + " " + " / ".join(
+                f"{condition.text.strip()} {markers(condition.citations)}" for condition in statement.conditions))
+    flush()
     if required:
-        parts.append(text["warnings"])
+        # 한국어는 본문이 이미 인용한 경고 문장은 다시 싣지 않는다 (같은 내용 반복 방지). 번역 답변은 번역 확인을 위해 모두 싣는다.
+        quoted = [c.quote for st in draft.statements for c in [*st.citations, *(x for cond in st.conditions for x in cond.citations)]]
+        lines = []
         for pid, (cid, original) in required.items():
+            if language == "ko" and any(_same_text(q, original) or _same_text(original, q) for q in quoted):
+                continue
             # Display soft line breaks as spaces; citation evidence stays verbatim.
             translated_text = re.sub(r"\s+", " ", original) if language == "ko" else translated[pid]
-            parts.append(f"- {translated_text} [{source_numbers[cid]}]")
+            lines.append(f"- {translated_text} [{source_numbers[cid]}]")
             if language != "ko":
-                parts.append(f"  {text['original']}: {original}")
-    if any(source.doc_type == DOC_TYPE_LAW for source in sources):
-        parts.append(text["law_review"])
+                lines.append(f"  {text['original']}: {original}")
+        if lines:
+            parts.append(text["warnings"] + "\n" + "\n".join(lines))
+    closing = []
     if msds:
         product_labels = {
-            "ko": {"product_name": "자료의 제품명", "product_number": "제품번호", "concentration": "농도", "revision_date": "MSDS 개정일"},
-            "zh": {"product_name": "资料中的产品名称", "product_number": "产品编号", "concentration": "浓度", "revision_date": "MSDS修订日期"},
-            "vi": {"product_name": "Tên sản phẩm trong tài liệu", "product_number": "Mã sản phẩm", "concentration": "Nồng độ", "revision_date": "Ngày sửa đổi MSDS"},
-            "en": {"product_name": "Product name in the document", "product_number": "Product number", "concentration": "Concentration", "revision_date": "MSDS revision date"},
-            "km": {"product_name": "ឈ្មោះផលិតផលក្នុងឯកសារ", "product_number": "លេខផលិតផល", "concentration": "កំហាប់", "revision_date": "កាលបរិច្ឆេទកែប្រែ MSDS"},
+            "ko": {"product_number": "제품번호", "concentration": "농도", "revision_date": "개정"},
+            "zh": {"product_number": "产品编号", "concentration": "浓度", "revision_date": "修订"},
+            "vi": {"product_number": "Mã", "concentration": "Nồng độ", "revision_date": "Sửa đổi"},
+            "en": {"product_number": "No.", "concentration": "Conc.", "revision_date": "Rev."},
+            "km": {"product_number": "លេខ", "concentration": "កំហាប់", "revision_date": "កែប្រែ"},
         }
-        for fact in draft.product_facts:
-            parts.append(f"{product_labels[language][fact.field]}: {fact.value} {markers(fact.citations)}")
-        parts.append(text["msds_review"])
+        facts = {fact.field: re.sub(r"\s+", " ", fact.value).strip() for fact in draft.product_facts}
+        if language == "ko" and "concentration" in facts:
+            facts["concentration"] = _readable_range_ko(facts["concentration"])
+        details = [f"{product_labels[language][field]} {facts[field]}"
+                   for field in ("product_number", "concentration", "revision_date") if field in facts]
+        # 제품 정보 출처(MSDS 1·3·16항)는 화면 출처 목록에 그대로 남기고, 이 줄에는 번호를 달지 않는다 (김규빈 2026-10-25:
+        # "[3] [4] [5]"가 같은 MSDS 를 세 번 가리켜 읽기 어려웠다). 제품명 뒤 괄호에 나머지 항목을 모은다.
+        name = facts.get("product_name") or ""
+        parts.append(f"{text['basis']}: {name} ({' · '.join(details)})" if details else f"{text['basis']}: {name}")
+        closing.append(text["msds_review"])   # 실제 제품과 같은지 확인
+    if "conditions_unverified" in reasons:
+        closing.append(text["missing_conditions"])
+    if any(source.doc_type == DOC_TYPE_LAW for source in sources):
+        closing.append(text["law_review"])
     if "effective_date_future" in reasons:
-        parts.append(text["future"])
+        closing.append(text["future"])
     if "law_version_conflict" in reasons:
-        parts.append(text["versions"])
+        closing.append(text["versions"])
+    if closing:
+        parts.append(" ".join(closing))
     result = GenerationOutput(
         answer="\n\n".join(parts), sources=sources,
         needs_review=bool(reasons), handoff=False,
@@ -1018,6 +1190,12 @@ class GenerationAPIResponse(RagResponse):
     model_config = ConfigDict(extra="forbid", strict=True)
     sources: list[APISource]
     latency_ms: int = Field(ge=0)
+    _review_reasons: list[str] = PrivateAttr(default_factory=list)
+
+    @property
+    def review_reasons(self) -> list[str]:
+        """보류 이유 (화면 진단용 응답 머리글에만 쓰고 JSON 필드로는 내보내지 않음)"""
+        return list(self._review_reasons)
 
 
 def _section(source: SourceMetadata) -> str:
@@ -1072,13 +1250,15 @@ def build_api_response(
             title=source.title or source.law_name or source.article_title or "",
             url=source.source_url,
         ))
-    return GenerationAPIResponse(
+    response = GenerationAPIResponse(
         answer=result.answer,
         sources=sources,
         needs_review=result.needs_review,
         handoff=result.handoff,
         latency_ms=latency_ms,
     )
+    response._review_reasons = result.review_reasons
+    return response
 
 
 # 기존 팀 Hit 입력 연결
@@ -1099,6 +1279,29 @@ def needs_handoff(question: str, hits: List[Hit]) -> bool:
     return not hits or preflight_result(question, "ko") is not None
 
 
+_RANGE_WORDS_KO = {">=": "이상", "≥": "이상", ">": "초과", "<=": "이하", "≤": "이하", "<": "미만"}
+
+
+def _readable_range_ko(value: str) -> str:
+    """MSDS 농도 표기 ">= 45 - < 50" → "45 이상 50 미만". 모양이 다르면 원문 그대로 둔다 (숫자는 바꾸지 않음)."""
+    op = r"(>=|<=|≥|≤|>|<)"
+    both = re.fullmatch(rf"{op}\s*([\d.,]+)\s*(%?)\s*-\s*{op}\s*([\d.,]+)\s*(%?)", value.strip())
+    if both:
+        a_op, a, a_pct, b_op, b, b_pct = both.groups()
+        pct = a_pct or b_pct   # "%"가 뒤에만 있어도 두 숫자 모두 %
+        return f"{a}{pct} {_RANGE_WORDS_KO[a_op]} {b}{pct} {_RANGE_WORDS_KO[b_op]}"
+    one = re.fullmatch(rf"{op}\s*([\d.,]+)\s*(%?)", value.strip())
+    if one:
+        a_op, a, a_pct = one.groups()
+        return f"{a}{a_pct} {_RANGE_WORDS_KO[a_op]}"
+    return value
+
+
+GENERATION_RETRIES = int(os.getenv("GENERATION_RETRIES", "1"))   # 0 이면 재시도 안 함
+# 검증 시간 초과(verification_unavailable)는 다시 하면 대기 시간만 두 배라 넣지 않는다
+RETRYABLE_REASONS = {"claim_mismatch", "invalid_evidence", "invalid_translation", "product_unverified", "invalid_output"}
+
+
 def generate(question: str, hits: List[Hit], language: str, *,
              product_id: str | None = None, topic: str | None = None,
              mode: str = "qa", structured_llm=None) -> RagResponse:
@@ -1117,9 +1320,22 @@ def generate(question: str, hits: List[Hit], language: str, *,
         documents.append(Document(page_content=hit["text"], metadata=dict(metadata)))
     result = generate_answer(question, documents, language=language, mode=mode,
                              product_id=product_id, topic=topic, structured_llm=structured_llm)
+    # LLM 초안은 실행마다 달라서, 같은 질문이 한 번은 검증을 통과하고 한 번은 보류된다 (화면 추천 질문 14개 중 3~5개).
+    # 검증 실패로 보류됐으면 한 번 더 생성한다. 다시 만든 초안도 같은 검증을 모두 거치므로 기준은 낮아지지 않는다.
+    # "근거 없음"(no_evidence)은 LLM 이 답할 수 없다고 판단한 것이라 다시 묻지 않는다.
+    for _ in range(GENERATION_RETRIES):
+        if result.sources or not RETRYABLE_REASONS.intersection(result.review_reasons):
+            break
+        result = generate_answer(question, documents, language=language, mode=mode,
+                                 product_id=product_id, topic=topic, structured_llm=structured_llm)
     if {"llm_timeout", "llm_error", "configuration_error"}.intersection(result.review_reasons):
         # Preserve app.main's existing 503 policy without exposing raw errors.
-        raise GenerationUnavailable("Generation provider is temporarily unavailable")
+        error = GenerationUnavailable("Generation provider is temporarily unavailable")
+        error.reason = result.review_reasons[0]
+        raise error
     ids = {doc.metadata.get("chunk_id"): doc.metadata["doc_id"] for doc in documents}
     payload = build_api_response(result, latency_ms=0, doc_id_by_chunk_id=ids)
-    return RagResponse(**payload.model_dump())
+    if not hits:
+        payload._review_reasons = ["retrieval_empty", *result.review_reasons]
+    # 다시 RagResponse 로 감싸면 보류 이유(화면 진단용)가 사라진다. 이 하위 형식도 RagResponse 계약을 그대로 만족한다.
+    return payload

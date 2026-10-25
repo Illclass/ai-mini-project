@@ -70,6 +70,12 @@ _ADMIN_SENTENCE = re.compile(
 )
 
 
+# MSDS 표 항목: 9 물리화학적 특성 · 14 운송 · 15 법적 규제 · 16 그 밖의 참고사항(약어·NFPA 표).
+# 값·라벨이 나열된 표라 문장 끝이 없어 전부 '잘린 경고'로 판정되던 것을 경고 추출·잘림 판정에서 뺀다.
+# 경고·조치 문장이 있는 항목(2 유해성 · 4 응급조치 · 7 취급저장 · 8 보호구 · 10 안정성 등)은 그대로 검사한다.
+MSDS_DATA_SECTIONS = frozenset({9, 14, 15, 16})
+
+
 def _scan_critical_passages(documents):
     """Return exact contiguous source spans and IDs with incomplete warnings.
 
@@ -79,6 +85,8 @@ def _scan_critical_passages(documents):
     """
     passages, incomplete = {}, set()
     for doc in documents:
+        if doc.metadata.get("doc_type") == DOC_TYPE_MSDS and doc.metadata.get("msds_section_no") in MSDS_DATA_SECTIONS:
+            continue
         cid = doc.metadata['chunk_id']
         raw = doc.page_content
         start = None
@@ -210,8 +218,8 @@ def canonical_calendar_text(text: str) -> str | None:
 
 
 _KOSHA_PDF_FOOTER = re.compile(
-    r"^[ \t]*-[ \t]*[1-9][0-9]{0,3}[ \t]*-[ \t]*\r?\n"
-    r"[ \t]*KOSHA[ \t]+GUIDE(?:[ \t]*\r?\n|[ \t]+)"
+    r"^[ \t]*-[ \t]*[1-9][0-9]{0,3}[ \t]*-[ \t]*(?:\r?\n[ \t]*)+"   # 쪽번호와 머리글 사이 빈 줄 허용
+    r"KOSHA[ \t]+GUIDE(?:[ \t]*\r?\n|[ \t]+)"
     r"[A-Z]{1,3}[ \t]*-[ \t]*[1-9][0-9]{0,2}[ \t]*-[ \t]*(?:19|20)[0-9]{2}[ \t]*$",
     re.I | re.M,
 )
@@ -263,6 +271,11 @@ def translation_valid(original: str, translated: str, language: str, *, preserve
     for term in sorted(set(preserved_terms), key=len, reverse=True):
         if term:
             script_text = script_text.replace(term, " ")
+    # 원문 목록 기호 (가) 나. 등은 번호이지 한국어 문장이 아니므로 문자 체계 검사에서만 뺀다
+    script_text = re.sub(r"[(（]\s*[가-하]\s*[)）]|(?<![가-힣])[가-하]\.(?=\s)", " ", script_text)
+    # 금액의 한국어 단위(10억원·5천만 원)와 괄호 속 한국어 용어 병기 "(중대산업재해)"는 현장 용어 그대로 둔 것이므로
+    # 문자 체계 검사에서만 뺀다. 숫자·금지·제외 비교는 그대로 한다.
+    script_text = re.sub(r"(?<=\d)\s*(?:[천백십]?(?:만|억|조)\s*)*원|[(（][가-힣 ·]{1,20}[)）]", " ", script_text)
     if language == "zh" and (not re.search(r"[\u4e00-\u9fff]", script_text) or re.search(r"[가-힣]", script_text)):
         return False
     if language == "vi" and (not re.search(r"[a-zA-ZÀ-ỹ]", script_text) or re.search(r"[가-힣\u4e00-\u9fff]", script_text)):
@@ -349,19 +362,20 @@ TEXT = {
         "llm_timeout": "답변 생성 시간이 초과되었습니다. 판단을 보류하고 선임·안전담당자에게 확인하세요.",
         "llm_error": "답변 생성 서비스에 연결하지 못했습니다. 판단을 보류하고 선임·안전담당자에게 확인하세요.",
         "configuration_error": "답변 생성 설정을 확인해야 합니다. 판단을 보류하고 서비스 담당자에게 알려 주세요.",
-        "legal_obligation": "법령 자료의 의무 문구 (현행성·현장 적용 미확인)",
-        "recommendation": "권고 지침 (법적 의무로 단정하지 않음)",
-        "information": "자료에 근거한 일반 정보",
-        "conditions": "적용 조건 (실제 현장 해당 여부는 별도 확인):",
-        "missing_conditions": "적용 조건 검증이 충분하지 않아 실제 적용 여부 판단을 보류합니다. 선임·안전담당자에게 확인하세요.",
-        "law_review": "법령 검토: 시행일과 적용 조건을 검증하지 않았으므로 현행 법령 또는 현재의 의무로 확정하지 않습니다. 과거 시행일만으로 폐지 여부도 판단하지 않습니다. 공식 원문과 적용 버전을 확인해야 합니다.",
+        "legal_obligation": "법령 문구 (현행 여부·현장 적용 확인 필요)",
+        "recommendation": "권고사항 (법적 의무 아님)",
+        "information": "알아둘 내용",
+        "conditions": "적용 조건:",
+        "missing_conditions": "적용 조건은 확인하지 못했어요. 내 현장에 해당되는지 선임·안전담당자에게 확인하세요.",
+        "law_review": "법령은 현행 여부와 적용 버전을 확인하지 않았어요. 공식 원문을 확인하세요.",
         "future": "미래 시행일 자료가 포함되어 현재 적용 여부 판단을 보류합니다.",
         "versions": "같은 조문의 시행일이 달라 적용 버전 판단을 보류합니다.",
-        "warnings": "중요 경고·적용 조건 (원문 기준)",
+        "basis": "근거 MSDS",
+        "warnings": "⚠ 주의사항",
         "original": "원문",
         "learn": "신입 학습용 설명 — 어려운 용어와 적용 범위는 선임에게 다시 확인하세요.",
         "precheck": "작업 전 정보 확인용 — 작업 승인이나 완료된 안전 체크리스트가 아닙니다. 아래 자료의 적용 조건, 제품 라벨과 현장 MSDS 일치 여부, 필요한 교육·허가를 선임·안전담당자에게 확인하세요.",
-        "msds_review": "이 설명은 제공된 MSDS의 해당 제품·농도·개정본에만 한정됩니다. 실제 현장 제품과의 일치 및 최신 개정본 여부는 선임·안전담당자에게 확인하세요.",
+        "msds_review": "이 안내는 위 MSDS 기준이에요. 실제 제품과 같은지 확인하세요.",
     },
     "zh": {
         "emergency": "紧急提示：不要等待AI回答或文件检索。优先遵循现场应急程序，立即联系119（韩国）和现场应急负责人。不要仅凭本服务的回答尝试堵漏、中和或重新进入危险区域。",
@@ -374,19 +388,20 @@ TEXT = {
         "llm_timeout": "生成回答超时。暂缓判断，请向资深同事或安全人员确认。",
         "llm_error": "无法连接回答生成服务。暂缓判断，请向资深同事或安全人员确认。",
         "configuration_error": "需要检查生成服务配置。请联系服务负责人，暂缓判断。",
-        "legal_obligation": "法规资料中的义务表述（现行效力及现场适用性未核实）",
-        "recommendation": "建议性指南（不认定为法定义务）",
-        "information": "资料支持的一般信息",
-        "conditions": "适用条件（是否符合现场情况需另行确认）：",
-        "missing_conditions": "适用条件尚未得到充分核实，暂不判断现场是否适用。请向资深同事或安全人员确认。",
-        "law_review": "法规核查：生效日期、现行版本和现场适用条件尚未核实，不能认定为现行法规或当前义务。也不能仅因生效日期较早就认定已废止。请核对官方原文和版本。",
+        "legal_obligation": "法规条文（需确认现行效力和现场适用）",
+        "recommendation": "建议事项（非法定义务）",
+        "information": "须知内容",
+        "conditions": "适用条件：",
+        "missing_conditions": "未能确认适用条件，是否适用于您的现场请向资深同事或安全人员确认。",
+        "law_review": "未核实法规是否现行及适用版本，请查看官方原文。",
         "future": "资料包含未来生效日期，暂不判断当前是否适用。",
         "versions": "同一条文存在不同生效日期，需确认适用版本。",
-        "warnings": "重要警告和适用条件",
+        "basis": "依据MSDS",
+        "warnings": "⚠ 注意事项",
         "original": "原文",
         "learn": "新员工学习说明：请向资深同事确认不熟悉的术语和适用范围。",
         "precheck": "作业前信息确认：这不是作业批准或已完成的安全检查清单。请与资深同事或安全人员核对适用条件、产品标签与现场MSDS是否一致，以及所需培训和许可。",
-        "msds_review": "说明仅限于所提供MSDS的产品、浓度和修订版本。请向资深同事或安全人员确认与现场产品是否一致以及是否为最新版本。",
+        "msds_review": "以上说明基于该MSDS，请确认与实际产品一致。",
     },
     "vi": {
         "emergency": "Thông báo khẩn cấp: Không chờ câu trả lời của AI hoặc kết quả tìm tài liệu. Ưu tiên quy trình khẩn cấp tại cơ sở, liên hệ ngay 119 (tại Hàn Quốc) và người phụ trách khẩn cấp tại hiện trường. Không tự chặn rò rỉ, trung hòa hoặc quay lại khu vực nguy hiểm chỉ dựa vào câu trả lời của dịch vụ này.",
@@ -399,19 +414,20 @@ TEXT = {
         "llm_timeout": "Đã hết thời gian tạo câu trả lời. Chưa đưa ra kết luận; hãy xác nhận với đồng nghiệp có kinh nghiệm hoặc nhân viên an toàn.",
         "llm_error": "Không kết nối được dịch vụ tạo câu trả lời. Chưa đưa ra kết luận; hãy liên hệ nhân viên an toàn.",
         "configuration_error": "Cần kiểm tra cấu hình dịch vụ. Hãy liên hệ người phụ trách dịch vụ; chưa đưa ra kết luận.",
-        "legal_obligation": "Nghĩa vụ nêu trong tài liệu pháp luật (chưa xác minh hiệu lực hiện tại hoặc khả năng áp dụng tại cơ sở)",
-        "recommendation": "Hướng dẫn khuyến nghị (không kết luận là nghĩa vụ pháp lý)",
-        "information": "Thông tin chung có căn cứ trong tài liệu",
-        "conditions": "Điều kiện áp dụng (cần xác nhận riêng tại cơ sở):",
-        "missing_conditions": "Điều kiện áp dụng chưa được xác minh đầy đủ; chưa kết luận có áp dụng tại cơ sở hay không. Hãy xác nhận với đồng nghiệp có kinh nghiệm hoặc nhân viên an toàn.",
-        "law_review": "Kiểm tra pháp luật: Chưa xác minh ngày có hiệu lực, phiên bản hiện hành và điều kiện áp dụng tại cơ sở; không kết luận đây là luật hiện hành hoặc nghĩa vụ hiện tại. Ngày có hiệu lực cũ cũng không chứng minh văn bản đã bị bãi bỏ. Cần đối chiếu bản gốc chính thức và phiên bản phù hợp.",
+        "legal_obligation": "Điều khoản pháp luật (cần xác nhận hiệu lực và áp dụng)",
+        "recommendation": "Khuyến nghị (không phải nghĩa vụ pháp lý)",
+        "information": "Nội dung cần biết",
+        "conditions": "Điều kiện áp dụng:",
+        "missing_conditions": "Chưa xác nhận được điều kiện áp dụng. Hãy hỏi nhân viên an toàn xem có áp dụng cho nơi làm việc của bạn không.",
+        "law_review": "Chưa xác minh luật còn hiệu lực và phiên bản áp dụng. Hãy xem bản gốc chính thức.",
         "future": "Có tài liệu với ngày có hiệu lực trong tương lai; chưa kết luận khả năng áp dụng hiện tại.",
         "versions": "Cùng điều khoản có các ngày hiệu lực khác nhau; cần xác nhận phiên bản áp dụng.",
-        "warnings": "Cảnh báo quan trọng và điều kiện áp dụng",
+        "basis": "MSDS căn cứ",
+        "warnings": "⚠ Lưu ý",
         "original": "Bản gốc",
         "learn": "Giải thích cho nhân viên mới: Hãy hỏi đồng nghiệp có kinh nghiệm về thuật ngữ chưa rõ và phạm vi áp dụng.",
         "precheck": "Xác nhận thông tin trước công việc: Đây không phải phê duyệt công việc hay danh sách kiểm tra an toàn đã hoàn tất. Hãy cùng đồng nghiệp có kinh nghiệm hoặc nhân viên an toàn kiểm tra điều kiện áp dụng, sự phù hợp của nhãn với MSDS tại cơ sở, yêu cầu đào tạo và giấy phép.",
-        "msds_review": "Giải thích chỉ giới hạn cho sản phẩm, nồng độ và phiên bản MSDS được cung cấp. Hãy xác nhận sản phẩm thực tế có phù hợp không và MSDS có phải bản mới nhất không với nhân viên an toàn.",
+        "msds_review": "Hướng dẫn này dựa trên MSDS ở trên. Hãy kiểm tra có đúng sản phẩm thực tế không.",
     },
     "en": {  # 김규빈 추가 (en·km 지원)
         "emergency": "Emergency notice: Do not wait for an AI answer or document search. Follow the on-site emergency procedure first and immediately contact 119 (Korea) and the on-site emergency contact person. Do not attempt dangerous actions such as stopping a leak, neutralizing, or re-entering based only on this service's answer.",
@@ -424,19 +440,20 @@ TEXT = {
         "llm_timeout": "Answer generation timed out. Judgment is withheld; please check with a senior colleague or safety officer.",
         "llm_error": "Could not connect to the answer generation service. Judgment is withheld; please contact a safety officer.",
         "configuration_error": "The answer generation settings need to be checked. Please notify the service administrator; judgment is withheld.",
-        "legal_obligation": "Obligation stated in legal materials (current validity and on-site applicability not verified)",
-        "recommendation": "Recommended guideline (not asserted as a legal obligation)",
-        "information": "General information based on the materials",
-        "conditions": "Conditions of application (whether they apply on site must be confirmed separately):",
-        "missing_conditions": "The conditions of application are not sufficiently verified, so whether they actually apply is not determined. Please check with a senior colleague or safety officer.",
-        "law_review": "Legal review: The effective date and conditions of application have not been verified, so this is not confirmed as current law or a current obligation. An old effective date alone does not show that it has been repealed. Check the official original text and the applicable version.",
+        "legal_obligation": "Legal text (check current validity and on-site applicability)",
+        "recommendation": "Recommendations (not legal obligations)",
+        "information": "What to know",
+        "conditions": "Conditions:",
+        "missing_conditions": "The conditions of application could not be confirmed. Check with a senior colleague or safety officer whether this applies to your site.",
+        "law_review": "Whether the law is current and which version applies was not verified. Check the official text.",
         "future": "The materials include a future effective date, so current applicability is not determined.",
         "versions": "The same article has different effective dates, so the applicable version must be confirmed.",
-        "warnings": "Important warnings and conditions of application (based on the original)",
+        "basis": "Based on MSDS",
+        "warnings": "⚠ Cautions",
         "original": "Original",
         "learn": "Explanation for new workers — please confirm unfamiliar terms and the scope of application with a senior colleague.",
         "precheck": "Pre-work information check — this is not work approval or a completed safety checklist. Check the conditions of application below, whether the product label matches the on-site MSDS, and any required training or permits with a senior colleague or safety officer.",
-        "msds_review": "This explanation is limited to the product, concentration, and revision of the provided MSDS. Confirm with a senior colleague or safety officer that it matches the actual on-site product and is the latest revision.",
+        "msds_review": "This is based on the MSDS above. Check that it matches your actual product.",
     },
     "km": {  # 김규빈 추가 — 원어민 검수 필요
         "emergency": "សេចក្តីជូនដំណឹងបន្ទាន់៖ កុំរង់ចាំចម្លើយរបស់ AI ឬការស្វែងរកឯកសារ។ សូមអនុវត្តនីតិវិធីបន្ទាន់នៅកន្លែងការងារជាមុន ហើយទាក់ទងលេខ 119 (កូរ៉េ) និងអ្នកទទួលខុសត្រូវបន្ទាន់នៅកន្លែងការងារភ្លាមៗ។ កុំព្យាយាមបិទការលេចធ្លាយ បន្សាប ឬចូលទៅតំបន់គ្រោះថ្នាក់វិញ ដោយផ្អែកតែលើចម្លើយរបស់សេវានេះ។",
@@ -449,19 +466,20 @@ TEXT = {
         "llm_timeout": "ការបង្កើតចម្លើយអស់ពេល។ ការសម្រេចត្រូវបានផ្អាក សូមពិនិត្យជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
         "llm_error": "មិនអាចភ្ជាប់ទៅសេវាបង្កើតចម្លើយបានទេ។ ការសម្រេចត្រូវបានផ្អាក សូមទាក់ទងមន្ត្រីសុវត្ថិភាព។",
         "configuration_error": "ត្រូវពិនិត្យការកំណត់សេវាបង្កើតចម្លើយ។ សូមជូនដំណឹងដល់អ្នកគ្រប់គ្រងសេវា ការសម្រេចត្រូវបានផ្អាក។",
-        "legal_obligation": "កាតព្វកិច្ចក្នុងឯកសារច្បាប់ (មិនទាន់ផ្ទៀងផ្ទាត់សុពលភាពបច្ចុប្បន្ន និងការអនុវត្តនៅកន្លែងការងារ)",
-        "recommendation": "គោលការណ៍ណែនាំ (មិនកំណត់ថាជាកាតព្វកិច្ចផ្លូវច្បាប់)",
-        "information": "ព័ត៌មានទូទៅដែលផ្អែកលើឯកសារ",
-        "conditions": "លក្ខខណ្ឌអនុវត្ត (ត្រូវបញ្ជាក់ដាច់ដោយឡែកថាត្រូវនឹងកន្លែងការងារឬអត់)៖",
-        "missing_conditions": "លក្ខខណ្ឌអនុវត្តមិនទាន់បានផ្ទៀងផ្ទាត់គ្រប់គ្រាន់ ដូច្នេះមិនសម្រេចថាអនុវត្តពិតឬអត់ទេ។ សូមពិនិត្យជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
-        "law_review": "ការពិនិត្យច្បាប់៖ មិនទាន់ផ្ទៀងផ្ទាត់កាលបរិច្ឆេទចូលជាធរមាន និងលក្ខខណ្ឌអនុវត្តទេ ដូច្នេះមិនបញ្ជាក់ថាជាច្បាប់ ឬកាតព្វកិច្ចបច្ចុប្បន្នទេ។ កាលបរិច្ឆេទចាស់តែមួយមុខក៏មិនបង្ហាញថាត្រូវបានលុបចោលដែរ។ សូមពិនិត្យអត្ថបទដើមផ្លូវការ និងកំណែដែលអនុវត្ត។",
+        "legal_obligation": "អត្ថបទច្បាប់ (ត្រូវពិនិត្យសុពលភាព និងការអនុវត្ត)",
+        "recommendation": "អនុសាសន៍ (មិនមែនកាតព្វកិច្ចច្បាប់)",
+        "information": "អ្វីដែលត្រូវដឹង",
+        "conditions": "លក្ខខណ្ឌ៖",
+        "missing_conditions": "មិនអាចបញ្ជាក់លក្ខខណ្ឌអនុវត្តបានទេ។ សូមសួរមន្ត្រីសុវត្ថិភាពថាវាអនុវត្តចំពោះកន្លែងការងាររបស់អ្នកឬអត់។",
+        "law_review": "មិនទាន់ផ្ទៀងផ្ទាត់ថាច្បាប់នៅជាធរមាន និងកំណែដែលអនុវត្តទេ។ សូមពិនិត្យអត្ថបទដើមផ្លូវការ។",
         "future": "មានឯកសារដែលមានកាលបរិច្ឆេទចូលជាធរមាននាពេលអនាគត ដូច្នេះមិនសម្រេចការអនុវត្តបច្ចុប្បន្នទេ។",
         "versions": "មាត្រាដដែលមានកាលបរិច្ឆេទចូលជាធរមានខុសគ្នា ត្រូវបញ្ជាក់កំណែដែលអនុវត្ត។",
-        "warnings": "ការព្រមាន និងលក្ខខណ្ឌអនុវត្តសំខាន់ៗ (តាមអត្ថបទដើម)",
+        "basis": "MSDS មូលដ្ឋាន",
+        "warnings": "⚠ ការប្រុងប្រយ័ត្ន",
         "original": "អត្ថបទដើម",
         "learn": "ការពន្យល់សម្រាប់បុគ្គលិកថ្មី — សូមសួរបុគ្គលិកជាន់ខ្ពស់អំពីពាក្យដែលមិនច្បាស់ និងវិសាលភាពអនុវត្ត។",
         "precheck": "ការពិនិត្យព័ត៌មានមុនការងារ — នេះមិនមែនជាការអនុម័តការងារ ឬបញ្ជីត្រួតពិនិត្យសុវត្ថិភាពដែលបានបញ្ចប់ទេ។ សូមពិនិត្យលក្ខខណ្ឌអនុវត្តខាងក្រោម ភាពត្រូវគ្នានៃស្លាកផលិតផលជាមួយ MSDS នៅកន្លែងការងារ និងការបណ្តុះបណ្តាល ឬលិខិតអនុញ្ញាតដែលត្រូវការ ជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
-        "msds_review": "ការពន្យល់នេះកំណត់តែចំពោះផលិតផល កំហាប់ និងកំណែ MSDS ដែលបានផ្តល់ប៉ុណ្ណោះ។ សូមបញ្ជាក់ជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាពថាវាត្រូវនឹងផលិតផលពិតនៅកន្លែងការងារ និងជាកំណែចុងក្រោយ។",
+        "msds_review": "ការណែនាំនេះផ្អែកលើ MSDS ខាងលើ។ សូមពិនិត្យថាត្រូវនឹងផលិតផលពិត។",
     },
 }
 
@@ -503,6 +521,15 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   "보호복을 착용해야 합니다", "저장 장소는 떨어진 곳이어야 합니다"처럼 원문의 강도를 유지하세요.
   문장에 "해야"가 있다는 이유만으로 legal_obligation으로 분류하지 마세요.
   권고만 있는 원문을 필수 요구로 강화하지 마세요. 법적 의무 면책 설명은 요구 문장에 섞지 마세요.
+- 한 문장에는 원문의 한 조치만 설명하세요. 조건부 문의·확인 조치를 장비나 보호구의
+  선택·사용 권장으로 바꾸지 마세요. 예를 들어 "다른 물질과 혼합하거나 명시된 표준과
+  다른 조건에서 사용하면 장갑 공급자에게 연락"은 그 조건에서의 공급자 문의입니다.
+  이를 "승인된 장갑을 사용하도록 권장"으로 요약하면 조치와 적용 조건이 달라집니다.
+  문의 조건은 statements.text에 남기고 conditions에도 실제 원문 인용과 함께 기록하세요.
+- 원문이 "권장 보관온도: 제품 라벨 참조"라면 "권장 보관온도는 제품 라벨을 참조하도록
+  기재되어 있습니다"처럼 참고 위치를 설명하세요. 온도·용기 호환성·현장 적합성을
+  추측하거나 "반드시/해야 한다"라는 새로운 필수 강도로 바꾸지 마세요.
+  반대로 "사용하지 말 것", "잠글 것" 같은 실제 금지·요구는 그 강도를 유지하세요.
 - kind=information은 그 외 원문에 근거한 일반 설명입니다. 의무인지 모르면 이 구분을 쓰고
   의무 여부는 판단할 수 없다고 설명하세요.
 
@@ -551,6 +578,12 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
 
 신입과 다국어:
 - 지정 언어의 자연스러운 짧은 문장을 사용하고 한 문장에 하나의 핵심 내용만 담으세요.
+- 말투: 작업자와 대화하듯 직접 말하세요. 한국어는 부드러운 해요체로 씁니다.
+  예: '이 자료는 피부에 묻었을 때 오염된 옷을 즉시 벗으라고 안내합니다.' 대신
+      '피부에 묻었다면 오염된 옷을 바로 벗고 물로 씻으세요.'
+  '이 자료는 ~라고 안내합니다/기재되어 있습니다' 같은 보고 문체를 문장마다 반복하지 마세요. 출처 번호는 서버가 붙입니다.
+  원문의 강도(해야 함·금지)는 그대로 지키고, 법령(kind=legal_obligation)만은 '법령 자료에는 ~하여야 한다고 적혀 있어요'처럼
+  자료에 적힌 문구임을 밝히세요. 질문에 바로 답하는 문장을 먼저 쓰고, 2~4문장 안으로 끝내세요.
 - 용어집은 원문에 실제 등장한 용어의 번역에만 사용하세요. 용어집을 새로운 사실의 근거로 쓰지 마세요.
 - 제품명은 번역하지 않는 식별자입니다. 예: '교육액-A'는 중국어에서도 '교육액-A' 그대로 쓰고
   '教育液-A'로 바꾸지 마세요. 원문 인용과 제품 식별자 이외의 설명은 지정 언어로 작성하세요.
@@ -574,6 +607,8 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   메타데이터에만 있는 개정일을 본문에서 인용한 것처럼 만들지 마세요.
 - 법령 문서는 MSDS가 아닙니다. MSDS에서 제조자가 요구하는 주의사항은 법령상 의무로 바꾸지 마세요.
 - 법적 책임 확정·위험한 현장 조작·혼합/희석/중화 절차·작업 승인을 제공하지 마세요.
+  단, 희석·이송·혼합 작업에 대해 '어떤 자료에서 무엇을 확인하는지'(MSDS 7항 취급, 8항 보호구 등)는 안내하세요.
+  절차·비율·순서를 만들지 않을 뿐, 원문에 있는 보호구·주의사항 안내까지 거절하지 마세요.
   긴급 상황은 AI가 대응 절차를 만들어 안내하는 범위가 아닙니다.
 
 출력 전 필수 점검:
@@ -584,6 +619,9 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   product_facts.value와 citations.quote는 자리표시자가 아닌 원문 그대로 추출하세요.
 - 제품명·제품번호·성분명은 원문 식별자를 그대로 유지하세요. 제품명 일부만 번역하는 것도 금지합니다.
   제품명 교육액-A를 教育액-A로 바꾸지 마세요. 식별자를 번역할 필요 없이 주변 설명만 번역하세요.
+- 제품명을 매 문장의 주어로 반복할 필요는 없습니다. "이 MSDS에서는"처럼 설명하면 됩니다.
+  CB_PRODUCT_NAME 자리표시자를 사용한다면 조치 인용과 제품명 인용을 citations에 각각 넣으세요.
+  제품명 인용 없이 조치 문장에 자리표시자를 붙이지 마세요.
 - 여러 항목의 인용은 각각 별도 citations로 나누세요. 중간 표 행을 지우고 두 줄을 하나의 quote로 합치지 마세요.
 - product_facts는 답변 요약이 아니라 제품 식별 검증용입니다. MSDS가 있으면 질문이 제품명만
   물어도 원문에서 확인 가능한 네 항목 모두를 추출하세요. 농도와 개정일을 생략하지 마세요.
@@ -601,25 +639,51 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   그 JSON이 {}이면 반드시 []를 반환하세요. chunk_id를 passage_id 대신 넣지 마세요.
 - 번역에서도 숫자는 원문 아라비아 숫자 표기를 그대로 유지하세요. 예: 2를 중국어 两/二나
   베트남어 hai로 바꾸지 마세요. 1.0%, ppm, 온도 단위와 날짜도 그대로 보존하세요.
+  서수·조문 번호도 같습니다: '제3자' → 'bên thứ 3' / '3rd party' / '第3方' (ba·third·三으로 쓰지 마세요).
 - product_facts의 quote에는 '제품명:', '제품번호:', '개정일:'처럼 값의 의미를
   확인할 수 있는 원문 항목명과 값을 함께 인용하세요.
+- quote는 JSON 문자열의 줄바꿈뿐 아니라 줄 시작 공백도 원문 그대로 복사하세요.
+  보기 좋게 정렬하거나 들여쓰기를 없애지 마세요. product_facts.concentration의 quote는
+  라벨이 같은 청크에 있다면 값이 있는 한 행을 우선 사용해 불필요한 표 머리글 결합을 피하세요.
 - 농도(concentration)는 표의 '농도' 또는 '함유량' 라벨이 같은 chunk_id의 본문에 있으면
   값이 있는 표 행만 quote로 인용할 수 있습니다. value는 해당 quote 안의 원문 표기 그대로
   추출하세요. 다른 청크나 metadata에만 있는 라벨로 보완하거나 범위·단위를 바꾸지 마세요.
 - 적용 조건은 statements의 조건 설명 문장만으로 대신하지 말고 conditions에도 인용과 함께
   기록하세요. 같은 내용을 반복하는 statements는 합쳐 간결하게 설명하세요.
+- quote는 짧게: 주장을 뒷받침하는 원문 한 문장(또는 표 한 행)만 복사하세요. 떨어진 두 문장을
+  '…'이나 공백으로 이어 붙이지 마세요. 근거가 두 곳이면 citations를 두 개로 나누세요.
+- text의 숫자·단위·범위는 인용한 quote에 있는 표기만 쓰세요. 단위 환산·반올림·계산·요약 수치를
+  만들지 마세요. quote에 없는 숫자가 필요하면 그 숫자를 빼거나 해당 문장을 쓰지 마세요.
+- legal_obligation은 그 statement의 quote 자체에 의무 표현(하여야 한다·해서는 아니 된다 등)이
+  있을 때만 쓰세요. 적용범위·정의·목적 조문은 kind=information으로 설명하세요.
+- 법령의 '다음 각 호' 목록(1. 2. …)을 의무로 설명할 때는 같은 statement에 '…다음 각 호에 따른 조치를
+  하여야 한다' 본문 문장도 함께 인용하세요. 목록만 인용하면 의무 문구가 없어 검증에 실패합니다.
+- 처벌·벌칙 조항(징역·벌금에 처한다, 벌금형을 과한다)은 의무가 아니라 kind=information입니다.
+- 법령 인용의 한자 병기(예: 과(科)한다)도 원문 그대로 복사하세요.
+- 원문의 강도를 바꾸지 마세요. 지침·MSDS 원문이 '하여야 한다/이어야 한다'면 '해야 합니다'로 쓰고
+  '바람직합니다/권장합니다'로 약하게 바꾸지 마세요. 원문이 '바람직하다'면 '해야 한다'로 강화하지 마세요.
+- 법조문을 풀어 쓸 때 주체(누가), 대상, 처벌 종류(징역·벌금·과태료), 금액·기간을 바꾸거나 넓히지 마세요.
+  예: '행위자를 벌하는 외에'를 '행위자에게 벌금을 부과하는 것 외에'로 바꾸지 마세요. 애매하면 원문 표현을 그대로 쓰세요.
 """
 
 
 
+# MSDS 제품명 항목: 라벨 + 값(다음 줄에 있어도 됨, 단위 줄 'wt. %' 까지). 서버 제품 식별(generator)도 같은 식을 쓴다.
+PRODUCT_NAME_RE = re.compile(   # 다음 줄이 다른 항목("제품 번호 :")이면 이름으로 보지 않는다 (박진근)
+    r"(?:제품명|product[ \t]*(?:name|identifier)|产品名称|tên[ \t]*sản[ \t]*phẩm)[ \t]*[:：][ \t]*"
+    r"(?:\r?\n[ \t]*(?![^\r\n:：]{1,80}[:：]))?"
+    r"([^\r\n]+(?:\r?\n[ \t]*(?:wt\.?|vol\.?)[ \t]*%[^\r\n]*)?)", re.I)
+
+
 def product_name_tokens(documents: list[Document]) -> dict[str, str]:
-    """Opaque text placeholders; source quotes and product facts stay literal."""
+    """Opaque placeholders; accept a name on the next line, never a next field.
+
+    PDF layout may put the value below its label. Keep wrapped wt.% suffixes
+    and exact source quotes; do not skip blank lines or invent missing names.
+    """
     names = dict.fromkeys(
         match.group(1).strip() for doc in documents if doc.metadata.get("doc_type") == DOC_TYPE_MSDS
-        for match in re.finditer(
-            r"(?:제품명|product[ \t]*(?:name|identifier)|产品名称|tên[ \t]*sản[ \t]*phẩm)[ \t]*[:：][ \t]*"
-            r"([^\n]+(?:\n[ \t]*(?:wt\.?|vol\.?)[ \t]*%[^\n]*)?)",
-            doc.page_content, re.I)
+        for match in PRODUCT_NAME_RE.finditer(doc.page_content)
         if match.group(1).strip()
     )
     return {f"CB_PRODUCT_NAME_{index}": name for index, name in enumerate(names, start=1)}
@@ -642,8 +706,17 @@ def build_document_messages(
                       + json.dumps(list(critical_passages(documents)), ensure_ascii=False)
                       + ("\n한국어(ko)는 경고 원문을 서버가 직접 표시합니다. critical_translations는 []로 반환하세요."
                          if language == "ko" else "\n질문이 제품명이나 적용 범위만 묻더라도 이 경고 목록은 생략하지 마세요.")
+                      + ("\n답변 언어가 한국어가 아니므로 statements·conditions 문장에 한글을 쓰지 마세요. "
+                         "법령명·용어(예: 중대산업재해)도 번역 용어집이나 해당 언어로 옮겨 쓰세요. 인용(quote)만 원문 그대로 둡니다."
+                         if language != "ko" else "")
                       + "\n번역하지 않을 원문 제품명: " + json.dumps(source_names, ensure_ascii=False)
-                      + "\n이 식별자는 음역·의역하지 마세요. MSDS의 착용 지시는 recommend/advice/建议/khuyến nghị로 약화하지 마세요."),
+                      + "\n이 식별자는 음역·의역하지 마세요. MSDS의 착용 지시는 recommend/advice/建议/khuyến nghị로 약화하지 마세요."
+                      + "\n마지막 점검: 조건부 공급자 문의는 문의 그대로 쓰고 conditions에도 조건을 기록하세요. "
+                      + "원문의 금지·필수는 유지하되, 권장 보관온도의 라벨 참조 안내에는 새로운 해야/반드시를 붙이지 마세요. "
+                      + "보호구·취급·보관 조치의 text에는 제품명이나 제품명 자리표시자를 주어로 쓰지 마세요. "
+                      + "지정 언어의 '이 자료에는' 같은 비인칭 표현을 사용하세요. 제품 정보는 product_facts에서 따로 표시됩니다. "
+                      + "보관온도 참조는 '권장 보관온도 항목에는 제품 라벨 참조로 기재되어 있습니다'라는 정보 강도로 설명하세요. "
+                      + "이는 원문에 그 참조 안내가 있을 때만 사용하며, 온도나 적용 조건을 새로 만들지 마세요."),
         HumanMessage(content="UNTRUSTED_RETRIEVED_DOCUMENTS_JSON\n" + json.dumps(payload, ensure_ascii=False, default=str)),
         HumanMessage(content="QUESTION_JSON\n" + json.dumps({"question": question}, ensure_ascii=False)),
         HumanMessage(content="CRITICAL_PASSAGES_JSON\n" + json.dumps(

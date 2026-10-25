@@ -12,6 +12,7 @@ from langchain_core.documents import Document
 
 from rag import generator, prompt
 from chembridge_fixtures import PRODUCT_ID, StubLLM, synthetic_draft, synthetic_msds
+from rag.prompt import TEXT
 
 
 @pytest.fixture(autouse=True)
@@ -105,8 +106,7 @@ def test_wrapped_source_requirement_keeps_its_force_and_information_category(doc
     result = run(doc, draft)
     assert result.sources and text in result.answer
     assert result.needs_review is True and result.handoff is False
-    assert "자료에 근거한 일반 정보" in result.answer
-    assert "권고 지침" not in result.answer
+    assert TEXT["ko"]["recommendation"] not in result.answer and TEXT["ko"]["legal_obligation"] not in result.answer   # 일반 정보: 꼬리표 없음 (대화형 답변)
     assert result.sources[0].chunk_id == doc.metadata["chunk_id"]
     assert result.sources[0].source_url == doc.metadata["source_url"]
 

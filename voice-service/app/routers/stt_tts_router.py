@@ -1,5 +1,4 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Cookie
-from jose import jwt, JWTError
 import os
 import shutil
 import logging
@@ -14,55 +13,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Configuration that must match the Java server
-SECRET_KEY = "RANDOM_SECRET_KEY"
-ALGORITHM = "HS256"
-ISSUER = "simple-auth-server"
+SUPPORTED_TARGET_LANGUAGES = {"en", "zh", "ko", "ja", "vi", "km"}
 
-SUPPORTED_TARGET_LANGUAGES = {"en", "zh", "ko", "ja", "vi"}
-
-
-def get_current_user(
-    access_token: str | None = Cookie(default=None, alias="ACCESS_TOKEN")
-):
-    """
-    Reads the ACCESS_TOKEN(JWT) cookie issued by the Java server
-    and returns the current logged-in user information.
-    """
-
-    if access_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated. ACCESS_TOKEN cookie is missing.",
-        )
-
-    try:
-        payload = jwt.decode(
-            access_token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-            issuer=ISSUER,
-        )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token.",
-        )
-
-    user_id = payload.get("sub")
-    username = payload.get("username")
-
-    if user_id is None or username is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload.",
-        )
-
-    return {
-        "id": user_id,
-        "username": username,
-    }
-
+# JWT 검증은 app/auth.py 하나로 통일 (비밀키는 환경변수 JWT_SECRET, Bearer·쿠키 모두 허용)
+from app.auth import get_current_user
 
 # Upload directory configuration
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
@@ -87,7 +41,7 @@ async def stt_to_tts(
         if target_language not in SUPPORTED_TARGET_LANGUAGES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Unsupported target language. Supported values are: en, zh, ko, ja, vi.",
+                detail="Unsupported target language. Supported values are: en, zh, ko, ja, vi, km.",
             )
 
         # 2. Validate uploaded file

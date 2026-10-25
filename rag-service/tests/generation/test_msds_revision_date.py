@@ -30,7 +30,7 @@ def call_with_dates(body_date, metadata_date, *, fact_date=None):
 def test_equivalent_dates_preserve_original_answer_and_metadata(body, metadata):
     result = call_with_dates(body, metadata)
     assert result.sources and result.sources[0].effective_date == metadata
-    assert 'MSDS 개정일: ' + body in result.answer
+    assert '개정 ' + body in result.answer
     assert result.review_reasons == ['msds_applicability_unverified']
     assert result.needs_review and not result.handoff
 

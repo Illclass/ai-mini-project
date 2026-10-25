@@ -1,12 +1,34 @@
 import contract from './contract.json' with { type: 'json' }
 
 export class ApiError extends Error {
-  constructor(code, status = 0) {
+  constructor(code, status = 0, diagnostic = null) {
     super(code)
     this.name = 'ApiError'
     this.code = code
     this.status = status
+    this.diagnostic = diagnostic
   }
+}
+
+// Optional response headers keep the shared JSON contract unchanged. Only
+// known categories/reasons are used for UI copy; never display raw error text.
+const outcomes = new Set(['answer','review_required','provider_error','experiment_stopped','verification_failed','verifier_unavailable','insufficient_evidence','product_unverified','generation_error'])
+function readDiagnostic(headers) {
+  const outcome=headers.get('X-ChemBridge-Outcome')
+  if(!outcomes.has(outcome))return null
+  const status=Number(headers.get('X-ChemBridge-Provider-Status'))
+  const reason=headers.get('X-ChemBridge-Reason')
+  const requestId=headers.get('X-ChemBridge-Request-Id')
+  return {outcome,providerStatus:Number.isInteger(status)&&status>=100&&status<=599?status:null,
+    reason:['provider_halted','experiment_scope','unapproved_request','unapproved_source','unapproved_destination','unapproved_model_or_stream','llm_timeout'].includes(reason)?reason:null,
+    requestId:/^[a-f0-9]{32}$/.test(requestId||'')?requestId:null}
+}
+
+export function failureKey(value) {
+  const d=value?.diagnostic
+  if(d?.outcome==='provider_error')return d.providerStatus===429?'providerLimited':'providerError'
+  if(d?.outcome==='experiment_stopped')return ['experiment_scope','unapproved_request','unapproved_source','unapproved_destination','unapproved_model_or_stream'].includes(d.reason)?'experimentScope':'experimentStopped'
+  return ({verification_failed:'evidenceFailed',verifier_unavailable:'verificationUnavailable',insufficient_evidence:'evidenceMissing',product_unverified:'productUnverified',generation_error:'generationError'})[d?.outcome]||null
 }
 
 // Same-origin routes are forwarded by Vite (and the deployment reverse proxy).
@@ -21,11 +43,17 @@ export function createApi(fetcher = (...args) => fetch(...args), { timeoutMs = 9
     const timer = setTimeout(() => { timedOut = true; controller.abort() }, timeout)
     try {
       const response = await fetcher(path, { ...options, credentials: 'include', signal: controller.signal })
-      if (!response.ok) throw new ApiError(`HTTP_${response.status}`, response.status)
+      const diagnostic=readDiagnostic(response.headers)
+      if (!response.ok) throw new ApiError(`HTTP_${response.status}`, response.status, diagnostic)
       if (!json || response.status === 204) return null
       const type = response.headers.get('content-type') || ''
       if (!type.includes('application/json')) throw new ApiError('INVALID_RESPONSE')
-      try { return await response.json() } catch (error) {
+      try {
+        const data=await response.json()
+        // Frontend-only, non-serialized metadata; no response field is added.
+        if(data&&typeof data==='object')Object.defineProperty(data,'diagnostic',{value:diagnostic,configurable:true})
+        return data
+      } catch (error) {
         if (error instanceof SyntaxError) throw new ApiError('INVALID_RESPONSE')
         throw error
       }
