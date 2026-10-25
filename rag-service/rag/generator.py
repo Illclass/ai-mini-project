@@ -954,6 +954,13 @@ def generate_answer(
         return review("invalid_output")
     if not draft.supported or not draft.statements:
         return review("no_evidence")
+    # "이 자료에는 보안경 기준이 나오지 않아요"처럼 자료에 없다는 문장은 인용으로 뒷받침할 수 없어 검증 AI 가 거부하고,
+    # 그 한 문장 때문에 근거가 있는 나머지 답까지 보류됐다 (장갑·보안경 질문, 김규빈 2026-10-25).
+    # 그런 문장만 빼고 고정 안내("찾지 못한 부분은 답하지 않았어요")를 붙인다. 빼기만 하므로 검증 기준은 낮아지지 않는다.
+    kept = [st for st in draft.statements if not _is_absence_statement(st.text)]
+    partial = bool(kept) and len(kept) < len(draft.statements)
+    if partial:
+        draft = draft.model_copy(update={"statements": kept})
 
     if msds and not _verified_product(draft, originals, metadata_by_id, reference_date, question):
         # LLM 이 식별 항목을 빠뜨리거나 잘못 뽑았으면 서버가 원문에서 뽑은 값으로 같은 검증을 한 번 더 한다
@@ -1153,6 +1160,8 @@ def generate_answer(
         name = facts.get("product_name") or ""
         parts.append(f"{text['basis']}: {name} ({' · '.join(details)})" if details else f"{text['basis']}: {name}")
         closing.append(text["msds_review"])   # 실제 제품과 같은지 확인
+    if partial:
+        closing.append(text["partial"])
     if "conditions_unverified" in reasons:
         closing.append(text["missing_conditions"])
     if any(source.doc_type == DOC_TYPE_LAW for source in sources):
@@ -1277,6 +1286,24 @@ def needs_review(hits: List[Hit], answer_text: str) -> bool:
 def needs_handoff(question: str, hits: List[Hit]) -> bool:
     """Legacy Korean preflight helper; generate() applies multilingual checks."""
     return not hits or preflight_result(question, "ko") is not None
+
+
+# 자료에 없다는 문장 (위 설명 참고). "독성 자료는 없다고 적혀 있어요"처럼 원문 내용을 옮긴 문장은 남긴다.
+_ABSENCE = re.compile(
+    r"(?:자료|문서|MSDS|지침|법령)[^.?!]{0,40}(?:찾을\s*수\s*없|확인(?:할\s*수\s*없|되지\s*않)|나오지\s*않|나와\s*있지\s*않|"
+    r"포함되어\s*있지\s*않|다루지\s*않|언급(?:되지\s*않|이\s*없)|(?:기준|방법|내용|정보)(?:이|은|는|가)?\s*없)"
+    r"|(?:materials?|documents?|sources?|MSDS)[^.?!]{0,60}(?:do(?:es)?\s*not|don't|doesn't)\s*(?:include|mention|cover|specify|provide)"
+    r"|(?:not\s*(?:found|covered|specified|mentioned))\s*in\s*the\s*(?:materials?|documents?|sources?)"
+    r"|(?:资料|文件|MSDS)[^。？！]{0,30}(?:未(?:提及|涉及|说明|找到)|没有(?:提到|涉及|说明|相关))"
+    r"|(?:tai lieu|MSDS)[^.?!]{0,40}khong (?:de cap|neu|tim thay|co thong tin)",
+    re.I,
+)
+
+
+def _is_absence_statement(text: str) -> bool:
+    if re.search(r"적혀|기재|stated|states|ghi", text):
+        return False
+    return bool(_ABSENCE.search(text) or _ABSENCE.search(normalized(text)))
 
 
 _RANGE_WORDS_KO = {">=": "이상", "≥": "이상", ">": "초과", "<=": "이하", "≤": "이하", "<": "미만"}
