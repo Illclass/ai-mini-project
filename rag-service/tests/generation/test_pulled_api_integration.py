@@ -3,6 +3,7 @@
 Actual API/chain/generator code, synthetic retrieved document and mocked providers.
 No ingestion, FAISS, Java process or real model call is performed.
 """
+import json
 import time
 from unittest.mock import Mock
 
@@ -54,14 +55,23 @@ def test_pulled_api_preserves_generation_contract(monkeypatch, api_case, case):
     elif case == "generation_timeout":
         provider.error = TimeoutError("private provider error")
     elif case in {"contradicted", "verification_timeout"}:
-        verifier = StubLLM(
-            {"assessments": [{"claim_id": "s0", "verdict": "contradicted"},
-                             {"claim_id": "s0.c0", "verdict": "supported"}]},
-            error=TimeoutError("private verifier error") if case == "verification_timeout" else None,
-        )
+        class ContradictingVerifier:
+            def invoke(self, messages):
+                if case == "verification_timeout":
+                    raise TimeoutError("private verifier error")
+                data = json.loads(messages[1].content.split("\n", 1)[1])
+                # Return all verdicts, including Korean source-warning claims.
+                # Only the generated statement is deliberately contradicted.
+                return {"assessments": [
+                    {"claim_id": claim["claim_id"],
+                     "verdict": "contradicted" if claim["claim_id"] == "s0" else "supported"}
+                    for claim in data["claims"]
+                ]}
+        verifier = ContradictingVerifier()
         monkeypatch.setattr(generator, "build_verification_llm", lambda *a, **k: verifier)
     response = client.post("/rag-query", json={"question": "가상 안내표 자료 설명", "topic": TOPIC_LAW})
-    assert retrieval.call_count == len(provider.calls) == 1
+    assert retrieval.call_count == 1
+    assert len(provider.calls) == (2 if case == "contradicted" else 1)
     assert "private" not in response.text
     if case == "generation_timeout":
         assert response.status_code == 503

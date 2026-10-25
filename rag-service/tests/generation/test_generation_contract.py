@@ -348,7 +348,7 @@ def test_existing_api_response_fields_are_unchanged():
 @pytest.mark.parametrize("timeout_seconds", [30.0, 2.5])
 def test_provider_factory_configures_timeout_and_disables_retries(guide, monkeypatch, timeout_seconds):
     observed = {}
-    runnable = FakeLLM(draft(guide_statement(guide)))
+    runnable = FakeLLM({**draft(guide_statement(guide)), "product_facts": []})
 
     class Client:
         def with_structured_output(self, schema, **kwargs):

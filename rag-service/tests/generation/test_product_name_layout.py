@@ -41,11 +41,11 @@ def test_wrapped_concentration_suffix_is_part_of_original_name():
     assert prompt.product_name_tokens([doc]) == {'CB_PRODUCT_NAME_1': 'TrainingLiquid-A 10\n wt.% in water'}
 
 
-def test_joined_quote_still_fails_exact_source_validation():
+def test_unique_whitespace_variant_is_restored_to_literal_source():
     doc = synthetic_msds()
     doc.page_content = doc.page_content.replace('제품명: TrainingLiquid-A', '제품명:\n TrainingLiquid-A')
     draft = synthetic_draft(doc)
     result = generator.generate_answer('가상 자료 설명', [doc], product_id=PRODUCT_ID,
         structured_llm=StubLLM(draft), as_of=date(2026, 10, 23))
-    assert result.review_reasons == ['product_unverified']
-    assert result.handoff and not result.sources
+    assert result.sources and not result.handoff
+    assert 'product_unverified' not in result.review_reasons

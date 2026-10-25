@@ -11,12 +11,12 @@ pytestmark = pytest.mark.claim_verifier
 
 @pytest.mark.parametrize('model', ['gpt-4o', 'gpt-6-luna'])
 @pytest.mark.parametrize('stage,schema', [
-    ('build_document_llm', generator.EvidenceDraft),
+    ('build_document_llm', generator.ClaimDraft),
     ('build_verification_llm', generator.EvidenceVerification),
 ])
 def test_generation_and_verification_keep_strict_schema_and_luna_compatible_sampling(monkeypatch, model, stage, schema):
     observed = {}
-    runnable = object()
+    runnable = SimpleNamespace(invoke=lambda messages: {'supported': False, 'statements': [], 'product_facts': []})
 
     class Client:
         def with_structured_output(self, actual_schema, **options):
@@ -29,7 +29,12 @@ def test_generation_and_verification_keep_strict_schema_and_luna_compatible_samp
         return Client()
 
     monkeypatch.setattr('langchain_openai.ChatOpenAI', client)
-    assert getattr(generator, stage)(model, timeout_seconds=2.5) is runnable
+    built = getattr(generator, stage)(model, timeout_seconds=2.5)
+    if stage == 'build_document_llm':
+        assert isinstance(built, generator._DocumentGenerator)
+        assert not built._call(generator.ClaimDraft, []).supported
+    else:
+        assert built is runnable
     assert observed['schema'] is schema
     assert observed['structured'] == {'method': 'json_schema', 'strict': True}
     assert observed['client']['model'] == model
