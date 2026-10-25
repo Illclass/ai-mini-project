@@ -980,7 +980,11 @@ def generate_answer(
         and not _has_duty_assertion(st.text)
         and not re.search(r"규정|의무|하도록|obligat|requir|规定|义务|quy định|nghĩa vụ", st.text, re.I) else st
         for st in draft.statements]})
-    preserved_terms = tuple(fact.value for fact in draft.product_facts if fact.field == "product_name") if msds else ()
+    # 같은 종류 문장을 한데 모은다 (처음 나온 종류 순서, 종류 안에서는 원래 순서). 종류가 번갈아 나오면
+    # 권고 꼬리표가 문단마다 반복됐다 (김규빈 2026-10-25). 출처 번호도 이 순서로 매긴다.
+    kind_order = list(dict.fromkeys(st.kind for st in draft.statements))
+    draft = draft.model_copy(update={"statements": sorted(draft.statements, key=lambda st: kind_order.index(st.kind))})
+    preserved_terms =tuple(fact.value for fact in draft.product_facts if fact.field == "product_name") if msds else ()
     selected_ids = []
     reasons = ["msds_applicability_unverified"] if msds else []
     if mode == "precheck":
@@ -1092,8 +1096,9 @@ def generate_answer(
     def markers(citations: list[Citation]) -> str:
         return " ".join(f"[{source_numbers[chunk_id]}]" for chunk_id in dict.fromkeys(c.chunk_id for c in citations))
 
-    # 답변은 대화하듯 짧게 (김규빈 2026-10-24, 팀 결정): 제목을 매 문장 달지 않고, 같은 종류 문장은 한 단락으로 잇는다.
-    # 법령 문구·지침 권고만 짧은 꼬리표로 구분한다 (의무와 권고를 섞지 않는 안전 규칙은 그대로).
+    # 답변 모양 (김규빈 2026-10-25): 문단 = 문장 종류 하나 (위에서 종류별로 모아 일반 정보 / 권고 / 법령이 각각 최대 한 문단).
+    # 문단마다 소제목을 한 번 달고 문장은 "- " 목록으로 쓴다. 의무와 권고를 섞지 않는 안전 규칙은 그대로.
+    # 일반 정보만 있는 짧은 답에는 소제목을 달지 않는다 (제목 한 줄이 오히려 군더더기).
     parts, paragraph = [], []
 
     def flush():
@@ -1102,16 +1107,17 @@ def generate_answer(
 
     if mode != "qa":
         parts.append(text[mode])
+    headed = len(kind_order) > 1 or kind_order[:1] != ["information"] or bool(required)
     previous_kind = None
     for statement in draft.statements:
         if statement.kind != previous_kind:
             flush()
-            if statement.kind != "information":
+            if headed:
                 paragraph.append(labels[statement.kind])
-        paragraph.append(f"{statement.text.strip()} {markers(statement.citations)}")
+        paragraph.append(f"- {statement.text.strip()} {markers(statement.citations)}")
         previous_kind = statement.kind
         if statement.conditions:
-            paragraph.append(text["conditions"] + " " + " / ".join(
+            paragraph.append("  " + text["conditions"] + " " + " / ".join(
                 f"{condition.text.strip()} {markers(condition.citations)}" for condition in statement.conditions))
     flush()
     if required:
