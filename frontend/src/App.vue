@@ -21,6 +21,7 @@ import './chat-glass.css'
 import { copy } from './locales'
 import * as api from './api'
 import { failureKey } from './api/client.js'
+import { answerLines, groupSources } from './api/sources.js'
 import { apiCopy } from './locales/api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
@@ -305,9 +306,10 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
           <p v-else-if="message.response.needs_review" class="clear-review-note"><Icon name="check" :size="15" />{{a.answerNote}}</p>
           <p v-if="message.response.handoff&&!isEmergency(message.response)&&failureKey(message.response)" class="clear-review-note" role="note">{{a[failureKey(message.response)]}}</p>
           <p v-if="message.response.handoff&&message.response.diagnostic?.requestId" class="clear-review-note">{{a.errorReference}}: {{message.response.diagnostic.requestId}}</p>
-          <p class="clear-answer-text">{{message.response.answer}}</p>
+          <!-- 소제목은 굵게, 출처 번호 [n] 은 작고 흐리게 (줄바꿈은 pre-wrap 이 살리므로 한 줄로 쓴다) -->
+          <p class="clear-answer-text"><template v-for="(line,li) in answerLines(message.response.answer)" :key="li"><template v-if="li">{{'\n'}}</template><span :class="{'clear-answer-subhead':line.heading}"><template v-for="(part,pi) in line.parts" :key="pi"><sup v-if="part.mark" class="clear-mark">{{part.mark}}</sup><template v-else>{{part.text}}</template></template></span></template></p>
           <div class="clear-answer-tools">
-            <template v-for="(source,i) in message.response.sources" :key="`${source.doc_id}-${i}`"><a v-if="sourceUrl(source.url)" v-spring class="clear-source" :href="sourceUrl(source.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span></span></template>
+            <!-- 같은 문서의 출처는 한 줄로 묶는다 (번호는 본문과 같음) --><template v-for="group in groupSources(message.response.sources)" :key="group.key"><a v-if="sourceUrl(group.url)" v-spring class="clear-source" :href="sourceUrl(group.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{group.label}}]</span><span>{{group.title}}<template v-if="group.sections.length"> · {{group.sections.join(' · ')}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{group.label}}]</span><span>{{group.title}}<template v-if="group.sections.length"> · {{group.sections.join(' · ')}}</template></span></span></template>
             <button v-if="api.VOICE_LANGUAGES.includes(message.language)" v-spring class="clear-listen" :disabled="busy" :aria-pressed="playing===message.id" @click="play(message)"><Icon :name="playing===message.id?'stop':'sound'" :size="19" />{{playing===message.id?t.stop:a.listenAnswer}}</button>
             <button v-spring type="button" class="clear-report" @click="report=message"><Icon name="file" :size="19" />{{c.makeReport}}</button>
           </div>
