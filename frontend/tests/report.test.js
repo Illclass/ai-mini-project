@@ -57,3 +57,8 @@ test('new guide, report and emergency controls are localized in all contract lan
  }
  assert.notEqual(clean.km.reportTitle, clean.en.reportTitle)
 })
+
+// The site guide is also shown as a static downloadable PDF. Keep the copies identical.
+test('work cleanup PDF matches the current S1 source document', () => {
+ assert.deepEqual(readFileSync(new URL('../public/guides/after.pdf', import.meta.url)), readFileSync(new URL('../../rag-service/data/site/S1_가상현장안전지침.pdf', import.meta.url)))
+})
