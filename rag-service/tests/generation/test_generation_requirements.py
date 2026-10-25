@@ -113,10 +113,11 @@ def test_product_tokens_cannot_make_forged_product_facts_valid():
     rejected(run([doc], draft, language="zh", product_id=PRODUCT_ID), "product_unverified")
 
 
-def test_known_name_token_requires_its_own_claim_citation_support():
+def test_known_name_token_cannot_bind_identity_to_unrelated_guide():
     doc, draft = token_case()
     other = Document(page_content="이것은 별도의 가상 교육 자료입니다.", metadata=deepcopy(doc.metadata))
-    other.metadata["chunk_id"] = "unrelated-msds-chunk"
+    other.metadata["chunk_id"] = "unrelated-guide-chunk"
+    other.metadata["doc_type"] = "guide"
     draft["statements"][0]["citations"] = [{"chunk_id": other.metadata["chunk_id"], "quote": other.page_content}]
     rejected(run([doc, other], draft, language="zh", product_id=PRODUCT_ID), "invalid_translation")
 
@@ -186,7 +187,13 @@ def test_technical_source_requirements_keep_strength_without_becoming_legal_duty
 ])
 def test_technical_source_cannot_be_promoted_to_legal_duty(doc_type, kind, text):
     doc, draft = technical_case(doc_type, "보호복을 착용하시오.", text, kind=kind)
-    rejected(run([doc], draft, product_id=PRODUCT_ID if doc_type == "msds" else None), "invalid_evidence")
+    result = run([doc], draft, product_id=PRODUCT_ID if doc_type == "msds" else None)
+    if kind == "legal_obligation" and doc_type in {"msds", "guide"}:
+        assert result.sources and not result.handoff
+        assert prompt.TEXT['ko']['legal_obligation'] not in result.answer
+        assert prompt.TEXT['ko']['information'] in result.answer
+    else:
+        rejected(result, "invalid_evidence")
 
 
 @pytest.mark.parametrize("doc_type", ["msds", "guide", "web"])

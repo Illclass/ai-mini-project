@@ -5,6 +5,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -26,9 +28,22 @@ public class RequestPolicyFilter extends OncePerRequestFilter {
     private final DefaultCorsProcessor processor = new DefaultCorsProcessor();
 
     public RequestPolicyFilter() {
-        cors.setAllowedOrigins(List.of("http://localhost:5174", "http://127.0.0.1:5174",
+        List<String> origins = new ArrayList<>(List.of("http://localhost:5174", "http://127.0.0.1:5174",
                 "http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:8001",
                 "http://127.0.0.1:8001", "http://localhost:8008"));
+        String extraOrigin = System.getenv("CHEMBRIDGE_EXTRA_ORIGIN");
+        if (extraOrigin != null && !extraOrigin.isBlank()) {
+            URI origin = URI.create(extraOrigin);
+            if (!"http".equals(origin.getScheme())
+                    || !Set.of("localhost", "127.0.0.1").contains(origin.getHost())
+                    || origin.getPort() < 1 || origin.getPort() > 65535
+                    || origin.getRawUserInfo() != null || !origin.getPath().isEmpty()
+                    || origin.getQuery() != null || origin.getFragment() != null) {
+                throw new IllegalArgumentException("Extra development origin must be an exact loopback origin");
+            }
+            if (!origins.contains(extraOrigin)) origins.add(extraOrigin);
+        }
+        cors.setAllowedOrigins(origins);
         cors.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
         cors.setAllowedHeaders(List.of("Content-Type", "Authorization", "Accept"));
         cors.setAllowCredentials(true);

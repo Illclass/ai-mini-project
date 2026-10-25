@@ -20,6 +20,7 @@ import { spring as vSpring } from './directives/spring'
 import './chat-glass.css'
 import { copy } from './locales'
 import * as api from './api'
+import { failureKey } from './api/client.js'
 import { apiCopy } from './locales/api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
@@ -35,6 +36,8 @@ function selectEquipment(value){equipmentId.value=value;productId.value=normaliz
 function scopeLabel(scope){return [equipmentFor(scope.equipment_id) ? equipmentLabel(equipmentFor(scope.equipment_id),language.value,s.value.demo) : '',catalog.products.find(p=>p.product_id===scope.product_id) ? productLabel(catalog.products.find(p=>p.product_id===scope.product_id),language.value) : ''].filter(Boolean).join(' / ')}
 let requestController, resumeDraft
 function errorKey(error){
+ const diagnostic=failureKey(error)
+ if(diagnostic)return diagnostic
  if(error.status===422)return 'invalid'
  if(error.status===503||error.status===502||error.status===504)return 'unavailable'
  if(error.code==='TIMEOUT')return 'timeout'
@@ -129,7 +132,7 @@ async function send(retryMessage){
  stop();voice.value='idle'
  const id=++version
  const message=retry||{id,situation:situation.value,question:text,response:null,error:null,topic:topic.value,language:language.value,...requestScope(topic.value,equipmentId.value,productId.value)}
- if(retry){message.id=id;message.error=null}
+ if(retry){message.id=id;message.error=null;message.diagnostic=null}
  else {question.value='';messages.value.push(message)}
  pending.value=true;requestController=new AbortController();scroll()
  try{
@@ -138,7 +141,11 @@ async function send(retryMessage){
  }catch(error){
   if(version!==id)return
   if(error.status===401){question.value=text;expire(message)}
-  else messages.value.find(m=>m.id===id).error=error.code==='CANCELLED'?'cancelled':errorKey(error)
+  else {
+   const failed=messages.value.find(m=>m.id===id)
+   failed.error=error.code==='CANCELLED'?'cancelled':errorKey(error)
+   failed.diagnostic=error.diagnostic
+  }
  }finally{if(version===id){pending.value=false;scroll()}}
 }
 async function chooseProduct(){await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});productPicker.value?.open()}
@@ -200,9 +207,10 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
       <div class="clear-answer">
         <div class="clear-answer-heading"><span class="clear-assistant-icon"><Icon name="bridge" :size="23" /></span><b>ChemBridge</b></div>
         <div v-if="message.error" class="chat-api-error" :class="{'is-cancelled':message.error==='cancelled'}" role="alert">
-          <h3><Icon name="alert" :size="22" />{{message.error==='cancelled'?feedback.cancelledTitle:feedback.failed}}</h3>
+          <h3><Icon name="alert" :size="22" />{{message.error==='cancelled'?feedback.cancelledTitle:(a[message.error+'Title']||feedback.failed)}}</h3>
           <p>{{message.error==='cancelled'?feedback.cancelled:a[message.error]}}</p>
-          <div class="chat-error-actions"><button type="button" :disabled="busy" @click="send(message)">{{a.retry}}</button><button type="button" :disabled="busy" @click="editQuestion(message)">{{feedback.edit}}</button></div>
+          <p v-if="message.diagnostic?.requestId">{{a.errorReference}}: {{message.diagnostic.requestId}}</p>
+          <div class="chat-error-actions"><button v-if="!['experimentStopped','experimentScope'].includes(message.error)" type="button" :disabled="busy" @click="send(message)">{{a.retry}}</button><button type="button" :disabled="busy" @click="editQuestion(message)">{{feedback.edit}}</button></div>
         </div>
         <div v-else-if="!message.response" class="chat-loading-state">
           <div class="clear-loading" role="status"><span class="clear-loading-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>{{slowResponse?feedback.slow:feedback.waiting}}</span></div>
@@ -210,7 +218,10 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
           <button type="button" class="chat-cancel-request" @click="cancelRequest">{{feedback.cancel}}</button>
         </div>
         <template v-else>
-          <div v-if="message.response.needs_review || message.response.handoff" class="clear-alert" role="note"><Icon name="alert" :size="18" />{{message.response.handoff?a.handoff:t.review}}</div>
+          <div v-if="message.response.handoff" class="clear-alert" role="alert"><Icon name="alert" :size="18" />{{a[failureKey(message.response)+'Title']||a.handoff}}</div>
+          <p v-else-if="message.response.needs_review" class="clear-review-note" role="note"><Icon name="file" :size="16" />{{a.answerNote}}</p>
+          <p v-if="message.response.handoff&&failureKey(message.response)" class="clear-review-note" role="note">{{a[failureKey(message.response)]}}</p>
+          <p v-if="message.response.handoff&&message.response.diagnostic?.requestId" class="clear-review-note">{{a.errorReference}}: {{message.response.diagnostic.requestId}}</p>
           <p class="clear-answer-text">{{message.response.answer}}</p>
           <div class="clear-answer-tools">
             <template v-for="(source,i) in message.response.sources" :key="`${source.doc_id}-${i}`"><a v-if="sourceUrl(source.url)" v-spring class="clear-source" :href="sourceUrl(source.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span></span></template>
@@ -241,3 +252,8 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
 <div v-if="modal" class="modal-backdrop" @click.self="modal=null"><section ref="modalElement" @keydown="trapFocus" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="modal"><span class="modal-icon"><Icon :name="modal==='voice'?'mic':'file'" :size="28"/></span><h2 id="modal-title">{{modal==='voice'?t.permissionTitle:t.sourceTitle}}</h2><p>{{modal==='voice'?t.permissionBody:t.sourceBody}}</p><div class="modal-actions"><button class="secondary" autofocus @click="modal=null">{{t.close}}</button><button v-if="modal==='voice'" class="primary" @click="modal=null;voice='recording'">{{t.startVoice}}<Icon name="arrow" :size="17"/></button></div></section></div>
 </div>
 </template>
+
+<style scoped>
+.clear-review-note { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 12px; color: #55635f; font-size: 14px; line-height: 1.6; }
+.clear-review-note :deep(svg) { flex-shrink: 0; margin-top: 3px; }
+</style>

@@ -1,15 +1,18 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+const authTarget = process.env.CHEMBRIDGE_AUTH_URL || 'http://localhost:8080'
+const ragTarget = process.env.CHEMBRIDGE_RAG_URL || 'http://localhost:8001'
+
 export default defineConfig({
   plugins: [vue()],
   server: {
-    port: 5174,
+    port: Number(process.env.CHEMBRIDGE_FRONTEND_PORT || 5174),
     strictPort: true,
     proxy: {
-      '/api': { target: 'http://localhost:8080', changeOrigin: true },
-      '/rag-query': { target: 'http://localhost:8001', changeOrigin: true },
-      '/health': { target: 'http://localhost:8001', changeOrigin: true },
+      '/api': { target: authTarget, changeOrigin: true },
+      '/rag-query': { target: ragTarget, changeOrigin: true },
+      '/health': { target: ragTarget, changeOrigin: true },
     },
   },
 })

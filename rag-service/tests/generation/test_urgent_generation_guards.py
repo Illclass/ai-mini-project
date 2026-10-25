@@ -132,8 +132,13 @@ def test_optional_source_advice_must_not_be_strengthened_to_a_requirement(doc_ty
 def test_wrapped_technical_requirement_cannot_be_promoted_to_a_legal_duty(doc_type, kind, text):
     doc, draft = technical_case(doc_type, "보호복을 착용하\n여야 한다.", text, kind=kind)
     result = run(doc, draft)
-    assert result.review_reasons == ["invalid_evidence"]
-    assert result.sources == [] and result.needs_review and result.handoff
+    if kind == "legal_obligation":
+        assert result.sources and not result.handoff
+        assert prompt.TEXT['ko']['legal_obligation'] not in result.answer
+        assert prompt.TEXT['ko']['information'] in result.answer
+    else:
+        assert result.review_reasons == ["invalid_evidence"]
+        assert result.sources == [] and result.needs_review and result.handoff
 
 
 @pytest.mark.parametrize("text", [

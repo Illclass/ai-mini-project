@@ -101,7 +101,7 @@ def test_condition_numbers_are_checked_against_own_quote(monkeypatch, guide):
 ])
 def test_real_quote_does_not_override_negative_semantic_verdict(monkeypatch, guide, verdict, claim, quote):
     result, verifier, factory = run(monkeypatch, guide, draft(guide, claim, quote), VerdictStub(verdict))
-    assert len(verifier.calls) == factory.call_count == 1
+    assert len(verifier.calls) == factory.call_count == 2  # both drafts are independently rejected
     assert_blocked(result, "claim_mismatch")
     assert claim not in result.answer
 
@@ -142,7 +142,12 @@ def test_supported_verdict_preserves_sources_and_sends_full_context(monkeypatch,
     assert "무조건 supported" not in messages[0].content
     data = json.loads(messages[1].content.split("\n", 1)[1])
     assert data["documents"] == [{"page_content": guide.page_content, "metadata": guide.metadata}]
-    assert {c["claim_id"] for c in data["claims"]} == {"s0", "s0.c0"}
+    statement_claims = [c for c in data["claims"] if c["kind"] != "source_warning"]
+    warning_claims = [c for call in verifier.calls for c in json.loads(call[1].content.split("\n", 1)[1])["claims"] if c["kind"] == "source_warning"]
+    assert {c["claim_id"] for c in statement_claims} == {"s0", "s0.c0"}
+    required = prompt.critical_passages([guide])
+    assert [c["text"] for c in warning_claims] == [prompt.render_source_warning(quote, "ko") for _, quote in required.values()]
+    assert {c["claim_id"] for c in warning_claims} == {f"t{i}" for i in range(len(required))}
     assert data["language"] == "ko" and data["as_of"] == "2026-10-23"
 
 
@@ -156,13 +161,15 @@ def test_translated_warnings_are_separate_verified_claims(monkeypatch, guide, la
     pid = next(iter(prompt.critical_passages([guide])))
     output["critical_translations"] = [{"passage_id": pid, "text": texts[language][1]}]
     result, verifier, _ = run(monkeypatch, guide, output, language=language)
-    claims = json.loads(verifier.calls[0][1].content.split("\n", 1)[1])["claims"]
+    claims = [c for call in verifier.calls for c in json.loads(call[1].content.split("\n", 1)[1])["claims"]]
     assert {c["claim_id"] for c in claims} == {"s0", "t0"}
-    assert claims[-1]["text"] == texts[language][1]
+    assert claims[-1]["text"] == prompt.render_source_warning(texts[language][1], language)
     assert result.sources
     # One bad translation verdict must block the entire answer.
     def reject_translation(r):
-        r["assessments"][-1]["verdict"] = "contradicted"
+        for item in r["assessments"]:
+            if item["claim_id"].startswith("t"):
+                item["verdict"] = "contradicted"
         return r
     blocked, _, _ = run(monkeypatch, guide, output, VerdictStub(edits=reject_translation), language=language)
     assert blocked.review_reasons == ["claim_mismatch"]

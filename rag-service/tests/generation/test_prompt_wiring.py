@@ -65,10 +65,15 @@ def test_legacy_hit_builder_keeps_metadata_and_untrusted_text_separate():
 
 def test_actual_generator_uses_team_llm_module(monkeypatch):
     from rag import llm
-    from rag.generator import EvidenceDraft
+    from rag.generator import ClaimDraft
     from rag.schema import ENV_LLM_MODEL
     doc = synthetic_msds()
-    fake = StubLLM(synthetic_draft(doc))
+    draft = {k:v for k,v in synthetic_draft(doc).items() if k != "critical_translations"}
+    candidates = prompt.product_evidence_candidates([doc])
+    draft["product_facts"] = [
+        {"evidence_id": next(c["evidence_id"] for c in candidates if c["field"] == fact["field"]),
+         "value": fact["value"]} for fact in draft["product_facts"]]
+    fake = StubLLM(draft)
     calls = []
 
     def factory(schema, model, *, timeout_seconds):
@@ -79,6 +84,6 @@ def test_actual_generator_uses_team_llm_module(monkeypatch):
     monkeypatch.setattr(llm, "build_structured_llm", factory)
     response = generate("가상 제품 자료 설명", [hit(doc)], LANGUAGES[0],
                         product_id=PRODUCT_ID, topic=TOPIC_CHEMICAL)
-    assert calls == [(EvidenceDraft, "test-only-model", 30.0)]
+    assert calls == [(ClaimDraft, "test-only-model", 30.0)]
     assert len(fake.calls) == 1
     assert response.sources[0].doc_id == doc.metadata["doc_id"]

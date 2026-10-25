@@ -13,7 +13,7 @@ const lang = ref(original.language || props.language)
 const session = createReportSession(original, api.ask)
 const data = ref(original.response), loading = ref(false), error = ref(false), note = ref(''), dialog = ref(null)
 const c = computed(() => clean[lang.value] || clean.ko)
-const review = computed(() => apiCopy[lang.value].handoff)
+const review = computed(() => data.value?.handoff ? apiCopy[lang.value].handoff : apiCopy[lang.value].answerNote)
 const date = new Date().toLocaleDateString()
 let version = 0
 useDialog(dialog, () => emit('close'))

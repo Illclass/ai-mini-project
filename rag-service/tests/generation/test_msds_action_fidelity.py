@@ -57,8 +57,12 @@ def test_contact_does_not_become_selection_or_lose_conditions(monkeypatch, text,
                                     for c in payload['claims']]}
     monkeypatch.setattr(generator, 'build_verification_llm', lambda *a, **kw: RejectChangedMeaning())
     result = run(doc, draft)
-    assert observed and observed[0]['claims'][0]['citations'][0]['quote'] == CONTACT
-    assert result.review_reasons == ['claim_mismatch']
+    if '권장' in text:
+        assert not observed  # local source-force guard rejects before the semantic judge
+        assert result.review_reasons == ['invalid_translation']
+    else:
+        assert observed and observed[0]['claims'][0]['citations'][0]['quote'] == CONTACT
+        assert result.review_reasons == ['claim_mismatch']
     assert result.handoff and not result.sources
 
 
