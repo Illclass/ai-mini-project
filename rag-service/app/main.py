@@ -11,12 +11,13 @@ import os
 from pathlib import Path
 from threading import Lock
 from time import perf_counter
+from uuid import uuid4
 
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # rag-service/.env
 
-from fastapi import Depends, FastAPI, HTTPException, Query  # noqa: E402
+from fastapi import Depends, FastAPI, HTTPException, Query, Response  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.openapi.utils import get_openapi  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
@@ -25,11 +26,13 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send  # noqa: E402
 from app.auth import get_current_user  # noqa: E402
 from rag import stores  # noqa: E402
 from rag.chain import answer  # noqa: E402
+from rag.diagnostics import capture_failures, exception_details, result_details, response_headers, HEADER_NAMES  # noqa: E402
 from rag.schema import LANGUAGES, TOPIC_CHEMICAL, TOPIC_LAW, RagRequest, RagResponse, Source  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 request_log = logging.getLogger("chembridge.requests")
 latency_log = logging.getLogger("chembridge.latency")
+diagnostic_log = logging.getLogger("chembridge.diagnostics")
 # 기본 접근 로그에는 쿼리 문자열이 포함되므로 아래 미들웨어로 대체한다.
 logging.getLogger("uvicorn.access").disabled = True
 CORS_OPTIONS = {
@@ -37,6 +40,7 @@ CORS_OPTIONS = {
     "allow_credentials": True,
     "allow_methods": ["GET", "POST", "OPTIONS"],
     "allow_headers": ["Authorization", "Content-Type"],
+    "expose_headers": list(HEADER_NAMES),
 }
 
 app = FastAPI(
@@ -375,16 +379,33 @@ def rag_query_log(
         ).model_dump()},
     }}}}},
 )
-def rag_query(req: RagRequest, user: dict = Depends(get_current_user)) -> RagResponse:
+def rag_query(req: RagRequest, response: Response, user: dict = Depends(get_current_user)) -> RagResponse:
     """JWT·요청 검증 후 chain.answer()만 호출합니다. 검색·LLM을 API에서 직접 호출하지 않습니다.
 
     질문별 독립 요청이며 대화 이력은 전달하지 않습니다. 출처·보류 플래그는 체인 결과를 그대로 반환합니다.
     현재 특정 topic 인덱스 부재는 검색 0건과 같은 200 보류일 수 있습니다. 준비 장애 503 구분은 공동 계약 대기입니다.
     """
-    try:
-        return answer(req)
-    except Exception as e:
-        raise HTTPException(status_code=503, detail="잠시 후 다시 시도해 주세요.") from e
+    request_id = uuid4().hex
+    # Keep the JSON body/status contract. Only bounded diagnostics are exposed
+    # in headers; prompts, user identity, tokens and raw exceptions stay private.
+    with capture_failures() as failures:
+        try:
+            result = answer(req)
+        except Exception as error:
+            details = failures[-1] if failures else exception_details(error, stage="chain")
+            reason = getattr(error, "reason", None)
+            if reason in {"llm_timeout", "llm_error", "configuration_error"}:
+                details.setdefault("reason", reason)
+            diagnostic_log.warning(json.dumps({"request_id": request_id, "http_status": 503,
+                                               **details}, ensure_ascii=False, sort_keys=True))
+            raise HTTPException(status_code=503, detail="잠시 후 다시 시도해 주세요.",
+                                headers=response_headers(details, request_id)) from None
+        details = failures[-1] if failures else result_details(result)
+        response.headers.update(response_headers(details, request_id))
+        if details["category"] != "answer":
+            diagnostic_log.info(json.dumps({"request_id": request_id, "http_status": 200,
+                                            **details}, ensure_ascii=False, sort_keys=True))
+        return result
 
 
 def _java_auth_paths() -> dict:

@@ -21,6 +21,7 @@ from langchain_core.documents import Document
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import BaseMessage
 from rag import prompt, llm
+from rag.diagnostics import record_failure
 from rag.llm import call_llm, RAGConfigurationError, validate_timeout as _valid_timeout, DEFAULT_MODEL as DEFAULT_LLM_MODEL
 from openai import APITimeoutError
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, field_validator, model_validator
@@ -483,7 +484,8 @@ def _verify_draft_support(question, draft, originals, required, translated, *,
             question, claims, list(originals.values()), language=language, as_of=as_of,
         ))
         result = EvidenceVerification.model_validate(raw)
-    except Exception:
+    except Exception as exc:
+        record_failure(exc, stage="verification")
         # Timeouts, configuration/provider errors and malformed verdicts must
         # never release the original answer or expose raw exception contents.
         return "verification_unavailable"
@@ -936,13 +938,15 @@ def generate_answer(
     try:
         llm = structured_llm if structured_llm is not None else build_document_llm(model or os.getenv(ENV_LLM_MODEL, DEFAULT_LLM_MODEL), timeout_seconds=timeout_seconds)
         raw = llm.invoke(build_document_messages(question, usable, as_of=reference_date, language=language, mode=mode, product_id=product_id))
-    except (APITimeoutError, httpx.TimeoutException, TimeoutError):
+    except (APITimeoutError, httpx.TimeoutException, TimeoutError) as exc:
+        record_failure(exc, stage="generation")
         return review("llm_timeout")
     except RAGConfigurationError:
         return review("configuration_error")
     except (ValidationError, OutputParserException):
         return review("invalid_output")
-    except Exception:
+    except Exception as exc:
+        record_failure(exc, stage="generation")
         return review("llm_error")
     try:
         draft = EvidenceDraft.model_validate(raw)
@@ -1176,6 +1180,12 @@ class GenerationAPIResponse(RagResponse):
     model_config = ConfigDict(extra="forbid", strict=True)
     sources: list[APISource]
     latency_ms: int = Field(ge=0)
+    _review_reasons: list[str] = PrivateAttr(default_factory=list)
+
+    @property
+    def review_reasons(self) -> list[str]:
+        """보류 이유 (화면 진단용 응답 머리글에만 쓰고 JSON 필드로는 내보내지 않음)"""
+        return list(self._review_reasons)
 
 
 def _section(source: SourceMetadata) -> str:
@@ -1230,13 +1240,15 @@ def build_api_response(
             title=source.title or source.law_name or source.article_title or "",
             url=source.source_url,
         ))
-    return GenerationAPIResponse(
+    response = GenerationAPIResponse(
         answer=result.answer,
         sources=sources,
         needs_review=result.needs_review,
         handoff=result.handoff,
         latency_ms=latency_ms,
     )
+    response._review_reasons = result.review_reasons
+    return response
 
 
 # 기존 팀 Hit 입력 연결
@@ -1290,7 +1302,12 @@ def generate(question: str, hits: List[Hit], language: str, *,
                                  product_id=product_id, topic=topic, structured_llm=structured_llm)
     if {"llm_timeout", "llm_error", "configuration_error"}.intersection(result.review_reasons):
         # Preserve app.main's existing 503 policy without exposing raw errors.
-        raise GenerationUnavailable("Generation provider is temporarily unavailable")
+        error = GenerationUnavailable("Generation provider is temporarily unavailable")
+        error.reason = result.review_reasons[0]
+        raise error
     ids = {doc.metadata.get("chunk_id"): doc.metadata["doc_id"] for doc in documents}
     payload = build_api_response(result, latency_ms=0, doc_id_by_chunk_id=ids)
-    return RagResponse(**payload.model_dump())
+    if not hits:
+        payload._review_reasons = ["retrieval_empty", *result.review_reasons]
+    # 다시 RagResponse 로 감싸면 보류 이유(화면 진단용)가 사라진다. 이 하위 형식도 RagResponse 계약을 그대로 만족한다.
+    return payload
