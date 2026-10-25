@@ -1144,10 +1144,14 @@ def generate_answer(
             "km": {"product_number": "លេខ", "concentration": "កំហាប់", "revision_date": "កែប្រែ"},
         }
         facts = {fact.field: re.sub(r"\s+", " ", fact.value).strip() for fact in draft.product_facts}
-        fields = [facts.get("product_name")] + [f"{product_labels[language][field]} {facts[field]}"
-                                                for field in ("product_number", "concentration", "revision_date") if field in facts]
-        fact_marks = markers([c for fact in draft.product_facts for c in fact.citations])
-        parts.append(f"{text['basis']}: {' · '.join(v for v in fields if v)} {fact_marks}".rstrip())
+        if language == "ko" and "concentration" in facts:
+            facts["concentration"] = _readable_range_ko(facts["concentration"])
+        details = [f"{product_labels[language][field]} {facts[field]}"
+                   for field in ("product_number", "concentration", "revision_date") if field in facts]
+        # 제품 정보 출처(MSDS 1·3·16항)는 화면 출처 목록에 그대로 남기고, 이 줄에는 번호를 달지 않는다 (김규빈 2026-10-25:
+        # "[3] [4] [5]"가 같은 MSDS 를 세 번 가리켜 읽기 어려웠다). 제품명 뒤 괄호에 나머지 항목을 모은다.
+        name = facts.get("product_name") or ""
+        parts.append(f"{text['basis']}: {name} ({' · '.join(details)})" if details else f"{text['basis']}: {name}")
         closing.append(text["msds_review"])   # 실제 제품과 같은지 확인
     if "conditions_unverified" in reasons:
         closing.append(text["missing_conditions"])
@@ -1273,6 +1277,24 @@ def needs_review(hits: List[Hit], answer_text: str) -> bool:
 def needs_handoff(question: str, hits: List[Hit]) -> bool:
     """Legacy Korean preflight helper; generate() applies multilingual checks."""
     return not hits or preflight_result(question, "ko") is not None
+
+
+_RANGE_WORDS_KO = {">=": "이상", "≥": "이상", ">": "초과", "<=": "이하", "≤": "이하", "<": "미만"}
+
+
+def _readable_range_ko(value: str) -> str:
+    """MSDS 농도 표기 ">= 45 - < 50" → "45 이상 50 미만". 모양이 다르면 원문 그대로 둔다 (숫자는 바꾸지 않음)."""
+    op = r"(>=|<=|≥|≤|>|<)"
+    both = re.fullmatch(rf"{op}\s*([\d.,]+)\s*(%?)\s*-\s*{op}\s*([\d.,]+)\s*(%?)", value.strip())
+    if both:
+        a_op, a, a_pct, b_op, b, b_pct = both.groups()
+        pct = a_pct or b_pct   # "%"가 뒤에만 있어도 두 숫자 모두 %
+        return f"{a}{pct} {_RANGE_WORDS_KO[a_op]} {b}{pct} {_RANGE_WORDS_KO[b_op]}"
+    one = re.fullmatch(rf"{op}\s*([\d.,]+)\s*(%?)", value.strip())
+    if one:
+        a_op, a, a_pct = one.groups()
+        return f"{a}{a_pct} {_RANGE_WORDS_KO[a_op]}"
+    return value
 
 
 GENERATION_RETRIES = int(os.getenv("GENERATION_RETRIES", "1"))   # 0 이면 재시도 안 함
