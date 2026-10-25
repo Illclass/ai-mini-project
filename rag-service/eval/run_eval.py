@@ -84,14 +84,51 @@ def hit_at_k(hits: List[dict], expected_sources: List[dict], k: int = 5) -> bool
     return rank is not None and rank <= k
 
 
+def classify_outcome(response: dict) -> str:
+    """비공개 in-process 사유로 분류한다. 빈 sources만으로 근거 없음이라 보지 않는다.
+
+    HTTP JSON에는 사유가 없을 수 있으므로 사유 없는 보류는 unclassified다.
+    정상 답변의 주의 사유(needs_review)는 handoff와 구별한다.
+    """
+    raw = response.get("review_reasons") or []
+    if not isinstance(raw, (list, tuple)) or any(not isinstance(r, str) for r in raw):
+        return "unclassified"
+    reasons = set(raw)
+    for reason, category in (
+        ("llm_timeout", "llm_timeout"), ("llm_error", "provider_error"),
+        ("configuration_error", "configuration_error"), ("request_error", "request_error"),
+        ("verification_unavailable", "verifier_error"), ("invalid_output", "parse_error"),
+    ):
+        if reason in reasons:
+            return category
+    if reasons.intersection({"invalid_evidence", "claim_mismatch", "invalid_translation",
+                             "invalid_metadata", "incomplete_warning_context"}):
+        return "validation_failure"
+    caution = {"emergency", "out_of_scope", "product_unverified", "precheck_requires_review",
+               "msds_applicability_unverified", "law_currentness_unverified", "conditions_unverified",
+               "effective_date_missing", "effective_date_invalid", "effective_date_future",
+               "law_version_conflict"}
+    if reasons - caution - {"retrieval_empty", "no_evidence"}:
+        return "unclassified"
+    if "retrieval_empty" in reasons:
+        return "retrieval_empty"
+    if "no_evidence" in reasons:
+        return "insufficient_evidence"
+    if response.get("sources") and not response.get("handoff"):
+        return "answer"
+    if response.get("handoff") and reasons.intersection(caution):
+        return "review_required"
+    return "unclassified"
+
+
 def judge_behavior(response: dict, expected_behavior: str) -> bool:
-    """생성 판정: handoff · "찾을 수 없음" 이 기대와 맞는가."""
-    not_found = not response.get("sources")
+    """시스템·검증 실패를 not_found나 정상 handoff 성공으로 집계하지 않는다."""
+    category = classify_outcome(response)
     if expected_behavior == "handoff":
-        return bool(response.get("handoff"))
+        return category == "review_required"
     if expected_behavior == "not_found":
-        return not_found
-    return not not_found and not response.get("handoff")
+        return category in {"retrieval_empty", "insufficient_evidence"}
+    return expected_behavior == "answer" and category == "answer"
 
 
 # ---------------------------------------------------------------------------
@@ -178,20 +215,43 @@ def fmt(s: Dict[str, float]) -> str:
 
 
 def run_full(questions: List[dict]) -> None:
-    """chain.answer 로 답변까지 만들어 handoff · 찾을 수 없음 판정 (LLM 호출 비용 발생)."""
+    """chain.answer 평가. 예외는 안전한 분류로 집계하고 다음 문항을 계속 검사한다."""
     from rag.chain import answer
+    from rag.generator import GenerationUnavailable, preflight_result
     from rag.schema import RagRequest
 
     ok = 0
+    outcomes = defaultdict(int)
     for q in questions:
-        req = RagRequest(question=q["question"], topic=q["topic"], product_id=q.get("product_id"),
-                         equipment_id=q.get("equipment_id"), language=q["language"])
-        resp = answer(req).model_dump()
+        started = time.perf_counter()
+        try:
+            req = RagRequest(question=q["question"], topic=q["topic"], product_id=q.get("product_id"),
+                             equipment_id=q.get("equipment_id"), language=q["language"])
+            result = answer(req)
+            reasons = getattr(result, "review_reasons", [])
+            if not reasons:
+                # chain의 비상 사전 응답은 공통 타입으로 변환되어 private 사유가 없다.
+                early = preflight_result(req.question, req.language)
+                reasons = early.review_reasons if early is not None else []
+            resp = {**result.model_dump(), "review_reasons": reasons}
+        except GenerationUnavailable as error:
+            resp = {"sources": [], "handoff": True,
+                    "latency_ms": int((time.perf_counter() - started) * 1000),
+                    "review_reasons": [getattr(error, "reason", "llm_error")]}
+        except Exception:
+            # 원시 예외·질문·비밀값을 로그에 남기지 않는다.
+            resp = {"sources": [], "handoff": True,
+                    "latency_ms": int((time.perf_counter() - started) * 1000),
+                    "review_reasons": ["request_error"]}
+        category = classify_outcome(resp)
+        outcomes[category] += 1
         good = judge_behavior(resp, q["expected_behavior"])
         ok += good
         print(f"{'✅' if good else '❌'} {q['id']:<14} 기대={q['expected_behavior']:<9} "
-              f"handoff={resp['handoff']} 근거={len(resp['sources'])} {resp['latency_ms']}ms")
+              f"상태={category} handoff={resp['handoff']} "
+              f"근거={len(resp['sources'])} {resp['latency_ms']}ms")
     print(f"\n동작 정확도: {ok}/{len(questions)} = {ok / max(len(questions), 1):.0%}")
+    print("상태별 집계: " + ", ".join(f"{name}={outcomes[name]}" for name in sorted(outcomes)))
 
 
 def main() -> None:

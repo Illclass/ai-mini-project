@@ -31,7 +31,7 @@ from typing import Callable, List, Optional
 
 from rag import equipment
 from rag.query import normalize_question
-from rag.schema import DEFAULT_TOP_K, DOC_TYPE_MSDS, TOPIC_CHEMICAL, Hit
+from rag.schema import DEFAULT_TOP_K, DOC_TYPE_MSDS, DOC_TYPE_GUIDE, TOPIC_CHEMICAL, Hit
 from rag.stores import get_store
 
 MIN_PRODUCT = 2    # 제품 범위 검색에서 고른 제품 MSDS 를 최소 몇 개 넣을지
@@ -118,6 +118,62 @@ def attach_identity(hits: List[Hit], store, product_id: Optional[str]) -> List[H
     return hits + drop_truncated(extra)
 
 
+# S1 chapters 1/2 and 13~17 are shared demo information, not another equipment's SOP.
+_SITE_COMMON_CHAPTERS = frozenset({1, 2, 13, 14, 15, 16, 17})
+_MAX_SITE_CONTEXT_CHUNKS = 8
+_MAX_SITE_CONTEXT_CHARS = 12000
+
+
+def _equipment_site_chapter(equipment_id: Optional[str]) -> Optional[int]:
+    """Use the existing equipment map; unknown/missing basis preserves old behavior."""
+    basis = (equipment.get(equipment_id) or {}).get("basis", "")
+    matches = re.findall(r"S1\s*(\d+)장", basis) if isinstance(basis, str) else []
+    chapter = int(matches[0]) if len(matches) == 1 else None
+    return chapter if chapter is not None and 1 <= chapter <= 16 else None
+
+
+def _site_chapter(metadata: dict) -> Optional[int]:
+    if metadata.get("doc_id") != "S1":
+        return None
+    chunk_id = metadata.get("chunk_id")
+    match = re.fullmatch(r"S1-(\d+)(?:_\d+)*(?:-\d+)?", chunk_id) if isinstance(chunk_id, str) else None
+    return int(match.group(1)) if match else None
+
+
+def _site_in_scope(metadata: dict, chapter: Optional[int]) -> bool:
+    return (chapter is None or metadata.get("doc_id") != "S1"
+            or _site_chapter(metadata) in _SITE_COMMON_CHAPTERS | {chapter})
+
+
+def attach_equipment_context(hits: List[Hit], store, chapter: Optional[int]) -> List[Hit]:
+    """Attach actual selected-equipment S1 documents, never invented instructions.
+
+    As with identity evidence, these small reference chunks are outside top-k.
+    Keep exact text/metadata and deduplicate by the existing chunk_id.
+    """
+    if chapter is None or store is None or not hits:
+        return hits
+    have = {h["metadata"].get("chunk_id") for h in hits}
+    worst = max((h["score"] for h in hits), default=0.0)
+    # Site references are general guide documents, never a second product MSDS.
+    documents = [doc for doc in store.docstore._dict.values()
+                 if _site_chapter(doc.metadata) == chapter
+                 and doc.metadata.get("doc_type") == DOC_TYPE_GUIDE
+                 and doc.metadata.get("product_id") in (None, "")
+                 and isinstance(doc.page_content, str) and doc.page_content.strip()]
+    ids = [doc.metadata["chunk_id"] for doc in documents]
+    # A conflicting/duplicate identity is not repaired by arbitrarily picking one.
+    documents = [doc for doc in documents if ids.count(doc.metadata["chunk_id"]) == 1]
+    # Keep whole source chunks. Do not silently cut a chapter or a warning.
+    if (len(documents) > _MAX_SITE_CONTEXT_CHUNKS
+            or sum(len(doc.page_content) for doc in documents) > _MAX_SITE_CONTEXT_CHARS):
+        return hits
+    extra = [{"text": doc.page_content, "score": worst, "metadata": dict(doc.metadata)}
+             for doc in sorted(documents, key=lambda d: d.metadata["chunk_id"])
+             if doc.metadata["chunk_id"] not in have]
+    return hits + extra
+
+
 def scope_product_ids(product_id: Optional[str], equipment_id: Optional[str]) -> Optional[List[str]]:
     """검색할 제품 범위. product_id 가 우선, 없으면 장비의 제품 목록. None 이면 범위 제한 없음."""
     if product_id:
@@ -129,29 +185,34 @@ def retrieve(question: str, topic: str, product_id: Optional[str] = None,
              k: int = DEFAULT_TOP_K, language: str = "ko",
              equipment_id: Optional[str] = None) -> List[Hit]:
     """stores.get_store(topic) → query.normalize_question → (제품 범위가 있으면) 제품 MSDS + 공통 문서 → 상위 k
-    → (제품이 하나면) 식별 청크 덧붙임. 그래서 제품이 하나로 정해진 경우 결과가 k 개보다 많을 수 있다."""
+    → (제품이 하나면) 식별 청크 → 선택 장비의 S1 근거 덧붙임. 이 참고 청크들은 k 개 밖이다."""
     store = get_store(topic)
     if store is None:
         return []
 
     queries = normalize_question(question, language, topic)
     ids = scope_product_ids(product_id, equipment_id)
+    chapter = _equipment_site_chapter(equipment_id) if topic == TOPIC_CHEMICAL else None
     extra = TRUNCATED_MARGIN if DROP_TRUNCATED else 0
     if ids is None:
         if topic == TOPIC_CHEMICAL:   # 제품 미지정 → MSDS 제외 (모듈 설명 참고)
-            return _search_all(queries, store, k, filter=lambda md: md.get("doc_type") != DOC_TYPE_MSDS)
+            hits = _search_all(queries, store, k,
+                               filter=lambda md: md.get("doc_type") != DOC_TYPE_MSDS and _site_in_scope(md, chapter))
+            return attach_equipment_context(hits, store, chapter)
         return drop_truncated(_search_all(queries, store, k + extra))[:k]
     single = ids[0] if len(ids) == 1 else None
 
     allowed = set(ids)
     in_scope = drop_truncated(_search_all(queries, store, k + extra,
-                                          filter=lambda md: not md.get("product_id") or md["product_id"] in allowed))[:k]
+                                          filter=lambda md: (not md.get("product_id") or md["product_id"] in allowed)
+                                          and _site_in_scope(md, chapter)))[:k]
     n_product = sum(1 for h in in_scope if h["metadata"].get("product_id"))
     if ids and n_product < MIN_PRODUCT:
         have = {h["metadata"].get("chunk_id") for h in in_scope}
         more = [h for h in drop_truncated(_search_all(queries, store, MIN_PRODUCT + extra,
-                                                      filter=lambda md: md.get("product_id") in allowed))
+                                                      filter=lambda md: md.get("product_id") in allowed and _site_in_scope(md, chapter)))
                 if h["metadata"].get("chunk_id") not in have][:MIN_PRODUCT - n_product]
         common = [h for h in in_scope if not h["metadata"].get("product_id")]
         in_scope = [h for h in in_scope if h["metadata"].get("product_id")] + more + common[:k - n_product - len(more)]
-    return attach_identity(sorted(in_scope, key=lambda h: h["score"])[:k], store, single)
+    hits = attach_identity(sorted(in_scope, key=lambda h: h["score"])[:k], store, single)
+    return attach_equipment_context(hits, store, chapter)

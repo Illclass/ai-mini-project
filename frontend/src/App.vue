@@ -20,6 +20,7 @@ import { spring as vSpring } from './directives/spring'
 import './chat-glass.css'
 import { copy } from './locales'
 import * as api from './api'
+import { failureKey } from './api/client.js'
 import { apiCopy } from './locales/api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
@@ -40,6 +41,8 @@ function selectEquipment(value){equipmentId.value=value;productId.value=normaliz
 function scopeLabel(scope){return [equipmentFor(scope.equipment_id) ? equipmentLabel(equipmentFor(scope.equipment_id),language.value,s.value.demo) : '',catalog.products.find(p=>p.product_id===scope.product_id) ? productLabel(catalog.products.find(p=>p.product_id===scope.product_id),language.value) : ''].filter(Boolean).join(' / ')}
 let requestController, resumeDraft
 function errorKey(error){
+ const diagnostic=failureKey(error)
+ if(diagnostic)return diagnostic
  if(error.status===422)return 'invalid'
  if(error.status===503||error.status===502||error.status===504)return 'unavailable'
  if(error.code==='TIMEOUT')return 'timeout'
@@ -135,7 +138,7 @@ async function send(retryMessage){
  const id=++version
  const message=retry||{id,situation:situation.value,question:text,response:null,error:null,spoken:voiceDraft,topic:topic.value,language:language.value,...requestScope(topic.value,equipmentId.value,productId.value)}
  voiceDraft=false
- if(retry){message.id=id;message.error=null}
+ if(retry){message.id=id;message.error=null;message.diagnostic=null}
  else {question.value='';messages.value.push(message)}
  pending.value=true;requestController=new AbortController();scroll()
  try{
@@ -144,8 +147,12 @@ async function send(retryMessage){
  }catch(error){
   if(version!==id)return
   if(error.status===401){question.value=text;expire(message)}
-  else messages.value.find(m=>m.id===id).error=error.code==='CANCELLED'?'cancelled':errorKey(error)
- }finally{if(version===id){pending.value=false;scroll();const done=messages.value.find(m=>m.id===id);if(done?.spoken&&done.response)lastPlay=play(done)}}
+   else {
+    const failed=messages.value.find(m=>m.id===id)
+    failed.error=error.code==='CANCELLED'?'cancelled':errorKey(error)
+    failed.diagnostic=error.diagnostic
+   }
+  }finally{if(version===id){pending.value=false;scroll();const done=messages.value.find(m=>m.id===id);if(done?.spoken&&done.response)lastPlay=play(done)}}
 }
 async function chooseProduct(){await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});productPicker.value?.open()}
 function cancelRequest(){requestController?.abort()}
@@ -280,9 +287,10 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
       <div class="clear-answer">
         <div class="clear-answer-heading"><span class="clear-assistant-icon"><Icon name="bridge" :size="23" /></span><b>ChemBridge</b></div>
         <div v-if="message.error" class="chat-api-error" :class="{'is-cancelled':message.error==='cancelled'}" role="alert">
-          <h3><Icon name="alert" :size="22" />{{message.error==='cancelled'?feedback.cancelledTitle:feedback.failed}}</h3>
+          <h3><Icon name="alert" :size="22" />{{message.error==='cancelled'?feedback.cancelledTitle:(a[message.error+'Title']||feedback.failed)}}</h3>
           <p>{{message.error==='cancelled'?feedback.cancelled:a[message.error]}}</p>
-          <div class="chat-error-actions"><button type="button" :disabled="busy" @click="send(message)">{{a.retry}}</button><button type="button" :disabled="busy" @click="editQuestion(message)">{{feedback.edit}}</button></div>
+          <p v-if="message.diagnostic?.requestId">{{a.errorReference}}: {{message.diagnostic.requestId}}</p>
+          <div class="chat-error-actions"><button v-if="!['experimentStopped','experimentScope'].includes(message.error)" type="button" :disabled="busy" @click="send(message)">{{a.retry}}</button><button type="button" :disabled="busy" @click="editQuestion(message)">{{feedback.edit}}</button></div>
         </div>
         <div v-else-if="!message.response" class="chat-loading-state">
           <div class="clear-loading" role="status"><span class="clear-loading-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>{{slowResponse?feedback.slow:feedback.waiting}}</span></div>
@@ -290,10 +298,13 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
           <button type="button" class="chat-cancel-request" @click="cancelRequest">{{feedback.cancel}}</button>
         </div>
         <template v-else>
-          <!-- 답변 보류·비상(handoff)은 눈에 띄게, 답변은 했지만 현장 확인이 필요한 경우(needs_review, MSDS·법령 답변이면 거의 항상)는 작게 -->
+          <!-- 답변 보류·비상(handoff)은 눈에 띄게, 답변은 했지만 현장 확인이 필요한 경우(needs_review, MSDS·법령 답변이면 거의 항상)는 작게.
+               보류 이유(근거 부족·검증 실패·제품 확인 등)는 서버 응답 머리글로 받아 제목과 설명으로 보여 준다 (박진근 오류 진단) -->
           <div v-if="isEmergency(message.response)" class="clear-alert is-hold emergency" role="alert"><Icon name="alert" :size="20" /><b>{{a.emergencyBadge}}</b><button type="button" class="emergency-btn" @click="contacts=true">{{c.emergency}}</button></div>
-          <div v-else-if="message.response.handoff" class="clear-alert is-hold" role="alert"><Icon name="alert" :size="20" /><b>{{a.handoff}}</b></div>
+          <div v-else-if="message.response.handoff" class="clear-alert is-hold" role="alert"><Icon name="alert" :size="20" /><b>{{a[failureKey(message.response)+'Title']||a.handoff}}</b></div>
           <p v-else-if="message.response.needs_review" class="clear-review-note"><Icon name="check" :size="15" />{{a.answerNote}}</p>
+          <p v-if="message.response.handoff&&!isEmergency(message.response)&&failureKey(message.response)" class="clear-review-note" role="note">{{a[failureKey(message.response)]}}</p>
+          <p v-if="message.response.handoff&&message.response.diagnostic?.requestId" class="clear-review-note">{{a.errorReference}}: {{message.response.diagnostic.requestId}}</p>
           <p class="clear-answer-text">{{message.response.answer}}</p>
           <div class="clear-answer-tools">
             <template v-for="(source,i) in message.response.sources" :key="`${source.doc_id}-${i}`"><a v-if="sourceUrl(source.url)" v-spring class="clear-source" :href="sourceUrl(source.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{i + 1}}]</span><span>{{source.title}}<template v-if="source.section"> · {{source.section}}</template></span></span></template>
