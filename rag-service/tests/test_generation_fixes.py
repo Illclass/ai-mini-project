@@ -142,3 +142,22 @@ def test_body_contact_and_swallowing_are_emergencies(question):
 def test_contact_prevention_questions_are_not_emergencies(question):
     from rag.generator import is_emergency
     assert not is_emergency(question)
+
+
+@pytest.mark.parametrize("text", [
+    "이 자료에는 보안경을 확인하는 구체적인 기준이 나오지 않아요.",
+    "보안경에 대해서는 이 자료들에서 화학물질별 확인 방법을 찾을 수 없어요.",
+    "The materials do not specify eye protection.",
+])
+def test_absence_statements_are_detected(text):
+    # 자료에 없다는 문장은 인용으로 뒷받침할 수 없어 검증 AI 가 거부한다 → 빼고 고정 안내를 붙인다
+    assert g._is_absence_statement(text)
+
+
+@pytest.mark.parametrize("text", [
+    "이 MSDS에는 발암성 자료가 없다고 적혀 있어요.",   # 원문 '자료없음'을 옮긴 문장은 남긴다
+    "장갑은 제조업체에 확인을 받아 선정하세요.",
+    "자료에 따라 보호구를 착용하세요.",
+])
+def test_source_content_is_not_treated_as_absence(text):
+    assert not g._is_absence_statement(text)

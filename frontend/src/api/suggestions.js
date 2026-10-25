@@ -8,9 +8,11 @@ function particle(word, consonant, vowel) {
  const last=word.charCodeAt(word.length-1)
  return word+(last>=0xac00 && last<=0xd7a3 && (last-0xac00)%28 ? consonant : vowel)
 }
+// 보호구 질문은 '어떤 자료에서 확인하나요' 대신 '무엇을 착용하나요'로 묻는다. 위치를 묻는 질문은 답변 AI 가
+// '이 자료에는 ~가 없어요'를 덧붙여 검증에서 보류되는 일이 잦았다 (김규빈 2026-10-25, 추천 질문 14개 평가).
 const koEquipment=[
  '{equipment}에서 {object} 사용하기 전, {checkTopic} 어떻게 점검하나요?',
- '{equipment}에서 {object} 취급할 때, {check}에 대비한 보호구는 어떻게 확인하나요?',
+ '{equipment}에서 {object} 취급할 때, {check}에 대비해 어떤 보호구를 착용해야 하나요?',
  '{equipment}에 사용할 {object} 보관할 때, {checkTopic} 어떻게 확인하나요?',
  '{equipment}에서 {object} 사용하는 중, {check}에 이상이 있으면 어떤 절차를 확인해야 하나요?',
  '{equipment}에서 {object} 사용하는 작업을 마친 뒤, {checkObject} 어떻게 정리하나요?',
@@ -18,7 +20,7 @@ const koEquipment=[
 ]
 const koProduct=[
  '{product} 사용 전에 {checkObject} 어디서 확인하나요?',
- '{product} 취급 시 {check}에 대비한 보호구는 어떤 자료에서 확인하나요?',
+ '{product} 취급 시 {check}에 대비해 어떤 보호구를 착용해야 하나요?',
  '{product} 보관 시 {checkObject} 어디서 확인하나요?',
  '{product} 작업 중 {checkObject} 어떻게 점검하나요?',
  '{product} 사용 후 {checkObject} 어떻게 처리해야 하나요?',

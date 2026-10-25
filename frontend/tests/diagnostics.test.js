@@ -83,7 +83,8 @@ for(const language of contract.languages)test(`actual answer template renders th
  }
  const html=await renderAnswer({id:1,response:{...held,diagnostic:{outcome:'verification_failed'}}},language)
  assert(html.includes(t.evidenceFailedTitle)&&html.includes(t.evidenceFailed))
- assert(html.includes(held.answer))
+ assert(!html.includes(held.answer))   // 보류 이유를 보여 주면 같은 뜻의 서버 보류 문구는 숨긴다 (김규빈)
  const normal=await renderAnswer({id:1,response:{...held,handoff:false,diagnostic:{outcome:'review_required'}}},language)
  assert(normal.includes(t.answerNote)&&!normal.includes(t.evidenceFailedTitle))
+ assert(normal.includes(held.answer))
 })

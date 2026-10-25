@@ -376,6 +376,7 @@ TEXT = {
         "learn": "신입 학습용 설명 — 어려운 용어와 적용 범위는 선임에게 다시 확인하세요.",
         "precheck": "작업 전 정보 확인용 — 작업 승인이나 완료된 안전 체크리스트가 아닙니다. 아래 자료의 적용 조건, 제품 라벨과 현장 MSDS 일치 여부, 필요한 교육·허가를 선임·안전담당자에게 확인하세요.",
         "msds_review": "이 안내는 위 MSDS 기준이에요. 실제 제품과 같은지 확인하세요.",
+        "partial": "질문 중 자료에서 찾지 못한 부분은 답하지 않았어요. 그 부분은 선임·안전담당자에게 확인하세요.",
     },
     "zh": {
         "emergency": "紧急提示：不要等待AI回答或文件检索。优先遵循现场应急程序，立即联系119（韩国）和现场应急负责人。不要仅凭本服务的回答尝试堵漏、中和或重新进入危险区域。",
@@ -402,6 +403,7 @@ TEXT = {
         "learn": "新员工学习说明：请向资深同事确认不熟悉的术语和适用范围。",
         "precheck": "作业前信息确认：这不是作业批准或已完成的安全检查清单。请与资深同事或安全人员核对适用条件、产品标签与现场MSDS是否一致，以及所需培训和许可。",
         "msds_review": "以上说明基于该MSDS，请确认与实际产品一致。",
+        "partial": "问题中资料未涉及的部分未作回答，请向资深同事或安全人员确认。",
     },
     "vi": {
         "emergency": "Thông báo khẩn cấp: Không chờ câu trả lời của AI hoặc kết quả tìm tài liệu. Ưu tiên quy trình khẩn cấp tại cơ sở, liên hệ ngay 119 (tại Hàn Quốc) và người phụ trách khẩn cấp tại hiện trường. Không tự chặn rò rỉ, trung hòa hoặc quay lại khu vực nguy hiểm chỉ dựa vào câu trả lời của dịch vụ này.",
@@ -428,6 +430,7 @@ TEXT = {
         "learn": "Giải thích cho nhân viên mới: Hãy hỏi đồng nghiệp có kinh nghiệm về thuật ngữ chưa rõ và phạm vi áp dụng.",
         "precheck": "Xác nhận thông tin trước công việc: Đây không phải phê duyệt công việc hay danh sách kiểm tra an toàn đã hoàn tất. Hãy cùng đồng nghiệp có kinh nghiệm hoặc nhân viên an toàn kiểm tra điều kiện áp dụng, sự phù hợp của nhãn với MSDS tại cơ sở, yêu cầu đào tạo và giấy phép.",
         "msds_review": "Hướng dẫn này dựa trên MSDS ở trên. Hãy kiểm tra có đúng sản phẩm thực tế không.",
+        "partial": "Phần câu hỏi không có trong tài liệu chưa được trả lời. Hãy hỏi nhân viên an toàn về phần đó.",
     },
     "en": {  # 김규빈 추가 (en·km 지원)
         "emergency": "Emergency notice: Do not wait for an AI answer or document search. Follow the on-site emergency procedure first and immediately contact 119 (Korea) and the on-site emergency contact person. Do not attempt dangerous actions such as stopping a leak, neutralizing, or re-entering based only on this service's answer.",
@@ -454,6 +457,7 @@ TEXT = {
         "learn": "Explanation for new workers — please confirm unfamiliar terms and the scope of application with a senior colleague.",
         "precheck": "Pre-work information check — this is not work approval or a completed safety checklist. Check the conditions of application below, whether the product label matches the on-site MSDS, and any required training or permits with a senior colleague or safety officer.",
         "msds_review": "This is based on the MSDS above. Check that it matches your actual product.",
+        "partial": "Parts of the question not covered by the materials were not answered. Check those with a senior colleague or safety officer.",
     },
     "km": {  # 김규빈 추가 — 원어민 검수 필요
         "emergency": "សេចក្តីជូនដំណឹងបន្ទាន់៖ កុំរង់ចាំចម្លើយរបស់ AI ឬការស្វែងរកឯកសារ។ សូមអនុវត្តនីតិវិធីបន្ទាន់នៅកន្លែងការងារជាមុន ហើយទាក់ទងលេខ 119 (កូរ៉េ) និងអ្នកទទួលខុសត្រូវបន្ទាន់នៅកន្លែងការងារភ្លាមៗ។ កុំព្យាយាមបិទការលេចធ្លាយ បន្សាប ឬចូលទៅតំបន់គ្រោះថ្នាក់វិញ ដោយផ្អែកតែលើចម្លើយរបស់សេវានេះ។",
@@ -480,6 +484,7 @@ TEXT = {
         "learn": "ការពន្យល់សម្រាប់បុគ្គលិកថ្មី — សូមសួរបុគ្គលិកជាន់ខ្ពស់អំពីពាក្យដែលមិនច្បាស់ និងវិសាលភាពអនុវត្ត។",
         "precheck": "ការពិនិត្យព័ត៌មានមុនការងារ — នេះមិនមែនជាការអនុម័តការងារ ឬបញ្ជីត្រួតពិនិត្យសុវត្ថិភាពដែលបានបញ្ចប់ទេ។ សូមពិនិត្យលក្ខខណ្ឌអនុវត្តខាងក្រោម ភាពត្រូវគ្នានៃស្លាកផលិតផលជាមួយ MSDS នៅកន្លែងការងារ និងការបណ្តុះបណ្តាល ឬលិខិតអនុញ្ញាតដែលត្រូវការ ជាមួយបុគ្គលិកជាន់ខ្ពស់ ឬមន្ត្រីសុវត្ថិភាព។",
         "msds_review": "ការណែនាំនេះផ្អែកលើ MSDS ខាងលើ។ សូមពិនិត្យថាត្រូវនឹងផលិតផលពិត។",
+        "partial": "ផ្នែកនៃសំណួរដែលមិនមានក្នុងឯកសារមិនត្រូវបានឆ្លើយទេ។ សូមពិនិត្យផ្នែកនោះជាមួយមន្ត្រីសុវត្ថិភាព។",
     },
 }
 
@@ -584,6 +589,9 @@ SYSTEM_PROMPT = """당신은 ChemBridge, 반도체 제조기업·협력업체의
   '이 자료는 ~라고 안내합니다/기재되어 있습니다' 같은 보고 문체를 문장마다 반복하지 마세요. 출처 번호는 서버가 붙입니다.
   원문의 강도(해야 함·금지)는 그대로 지키고, 법령(kind=legal_obligation)만은 '법령 자료에는 ~하여야 한다고 적혀 있어요'처럼
   자료에 적힌 문구임을 밝히세요. 질문에 바로 답하는 문장을 먼저 쓰고, 2~4문장 안으로 끝내세요.
+- 자료에 없는 내용을 '이 자료에는 ~가 없어요/나오지 않아요/찾을 수 없어요'처럼 statements 로 쓰지 마세요.
+  없다는 사실은 인용으로 뒷받침할 수 없어 검증에서 답변 전체가 보류됩니다. 질문 일부만 근거가 있으면
+  근거가 있는 부분만 답하세요. 답하지 못한 부분이 있다는 안내는 서버가 붙입니다.
 - 용어집은 원문에 실제 등장한 용어의 번역에만 사용하세요. 용어집을 새로운 사실의 근거로 쓰지 마세요.
 - 제품명은 번역하지 않는 식별자입니다. 예: '교육액-A'는 중국어에서도 '교육액-A' 그대로 쓰고
   '教育液-A'로 바꾸지 마세요. 원문 인용과 제품 식별자 이외의 설명은 지정 언어로 작성하세요.
