@@ -15,7 +15,7 @@ test('six cards provide distinct relevant questions, with no shared expiry sugge
   assert(sets.every(questions=>questions.length===2))
   for(const question of all)assert(question.length>=2 && Array.from(question).length<=contract.question.maxLength)
  }
- assert(suggestedQuestions({situation:'handling',language:'ko'})[0].includes('장갑'))
+ assert(suggestedQuestions({situation:'handling',language:'ko'})[0].includes('착용'))   // 보호구 질문은 '무엇을 착용하나요'로 묻는다
  assert(suggestedQuestions({situation:'storage',language:'ko'})[0].includes('보관'))
  assert(suggestedQuestions({situation:'after',language:'ko'})[0].includes('잔여물'))
 })
