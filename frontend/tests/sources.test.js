@@ -29,3 +29,8 @@ test('소제목 줄과 출처 번호를 나눈다', () => {
   assert.deepEqual(lines[1].parts, [{ text: '- 도구를 구비해 두세요.' }, { mark: '1' }, { mark: '2' }])
   assert.equal(lines[2].parts.at(-1).mark, '1')
 })
+
+test('번역 경고 아래 원문 줄은 원문 줄로 표시한다', () => {
+  const lines = answerLines('⚠ ការប្រុងប្រយ័ត្ន\n- កុំទុកនៅជិតសារធាតុងាយឆេះ។ [1]\n  អត្ថបទដើម: 가연성 물질 근처에 보관하지 마십시오.')
+  assert.deepEqual(lines.map(l => l.original), [false, false, true])
+})

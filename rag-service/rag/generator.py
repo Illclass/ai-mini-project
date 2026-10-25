@@ -447,9 +447,11 @@ def _quantities_supported(text: str, citations: list[Citation], *, source_identi
         return False
     # 문서·조항 번호(K-1-2023, 7.2)는 인용 청크 머리글에서도 찾는다. 수치·단위·날짜 비교에는 쓰지 않는다
     headers = canonical(source_headers)
-    number = r"[+-]?\d+(?:[.,]\d+)?"
+    # 부호는 앞이 글자·숫자가 아닐 때만 ("Article 44-2"의 "-2"는 음수가 아니다).
+    # 단위 뒤에 로마자가 이어지면 단위가 아니다 ("H318 Gây"의 "318 g"는 318그램이 아니다) (김규빈 2026-10-25)
+    number = r"(?<![\w.])[+-]?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?"
     unit = r"ppm|ppb|mg/m3|μg/m3|g/l|mg/l|°c|°f|%|kg|mg|μg|ml|l|g"
-    measurements = rf"({number})\s*({unit})(?![a-z])"
+    measurements = rf"({number})\s*({unit})(?![a-zà-ỹđ])"
     dates = r"\d{4}[-/.]\d{1,2}[-/.]\d{1,2}"
     return all(
         set(re.findall(pattern, claim)).issubset(
@@ -1138,10 +1140,12 @@ def generate_answer(
             if language == "ko" and any(_same_text(q, original) or _same_text(original, q) for q in quoted):
                 continue
             # Display soft line breaks as spaces; citation evidence stays verbatim.
-            translated_text = re.sub(r"\s+", " ", original) if language == "ko" else translated[pid]
+            # 번역문·원문도 PDF 줄바꿈을 한 줄로 편다. 원문이 여러 줄로 흩어져 번역이 덜 된 것처럼 보였다 (김규빈 2026-10-25)
+            translated_text = re.sub(r"\s+", " ", original if language == "ko" else translated[pid]).strip()
             lines.append(f"- {translated_text} [{source_numbers[cid]}]")
             if language != "ko":
-                lines.append(f"  {text['original']}: {original}")
+                flat_original = re.sub(r"\s+", " ", original).strip()
+                lines.append(f"  {text['original']}: {flat_original}")
         if lines:
             parts.append(text["warnings"] + "\n" + "\n".join(lines))
     closing = []

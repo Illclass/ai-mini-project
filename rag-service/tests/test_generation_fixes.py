@@ -198,3 +198,36 @@ def test_ingest_title_line_and_numbered_heading_are_not_part_of_warning():
     doc = Document(page_content=body, metadata={"chunk_id": "S1-13_3", "doc_type": "guide", "title": "S1 가상 현장 안전지침 (DEMO-A, 시연용)"})
     quotes = [q for _, q in critical_passages([doc]).values()]
     assert all(not q.startswith("[") and "13.3" not in q for q in quotes)
+
+
+def test_translation_amounts_ordinals_and_avoid_match_source():
+    from rag.prompt import translation_valid
+    law = "경영책임자등은 1년 이상의 징역 또는 10억원 이하의 벌금에 처한다."
+    assert translation_valid(law, "punished by imprisonment for at least 1 year or a fine of up to 1 billion won.", "en")
+    assert translation_valid(law, "bị phạt tù từ 1 năm trở lên hoặc phạt tiền không quá 1 tỷ won.", "vi")
+    assert not translation_valid(law, "imprisonment for at least 1 year or a fine of up to 100 million won.", "en")
+    third = "제3자에게 도급한 경우에는 제2항의 조치를 하여야 한다."
+    assert translation_valid(third, "If work is contracted to a third party, it must take the measures in paragraph ②.", "en")
+    assert not translation_valid(third, "If work is contracted to a second party, it must take the measures in paragraph ②.", "en")
+    assert translation_valid("P273 환경으로 배출하지 마시오.", "P273 Avoid release to the environment.", "en")
+
+
+def test_quantity_check_reads_article_numbers_and_hcodes():
+    from rag.generator import _quantities_supported
+    from rag.generator import Citation
+    law = [Citation(chunk_id="L1", quote="제44조의2(화학사고 발생 시설에 대한 가동중지명령) ① 같은 조 제2항")]
+    assert _quantities_supported("Article 44-2 ① under paragraph 2", law)
+    msds = [Citation(chunk_id="M1", quote="유해·위험 문구 : H318 눈에 심한 손상을 일으킴.")]
+    assert _quantities_supported("Câu cảnh báo nguy hại: H318 Gây tổn thương mắt nghiêm trọng.", msds)
+    temp = [Citation(chunk_id="M2", quote="20 °C 이하에서 보관")]
+    assert not _quantities_supported("Store below -20 °C.", temp)
+    assert not _quantities_supported("Store below 25 °C.", temp)
+
+
+def test_example_parenthesis_period_does_not_split_warning():
+    from langchain_core.documents import Document
+    from rag.prompt import critical_passages
+    raw = "내부 압력이 빠져나올 수 있도록(예. 초과압 밸브) 용기를 밀폐할 것\n가연성 물질 근처에 보관하지 마십시오."
+    doc = Document(page_content=raw, metadata={"chunk_id": "M1", "doc_type": "msds", "msds_section_no": 7})
+    quotes = [q for _, q in critical_passages([doc]).values()]
+    assert any("(예. 초과압 밸브) 용기를 밀폐할 것" in q for q in quotes)

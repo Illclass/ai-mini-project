@@ -147,6 +147,8 @@ def _scan_critical_passages(documents):
                 for match in _SENTENCE_END.finditer(raw, position, end):
                     if re.fullmatch(r"[가-하]\.", raw[position:match.end()].strip()):
                         continue  # A list label is not a sentence terminator.
+                    if re.search(r"[(（]\s*(?:예|e\.g)\.$", raw[start:match.end()]):
+                        continue  # "(예. 초과압 밸브)"의 마침표는 문장 끝이 아니다 (김규빈 2026-10-25)
                     emit(start, match.end())
                     start = match.end()
             position = end
@@ -276,6 +278,43 @@ def calendar_text_with_identifiers(value: str, source_identifiers=()) -> str | N
     return parsed
 
 
+# 금액·서수는 언어마다 쓰는 법이 달라 숫자를 값으로 맞춰 비교한다 (김규빈 2026-10-25).
+# "10억원" = "1 billion won" = "1 tỷ won" = "10亿韩元", "제3자" = "third party", "③" = "(3)".
+_KO_UNITS = {"만": 10**4, "억": 10**8, "조": 10**12}
+_KO_SMALL = {"천": 1000, "백": 100, "십": 10}
+_WORD_UNITS = {"thousand": 10**3, "million": 10**6, "billion": 10**9, "trillion": 10**12,
+               "nghìn": 10**3, "ngàn": 10**3, "triệu": 10**6, "tỷ": 10**9, "tỉ": 10**9,
+               "万": 10**4, "亿": 10**8, "ពាន់": 10**3, "លាន": 10**6, "ពាន់លាន": 10**9}
+_ORDINALS = {"en": ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"),
+             "vi": ("nhất", "hai", "ba", "tư", "năm", "sáu", "bảy", "tám", "chín", "mười")}
+
+
+def _amount_text(value: str, circled: bool = False) -> str:
+    """금액 표기를 정수로 바꾼다. 원래 숫자는 그대로 비교되도록 단위가 붙은 숫자만 바꾼다.
+    circled 는 번역문에만 켠다: 번역이 ②를 "2"로 쓴 것은 받아 주고, 원문 ③을 번역이 빼먹었다고 새로 막지는 않는다."""
+    value = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", value)            # 1,000,000 → 1000000
+    if circled:
+        value = re.sub(r"[\u2460-\u2473]", lambda m: f" {ord(m[0]) - 0x245F} ", value)   # ①~⑳
+    def korean(m):
+        number = float(m[1]) * _KO_SMALL.get(m[2] or "", 1) * _KO_UNITS[m[3]]
+        return f"{int(number)}"
+    value = re.sub(r"(\d+(?:\.\d+)?)\s*([천백십])?\s*(만|억|조)(?=\s*원|\s*韩元|\s*won)", korean, value)
+    units = "|".join(sorted(map(re.escape, _WORD_UNITS), key=len, reverse=True))
+    return re.sub(rf"(\d+(?:\.\d+)?)\s*({units})", lambda m: f"{int(float(m[1]) * _WORD_UNITS[m[2].lower()])}", value, flags=re.I)
+
+
+def _ordinal_numbers(translated: str, language: str) -> set:
+    found = set()
+    if language in _ORDINALS:
+        pattern = r"\b({})\b" if language == "en" else r"\bthứ\s+({})\b"
+        for word in re.findall(pattern.format("|".join(_ORDINALS[language])), translated.lower()):
+            found.add(str(_ORDINALS[language].index(word) + 1))
+    if language == "zh":
+        for char in re.findall(r"第([一二三四五六七八九十])", translated):
+            found.add(str("一二三四五六七八九十".index(char) + 1))
+    return found
+
+
 def translation_valid(original: str, translated: str, language: str, *, preserved_terms=(), source_doc_type=None, source_identifiers=()) -> bool:
     """Check script/numbers/prohibitions, allowing only verified identifiers.
 
@@ -318,8 +357,8 @@ def translation_valid(original: str, translated: str, language: str, *, preserve
         date_pattern = r"(?<![0-9])[0-9]{4}-[0-9]{2}-[0-9]{2}(?![A-Za-z0-9_])"
         if not set(re.findall(date_pattern, original)).issubset(set(re.findall(date_pattern, translated))):
             return False
-    numbers = set(re.findall(r"\d+(?:[.,]\d+)?", original))
-    translated_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", translated))
+    numbers = set(re.findall(r"\d+(?:[.,]\d+)?", _amount_text(original)))
+    translated_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", _amount_text(translated, circled=True))) | _ordinal_numbers(translated, language)
     if language == "zh":
         # Chinese naturally uses 两个 for "2 places". Recognize exact 0..99
         # integer counts before classifiers, never guess chemical percentages,
@@ -354,8 +393,8 @@ def translation_valid(original: str, translated: str, language: str, *, preserve
         return False
     prohibition = re.search(r"금지|하지\s*마|안\s*됩니다|must not|do not|禁止|不得|khong duoc", normalized(original), re.I)
     if prohibition:
-        required = {"ko": r"금지|안\s*됩니다|하지\s*마|않", "zh": r"禁止|不得|不应|不要|不可|不能|请勿|切勿", "vi": r"khong|cam",
-                    "en": r"must not|do not|don't|never|prohibit|not allowed|forbidden", "km": r"កុំ|មិន|ហាម"}
+        required = {"ko": r"금지|안\s*됩니다|하지\s*마|않", "zh": r"禁止|不得|不应|不要|不可|不能|请勿|切勿|避免", "vi": r"khong|cam|tranh",
+                    "en": r"must not|do not|don't|never|prohibit|not allowed|forbidden|avoid", "km": r"កុំ|មិន|ហាម|ជៀសវាង"}
         if not re.search(required[language], _for_match(translated, language), re.I):
             return False
     exclusion = re.search(r"제외|적용하지\s*않|적용되지\s*않|except|not\s+appl|除外|不适用|khong ap dung", normalized(original), re.I)

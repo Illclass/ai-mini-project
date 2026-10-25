@@ -43,6 +43,8 @@ export function answerLines(answer = '') {
       last = match.index + match[0].length
     }
     if (last < line.length) parts.push({ text: line.slice(last) })
-    return { heading, parts }
+    // 번역 경고 아래 원문 줄 ("  원문: …", "  អត្ថបទដើម: …"): 번역을 대조하라고 일부러 싣는 한국어라 작고 흐리게 보여 준다
+    const original = /^\s+(?:원문|原文|Bản gốc|Original|អត្ថបទដើម)\s*[:：]/.test(line)
+    return { heading, original, parts }
   })
 }
