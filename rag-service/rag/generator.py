@@ -46,7 +46,9 @@ def is_emergency(question: str) -> bool:
         r"|(?:gas|leak).{0,15}(?:alarm|alert).{0,15}(?:went off|is sounding|sounded|triggered|is ringing|going off)"
         r"|(?:strange|unusual|unknown|weird) (?:smell|odor)"
     )
-    km = r"ចូលភ្នែក|ប្រឡាក់ស្បែក|ប៉ះស្បែក|លេចធ្លាយ|សំឡេងរោទិ៍|ក្លិនចម្លែក|ស្រូបចូល|សន្លប់|ពិបាកដកដង្ហើម"
+    # 누출은 "새고 있다/샜다"(កំពុង/បាន + លេចធ្លាយ, លេចធ្លាយហើយ)일 때만. 명사 "ការលេចធ្លាយ"(누출)만 있으면
+    # "누출과 오염 관련 주의사항은?" 같은 추천 질문 8개가 비상으로 잡혔다 (김규빈 2026-10-25).
+    km = r"ចូលភ្នែក|ប្រឡាក់ស្បែក|ប៉ះស្បែក|(?:កំពុង|បាន)\s*លេចធ្លាយ|លេចធ្លាយ\s*ហើយ|សំឡេងរោទិ៍|ក្លិនចម្លែក|ស្រូបចូល|សន្លប់|ពិបាកដកដង្ហើម"
     # 기존 노출·누출 규칙을 유지하고, 장비 작업 중 보고되는 신호를 추가한다.
     # 단순히 "작업복", "경보", "냄새"가 있다는 이유만으로 비상 처리하지 않는다.
     ko_incident = (
@@ -1070,6 +1072,7 @@ def generate_answer(
     for item in draft.critical_translations:
         if item.passage_id not in passages or item.passage_id in translated:
             return review("invalid_translation")
+        item = _with_source_list_marker(item, passages[item.passage_id][1])
         if _unsafe_critical_translation(item.text, passages[item.passage_id][1]) or not translation_valid(passages[item.passage_id][1], item.text, language,
                 source_doc_type=metadata_by_id[passages[item.passage_id][0]].doc_type,
                 source_identifiers=_cited_cas_identifiers(
@@ -1286,6 +1289,19 @@ def needs_review(hits: List[Hit], answer_text: str) -> bool:
 def needs_handoff(question: str, hits: List[Hit]) -> bool:
     """Legacy Korean preflight helper; generate() applies multilingual checks."""
     return not hits or preflight_result(question, "ko") is not None
+
+
+_LIST_MARKER = re.compile(r"^\s*([(（]\s*\d{1,2}\s*[)）]|\d{1,2}[.)](?=\s))")
+
+
+def _with_source_list_marker(item, original: str):
+    """원문 경고가 목록 번호 "(3)"로 시작하는데 번역이 번호를 빼먹으면 같은 번호를 앞에 붙인다.
+    번호가 빠진 번역은 숫자 검사에서 '3이 사라졌다'로 보류됐다 (베트남어 추천 질문, 김규빈 2026-10-25).
+    번호만 원문 그대로 되살리므로 번역 내용은 바꾸지 않고, 숫자·금지 검사는 그대로 받는다."""
+    marker = _LIST_MARKER.match(original)
+    if not marker or _LIST_MARKER.match(item.text):
+        return item
+    return item.model_copy(update={"text": f"{marker.group(1)} {item.text.lstrip()}"})
 
 
 # 자료에 없다는 문장 (위 설명 참고). "독성 자료는 없다고 적혀 있어요"처럼 원문 내용을 옮긴 문장은 남긴다.

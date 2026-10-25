@@ -48,8 +48,12 @@ _CRITICAL_PATTERN = re.compile(
     r"警告|危险|禁止|不得|仅|除外|canh bao|nguy hiem|khong|chi ap dung", re.I,
 )
 _SENTENCE_END = re.compile(r"[.!?。！？](?=\s|[가-힣]|$)")
+# 절 제목 "13.3 약액이 누출되었을 때"도 경계로 본다 (문장으로 끝나지 않는 짧은 줄만. "4.1 보호구를 착용하여야 한다."는 본문).
+# 경계가 아니면 제목이 경고 구절에 붙어, 번역 경고가 제목 숫자(13.3)를 빠뜨렸다며 보류됐다 (김규빈 2026-10-25).
+# 지침 청크 첫 줄 머리말 "[문서 제목 …]"은 아래 _scan_critical_passages 에서 문서 제목으로 확인해 경계로 둔다.
 _HARD_BOUNDARY = re.compile(
-    r"^(?:\[.*\|.*\]$|[0-9]{1,2}\.\s+|"
+    r"^(?:[0-9]{1,2}(?:\.[0-9]{1,2})+\s+[^.!?。:：\n]{1,40}$|"
+    r"\[.*\|.*\]$|[0-9]{1,2}\.\s+|"
     r"(?:제품명|제품 번호|브랜드|회사명|전화|팩스|긴급전화|영업시간|최종 개정일자|"
     r"최초 작성일자|개정 횟수|날짜 형식)\s*(?:[:：]|$)|영업시간\s*[-:]|저작권\b|"
     r"[가-하]\.\s*(?:제품명|회사명|제품의 권고|최초 작성|개정 횟수|기타)|"
@@ -89,6 +93,7 @@ def _scan_critical_passages(documents):
             continue
         cid = doc.metadata['chunk_id']
         raw = doc.page_content
+        title = doc.metadata.get("title") or ""
         start = None
         position = 0
         glossary = False
@@ -127,7 +132,8 @@ def _scan_critical_passages(documents):
                     emit(start, position)
                 start = None
                 glossary = True
-            elif glossary or _HARD_BOUNDARY.search(text) or _SECTION_HEADING.fullmatch(text):
+            elif (glossary or _HARD_BOUNDARY.search(text) or _SECTION_HEADING.fullmatch(text)
+                  or (position == 0 and title and text.startswith("[" + title) and text.endswith("]"))):   # 적재 때 붙인 머리말
                 if start is not None:
                     emit(start, position)
                 start = None
@@ -229,9 +235,22 @@ _KOSHA_PDF_REVERSED_FOOTER = re.compile(
     r"[ \t]*-[ \t]*[1-9][0-9]{0,3}[ \t]*-[ \t]*$",
     re.I | re.M,
 )
+# 쪽번호와 머리글 사이에 본문 조각이 끼면 짝을 못 찾는다 ("화재\n- 2 -\n폭발을 일\nKOSHA Guide K-1-2023\n으키거나").
+# 그래서 같은 구절에 KOSHA 머리글 줄이 있으면, 줄 전체가 쪽번호("- 2 -")인 줄과 머리글 줄을 따로도 지운다 (김규빈 2026-10-25).
+# 목록 번호 "(3)"·"3." 은 줄 전체가 아니므로 지우지 않는다.
+_KOSHA_PAGE_NUMBER_LINE = re.compile(r"^[ \t]*-[ \t]*[1-9][0-9]{0,3}[ \t]*-[ \t]*$", re.M)
+_KOSHA_HEADER_LINE = re.compile(
+    r"^[ \t]*KOSHA[ \t]+GUIDE(?:[ \t]*\r?\n|[ \t]+)[A-Z]{1,3}[ \t]*-[ \t]*[1-9][0-9]{0,2}[ \t]*-[ \t]*(?:19|20)[0-9]{2}[ \t]*$",
+    re.I | re.M,
+)
+
+
 def guide_translation_comparison_text(value: str) -> str:
-    """Ignore only a paired recognizable KOSHA PDF footer, never list numbers."""
-    return _KOSHA_PDF_REVERSED_FOOTER.sub("", _KOSHA_PDF_FOOTER.sub("", value))
+    """Ignore recognizable KOSHA PDF page furniture (paired or alone on its line), never list numbers."""
+    value = _KOSHA_PDF_REVERSED_FOOTER.sub("", _KOSHA_PDF_FOOTER.sub("", value))
+    if not _KOSHA_HEADER_LINE.search(value):   # 머리글이 없으면 "- 2 -" 한 줄만으로는 쪽번호라고 보지 않는다
+        return value
+    return _KOSHA_HEADER_LINE.sub("", _KOSHA_PAGE_NUMBER_LINE.sub("", value))
 
 
 

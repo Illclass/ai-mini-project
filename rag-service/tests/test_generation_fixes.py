@@ -161,3 +161,40 @@ def test_absence_statements_are_detected(text):
 ])
 def test_source_content_is_not_treated_as_absence(text):
     assert not g._is_absence_statement(text)
+
+
+@pytest.mark.parametrize("question, expected", [
+    ("ពេលផ្ទុក សារធាតុគីមី តើមានការប្រុងប្រយ័ត្នអ្វីចំពោះ ការលេចធ្លាយ និងការបំពុល?", False),   # 누출 관련 주의사항은? (추천 질문)
+    ("សារធាតុគីមីកំពុងលេចធ្លាយ តើខ្ញុំត្រូវធ្វើអ្វី?", True),                                      # 약품이 새고 있어요
+    ("ឧស្ម័នបានលេចធ្លាយ", True),                                                                  # 가스가 샜어요
+])
+def test_khmer_leak_noun_is_not_an_emergency(question, expected):
+    from rag.generator import is_emergency
+    assert is_emergency(question) is expected
+
+
+def test_kosha_page_furniture_split_by_text_is_ignored_in_guide_translation():
+    # 쪽번호와 머리글 사이에 본문 조각이 낀 실제 K-1-2023 배치
+    original = ("(9) 화학물질이 새어 나가는 경우에 반응 및 혼합 등에 따른 화재\n\n- 2 -\n\n폭발을 일\n\n\n"
+                "KOSHA Guide K-1-2023\n\n으키거나 독성이 강한 유해가스 나 증기가 발생할 우려가 있는 물질은 별도\n장소에 저장한다.")
+    translated = "(9) If a chemical could cause a fire or explosion when it leaks, store it in a separate location."
+    from rag.prompt import translation_valid
+    assert translation_valid(original, translated, "en", source_doc_type="guide")
+    assert not translation_valid(original, translated.replace("(9)", "(8)"), "en", source_doc_type="guide")
+
+
+def test_dropped_list_marker_is_restored_from_source():
+    item = g.CriticalTranslation(passage_id="p1", text="Không được sử dụng vật chứa có nguy cơ bị vỡ hoặc rò rỉ.")
+    fixed = g._with_source_list_marker(item, "(3) 운반 도중 파손되거나 누설 위험이 있는 용기를 사용해서는 아니 된다.")
+    assert fixed.text.startswith("(3) ")
+    assert g._with_source_list_marker(fixed, "(3) 원문").text.count("(3)") == 1   # 이미 있으면 그대로
+    assert g._with_source_list_marker(item, "운반 도중 파손 위험").text == item.text  # 번호 없는 원문은 그대로
+
+
+def test_ingest_title_line_and_numbered_heading_are_not_part_of_warning():
+    from rag.prompt import critical_passages
+    body = ("[S1 가상 현장 안전지침 (DEMO-A, 시연용) 13.3 약액이 누출되었을 때]\n13.3 약액이 누출되었을 때\n"
+            "누출 지점에서 벗어나고 주변 사람을 대피시킨다.")
+    doc = Document(page_content=body, metadata={"chunk_id": "S1-13_3", "doc_type": "guide", "title": "S1 가상 현장 안전지침 (DEMO-A, 시연용)"})
+    quotes = [q for _, q in critical_passages([doc]).values()]
+    assert all(not q.startswith("[") and "13.3" not in q for q in quotes)
