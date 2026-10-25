@@ -21,7 +21,10 @@ import './chat-glass.css'
 import { copy } from './locales'
 import * as api from './api'
 import { failureKey } from './api/client.js'
-import { answerLines, groupSources } from './api/sources.js'
+import { answerLines } from './api/sources.js'
+import SourceLinks from './components/SourceLinks.vue'
+const SourceViewer = defineAsyncComponent(() => import('./components/SourceViewer.vue'))
+const sourceSelection=ref(null)
 import { apiCopy } from './locales/api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
@@ -95,7 +98,7 @@ watch(language,v=>{document.documentElement.lang=v;document.title=`ChemBridge ·
 document.documentElement.lang=language.value
 document.title=`ChemBridge · ${copy[language.value].service}`
 function stop(){audio?.pause();audio=null;if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}playing.value=null;audioDone?.();audioDone=null}
-function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;endConvo();stop()}
+function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;sourceSelection.value=null;endConvo();stop()}
 function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
 function open(key,selectedTopic=api.contract.topics.chemical){productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
 function changeTopic(value){if(busy.value)return;open(situation.value,value)}
@@ -309,7 +312,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
           <!-- 소제목은 굵게, 출처 번호 [n] 은 작고 흐리게 (줄바꿈은 pre-wrap 이 살리므로 한 줄로 쓴다) -->
           <p class="clear-answer-text"><template v-for="(line,li) in answerLines(message.response.answer)" :key="li"><template v-if="li">{{'\n'}}</template><span :class="{'clear-answer-subhead':line.heading}"><template v-for="(part,pi) in line.parts" :key="pi"><sup v-if="part.mark" class="clear-mark">{{part.mark}}</sup><template v-else>{{part.text}}</template></template></span></template></p>
           <div class="clear-answer-tools">
-            <!-- 같은 문서의 출처는 한 줄로 묶는다 (번호는 본문과 같음) --><template v-for="group in groupSources(message.response.sources)" :key="group.key"><a v-if="sourceUrl(group.url)" v-spring class="clear-source" :href="sourceUrl(group.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{group.label}}]</span><span>{{group.title}}<template v-if="group.sections.length"> · {{group.sections.join(' · ')}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{group.label}}]</span><span>{{group.title}}<template v-if="group.sections.length"> · {{group.sections.join(' · ')}}</template></span></span></template>
+            <SourceLinks :sources="message.response.sources" :language="language" @open="sourceSelection=$event" />
             <button v-if="api.VOICE_LANGUAGES.includes(message.language)" v-spring class="clear-listen" :disabled="busy" :aria-pressed="playing===message.id" @click="play(message)"><Icon :name="playing===message.id?'stop':'sound'" :size="19" />{{playing===message.id?t.stop:a.listenAnswer}}</button>
             <button v-spring type="button" class="clear-report" @click="report=message"><Icon name="file" :size="19" />{{c.makeReport}}</button>
           </div>
@@ -343,6 +346,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
   <p class="voice-convo-hint">{{a.convoHint}}</p>
   <button type="button" class="voice-convo-end" @click="endConvo">{{a.convoEnd}}</button>
 </section>
+<SourceViewer v-if="sourceSelection" :selection="sourceSelection" :language="language" @close="sourceSelection=null" />
 <EmergencyContacts v-if="contacts" :language="language" @close="contacts=false" />
 <ReportModal v-if="report" :message="report" :title="title" :scope="scopeLabel(report)" :language="language" @close="report=null" @auth-expired="expire" />
 <div v-if="modal" class="modal-backdrop" @click.self="modal=null"><section ref="modalElement" @keydown="trapFocus" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="modal"><span class="modal-icon"><Icon :name="modal==='voice'?'mic':'file'" :size="28"/></span><h2 id="modal-title">{{modal==='voice'?t.permissionTitle:t.sourceTitle}}</h2><p>{{modal==='voice'?t.permissionBody:t.sourceBody}}</p><div class="modal-actions"><button class="secondary" autofocus @click="modal=null">{{t.close}}</button><button v-if="modal==='voice'" class="primary" @click="beginRecording">{{t.startVoice}}<Icon name="arrow" :size="17"/></button></div></section></div>

@@ -5,6 +5,9 @@ import { languages } from '../locales'
 import { clean } from '../locales/clean'
 import { apiCopy } from '../locales/api'
 import { createReportSession, reportText, sourceUrl } from '../api/report'
+import { locateSource } from '../api/source-pages'
+import { originalUrl } from '../api/source-assets'
+import { sourceCopy } from '../locales/sources'
 import { useDialog } from '../composables/useDialog'
 const props = defineProps({ message: Object, title: String, scope: String, language: { type: String, default: 'ko' } })
 const emit = defineEmits(['close', 'auth-expired'])
@@ -28,6 +31,11 @@ async function choose(code) {
     if (failure.status === 401) { emit('auth-expired', original); return }
     if (failure.code !== 'CANCELLED') error.value = true
   } finally { if (id === version) loading.value = false }
+}
+function originalLink(source) {
+ const target=locateSource(source)
+ const url=target && originalUrl(target.file)
+ return url ? `${url}#page=${target.page}&zoom=page-width` : null
 }
 function print() {
   note.value = c.value.printHint
@@ -73,7 +81,7 @@ onBeforeUnmount(() => { version++; session.cancel(); document.body.classList.rem
             <section class="report-q"><b>{{ c.question }}</b><template v-if="lang !== original.language"> ({{ c.original }})</template> · {{ original.question }}</section>
             <section class="report-a"><h3>{{ c.answer }}</h3><p>{{ data.answer }}</p></section>
             <footer>
-              <div v-if="data.sources.length"><h3>{{ c.sources }}</h3><ol class="report-sources"><li v-for="(s, i) in data.sources" :key="i"><span>[{{ i + 1 }}] {{ s.title }}<template v-if="s.section"> · {{ s.section }}</template></span><a v-if="sourceUrl(s.url)" :href="sourceUrl(s.url)" target="_blank" rel="noopener noreferrer">{{ sourceUrl(s.url) }}</a></li></ol></div>
+              <div v-if="data.sources.length"><h3>{{ c.sources }}</h3><ol class="report-sources"><li v-for="(s, i) in data.sources" :key="i"><span>[{{ i + 1 }}] {{ s.title }}<template v-if="s.section"> · {{ s.section }}</template></span><a v-if="originalLink(s)" :href="originalLink(s)" target="_blank" rel="noopener noreferrer">{{ (sourceCopy[lang] || sourceCopy.ko).open }}</a><a v-if="sourceUrl(s.url)" :href="sourceUrl(s.url)" target="_blank" rel="noopener noreferrer">{{ sourceUrl(s.url) }}</a></li></ol></div>
               <small>{{ c.disclaimer }}</small>
             </footer>
           </template>
