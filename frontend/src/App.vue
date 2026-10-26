@@ -1,5 +1,7 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { chatLocation, loginDestination } from './router.js'
 import Icon from './components/Icon.vue'
 import LanguagePicker from './components/LanguagePicker.vue'
 import ScopePicker from './components/ScopePicker.vue'
@@ -27,6 +29,7 @@ import SourceLinks from './components/SourceLinks.vue'
 const SourceViewer = defineAsyncComponent(() => import('./components/SourceViewer.vue'))
 const sourceSelection=ref(null)
 import { apiCopy } from './locales/api'
+const router=useRouter(), route=useRoute()
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
 const topic=ref(api.contract.topics.chemical), a=computed(()=>apiCopy[language.value])
@@ -56,13 +59,9 @@ function errorKey(error){
 }
 function expire(message){
  resumeDraft={situation:message.situation||situation.value,topic:message.topic,question:message.question,equipmentId:message.equipment_id||'',productId:message.product_id||''}
- navigate('login');messages.value=[];loginError.value='expired'
+ navigate('login',{replace:true});messages.value=[];loginError.value='expired'
 }
-onMounted(async()=>{
- try{if(await api.checkSession())navigate('home')}
- catch(error){loginError.value=errorKey(error)}
- finally{checking.value=false}
-})
+onMounted(()=>{checking.value=false})
 try { const saved=localStorage.getItem('chembridge-language'); if(copy[saved])language.value=saved } catch {}
 const t=computed(()=>copy[language.value]),keys=['before','handling','storage','during','after','emergency']
 const index=computed(()=>keys.indexOf(situation.value)),title=computed(()=>topic.value===api.contract.topics.law?a.value.law:index.value<0?t.value.free:t.value.topicTitles[index.value]),busy=computed(()=>pending.value||['recording','processing'].includes(voice.value))
@@ -104,13 +103,23 @@ document.documentElement.lang=language.value
 document.title=`ChemBridge · ${copy[language.value].service}`
 function stop(){audio?.pause();audio=null;if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}playing.value=null;audioDone?.();audioDone=null}
 function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;sourceSelection.value=null;endConvo();stop()}
-function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
-function open(key,selectedTopic=api.contract.topics.chemical){guideOpen.value=false;suggestionsOpen.value=false;productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
+function navigate(p,{replace=false}={}){return router[replace?'replace':'push']({name:p})}
+watch(()=>route.fullPath,()=>{
+ cleanup()
+ if(route.name==='chat'){
+  const nextTopic=route.query.topic===api.contract.topics.law?api.contract.topics.law:api.contract.topics.chemical
+  if(situation.value!==route.params.situation||topic.value!==nextTopic){messages.value=[];question.value='';equipmentId.value='';productId.value='';guideOpen.value=false;suggestionsOpen.value=false;productRequired.value=false}
+  situation.value=route.params.situation;topic.value=nextTopic
+ }
+ page.value=route.name
+ window.scrollTo({top:0})
+},{immediate:true})
+function open(key,selectedTopic=api.contract.topics.chemical,{replace=false}={}){cleanup();guideOpen.value=false;suggestionsOpen.value=false;productRequired.value=false;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value='';return router[replace?'replace':'push'](chatLocation(key,selectedTopic))}
 function changeTopic(value){if(busy.value)return;open(situation.value,value)}
 async function logout(){
  if(signingOut.value)return
  signingOut.value=true;globalError.value=''
- try{await api.logout();navigate('login');messages.value=[];question.value='';resumeDraft=null;loginError.value=''}
+ try{await api.logout();await navigate('login',{replace:true});messages.value=[];question.value='';resumeDraft=null;loginError.value=''}
  catch(error){globalError.value='logoutFailed'}
  finally{signingOut.value=false}
 }
@@ -120,8 +129,8 @@ async function login(credentials){
  signingIn.value=true;loginError.value='';loginNotice.value=''
  try{
   await api.login(credentials)
-  if(resumeDraft){const draft=resumeDraft;resumeDraft=null;open(draft.situation,draft.topic);question.value=draft.question;equipmentId.value=draft.equipmentId;productId.value=draft.productId}
-  else navigate('home')
+  if(resumeDraft){const draft=resumeDraft;resumeDraft=null;await open(draft.situation,draft.topic,{replace:true});question.value=draft.question;equipmentId.value=draft.equipmentId;productId.value=draft.productId}
+  else await router.replace(loginDestination(router,route.query.redirect))
  }catch(error){loginError.value=error.status===401?'credentials':errorKey(error)}
  finally{signingIn.value=false}
 }

@@ -5,6 +5,7 @@ import argparse
 import http.cookiejar
 import json
 import secrets
+import re
 import subprocess
 import time
 import urllib.error
@@ -55,6 +56,29 @@ assert 'id="app"' in html
 pdf = call('/guides/before.pdf')[0]
 assert pdf.startswith(b'%PDF-')
 print('PASS built frontend and PDF via web proxy')
+# Check the actual production dependency graph, including lazy PDF viewer chunks.
+modules = [urllib.parse.urljoin(base+'/', ref) for ref in re.findall(r'<script[^>]+src="([^"]+)"',html)]
+seen, originals, workers = set(), set(), 0
+while modules:
+    module = modules.pop()
+    if module in seen: continue
+    seen.add(module)
+    assert len(seen) <= 40, 'Unexpectedly large frontend module graph'
+    path = urllib.parse.urlsplit(module).path
+    code, headers = call(path)
+    if path.endswith('.mjs'):
+        assert headers.get_content_type() in ['application/javascript','text/javascript'], 'ES module worker has wrong MIME type'
+        workers += 1
+        continue
+    text = code.decode()
+    for ref in re.findall(r'["\']((?:\./|/assets/|assets/)[^"\']+-[A-Za-z0-9_-]{8}\.(?:js|mjs))["\']',text):
+        modules.append(urllib.parse.urljoin(module, '/'+ref if ref.startswith('assets/') else ref))
+    originals.update(re.findall(r'["\'](/assets/[^"\']+\.pdf)["\']',text))
+assert workers, 'No PDF ES module worker found in built app'
+assert len(originals) == 27, f'Expected 27 original PDFs, found {len(originals)}'
+for path in originals:
+    assert call(path)[0].startswith(b'%PDF-'), 'Original PDF is missing or served as HTML'
+print('PASS PDF worker JavaScript MIME and all 27 bundled original PDFs')
 if args.live:
     for question, product in [('황산을 보관할 때 어떤 점을 주의해야 하나요?', 'sigma-339741'), ('화학물질을 실내에 보관할 때 용기를 어떻게 관리하고 나눠 둬야 하나요?', None)]:
         result = json.loads(call('/rag-query', {'question':question, 'topic':'chemical_safety', 'language':'ko', 'product_id':product, 'equipment_id':None})[0])
