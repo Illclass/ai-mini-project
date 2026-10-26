@@ -427,3 +427,30 @@ body .scope-menu button { font-size:14px; min-height:40px; }
 @media (max-width:900px) {
  #app .chat-page .has-guide .guide-viewer { display:flex; position:absolute; left:36px; top:12px; bottom:12px; height:auto; width:min(480px,calc(100% - 48px)); z-index:20; box-shadow:8px 0 32px #12302a20; }
 }
+
+/* Reserve the workspace for reading; keep controls compact. */
+#app .chat-controls { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:8px 12px; }
+#app .chat-controls .clear-chat-heading { grid-column:1 / -1; }
+#app .chat-controls .chat-scope { padding:6px 8px; }
+#app .chat-controls .chat-scope-controls { gap:10px; }
+#app .chat-controls .chat-scope-controls > label { display:flex; align-items:center; gap:8px; }
+#app .chat-controls .chat-scope-controls > label > span { flex:none; font-size:12px; }
+#app .chat-controls .scope-trigger { flex:1; min-width:0; height:36px; min-height:36px; padding:6px 10px; font-size:13px; border-radius:9px; }
+#app .chat-input-dock { gap:4px; }
+#app .suggestions-toggle { align-self:flex-end; display:flex; align-items:center; gap:6px; padding:4px 8px; min-height:28px; background:transparent; color:var(--c-teal); border:0; border-radius:6px; font-size:12px; }
+#app .chat-input-dock .clear-composer { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:6px 10px; padding:6px 8px; }
+#app .chat-input-dock .clear-composer textarea { grid-column:1; grid-row:1; height:40px; min-height:40px; max-height:112px; resize:none; padding:8px 4px; line-height:24px; overflow-y:auto; }
+#app .chat-input-dock .clear-composer-controls { grid-column:2; grid-row:1; margin:0; gap:6px; }
+#app .chat-input-dock .clear-mic, #app .chat-input-dock .clear-send { width:40px; height:40px; min-height:40px; padding:0; border-radius:10px; }
+#app .chat-input-dock .clear-mic span { display:none; }
+#app .chat-input-dock .clear-voice-state, #app .chat-input-dock .chat-voice-error { grid-column:1 / -1; margin:0; }
+#app .chat-page .has-guide .chat-controls { grid-template-columns:1fr; }
+@media (max-width:1000px) {
+ #app .chat-controls { grid-template-columns:1fr; }
+}
+@media (max-width:600px) {
+ #app .chat-controls .chat-scope-controls > label { flex-direction:column; align-items:stretch; gap:3px; }
+ #app .chat-input-dock .clear-composer { gap:4px; }
+ #app .chat-input-dock .clear-composer-controls { gap:4px; }
+ #app .chat-input-dock .clear-mic, #app .chat-input-dock .clear-send { width:36px; }
+}

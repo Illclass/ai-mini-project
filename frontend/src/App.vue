@@ -69,7 +69,8 @@ const index=computed(()=>keys.indexOf(situation.value)),title=computed(()=>topic
 const isLaw=computed(()=>topic.value===api.contract.topics.law)
 const guide=computed(()=>guideFor(situation.value,topic.value,productId.value))
 const guideUrl=computed(()=>guide.value?.url)
-const guideOpen=ref(false)
+const guideOpen=ref(false), suggestionsOpen=ref(false)
+watch(question,async()=>{await nextTick();if(input.value){input.value.style.height='auto';input.value.style.height=`${Math.min(112,Math.max(40,input.value.scrollHeight))}px`}})
 const faq=computed(()=>{
  const list=(candidates[language.value]||candidates.ko)[isLaw.value?'law':'chemical']||[]
  const groups=[]
@@ -102,7 +103,7 @@ document.title=`ChemBridge · ${copy[language.value].service}`
 function stop(){audio?.pause();audio=null;if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}playing.value=null;audioDone?.();audioDone=null}
 function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;sourceSelection.value=null;endConvo();stop()}
 function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
-function open(key,selectedTopic=api.contract.topics.chemical){guideOpen.value=false;productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
+function open(key,selectedTopic=api.contract.topics.chemical){guideOpen.value=false;suggestionsOpen.value=false;productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
 function changeTopic(value){if(busy.value)return;open(situation.value,value)}
 async function logout(){
  if(signingOut.value)return
@@ -140,7 +141,7 @@ async function send(retryMessage){
  if(busy.value||length<api.contract.question.minLength||length>api.contract.question.maxLength)return
  const scope=retry||requestScope(topic.value,equipmentId.value,productId.value)
  if(scope.equipment_id&&!scope.product_id){question.value=text;equipmentId.value=scope.equipment_id;productId.value='';productRequired.value=true;await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});return}
- productRequired.value=false
+ productRequired.value=false;suggestionsOpen.value=false
  stop();voice.value='idle';voiceError.value=''
  const id=++version
  const message=retry||{id,situation:situation.value,question:text,response:null,error:null,spoken:voiceDraft,topic:topic.value,language:language.value,...requestScope(topic.value,equipmentId.value,productId.value)}
@@ -328,17 +329,18 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
   </section>
 
   <div class="chat-input-dock">
-  <div v-if="!busy && !(situation==='free'&&!messages.length&&!equipmentId&&!productId)" class="clear-suggestions chat-followup" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
+  <button v-if="messages.length && !busy" type="button" class="suggestions-toggle" :aria-expanded="suggestionsOpen" aria-controls="chat-suggestions" @click="suggestionsOpen=!suggestionsOpen">{{suggestionsOpen?c.hideSuggestions:c.showSuggestions}}<Icon name="back" :size="14" :style="{transform:suggestionsOpen?'rotate(90deg)':'rotate(-90deg)'}" /></button>
+  <div id="chat-suggestions" v-if="(!messages.length || suggestionsOpen) && !busy && !(situation==='free'&&!messages.length&&!equipmentId&&!productId)" class="clear-suggestions chat-followup" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
   <form class="clear-composer" @submit.prevent="send">
     <label class="sr-only" for="question">{{t.send}}</label>
-    <textarea id="question" ref="input" v-model="question" :disabled="busy" :maxlength="api.contract.question.maxLength" :placeholder="t.placeholder" rows="2" @keydown="onKey"></textarea>
+    <textarea id="question" ref="input" v-model="question" :disabled="busy" :maxlength="api.contract.question.maxLength" :placeholder="t.placeholder" rows="1" @keydown="onKey"></textarea>
     <div v-if="voice!=='idle'" class="clear-voice-state" role="status">
       <template v-if="voice==='recording'"><span class="clear-record-dot"></span><b>{{t.recording}}</b><span class="clear-wave" aria-hidden="true"><i v-for="n in 14" :key="n" :style="{animationDelay:`${n*.09}s`}"></i></span><button type="button" v-spring @click="finish">{{t.finish}}</button><button type="button" @click="cancel">{{t.cancel}}</button></template>
       <template v-else-if="voice==='processing'"><span class="clear-loading-dots"><i></i><i></i><i></i></span>{{t.converting}}</template>
       <template v-else><Icon name="check" :size="18" />{{t.reviewVoice}}</template>
     </div>
     <p v-if="voiceError" class="chat-voice-error" role="alert"><Icon name="alert" :size="18" />{{a[voiceError]}}</p>
-    <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy||!voiceReady" :title="voiceReady?'':a.voiceLanguage" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voiceInput}}</span></button><button v-spring type="button" class="clear-mic convo-start" :disabled="busy||!voiceReady" :title="voiceReady?a.convoHint:a.voiceLanguage" @click="startConvo"><Icon name="sound" :size="21" /><span>{{a.convoStart}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
+    <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy||!voiceReady" :aria-label="a.voiceInput" :title="voiceReady?a.voiceInput:a.voiceLanguage" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voiceInput}}</span></button><button v-spring type="button" class="clear-mic convo-start" :disabled="busy||!voiceReady" :aria-label="a.convoStart" :title="voiceReady?a.convoHint:a.voiceLanguage" @click="startConvo"><Icon name="sound" :size="21" /><span>{{a.convoStart}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
   </form>
   </div>
   </div>
