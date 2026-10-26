@@ -10,7 +10,7 @@ from openai import OpenAI
 
 from rag.schema import ENV_LLM_MODEL
 
-DEFAULT_MODEL = "gpt-4o"
+DEFAULT_MODEL = "gpt-6-luna"   # 팀 결정: Luna 사용 (gpt-4o 보다 답변률↑, 비용 약 1/20)
 
 _client = None
 

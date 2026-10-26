@@ -10,6 +10,7 @@ export default defineConfig({
       '/api': { target: 'http://localhost:8080', changeOrigin: true },
       '/rag-query': { target: 'http://localhost:8001', changeOrigin: true },
       '/health': { target: 'http://localhost:8001', changeOrigin: true },
+      '/voice': { target: 'http://localhost:8008', changeOrigin: true },   // 음성 서비스 (./dev.sh --voice)
     },
   },
 })

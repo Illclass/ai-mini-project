@@ -1,0 +1,144 @@
+"""답변 보류 오탐 수정 테스트 — 담당: 김규빈. 인덱스·LLM 없이 돈다.
+
+- 인용 비교: PDF 줄바꿈(단어 중간 포함)만 무시, 숫자 경계는 유지
+- 제품 식별 4항목을 MSDS 원문에서 서버가 직접 추출
+- 번역 문자 검사: 금액 단위(억원)·괄호 속 한국어 용어 병기만 허용
+- 응급 감지: 몸에 묻음·튐·삼킴을 과거형으로 말하면 응급
+"""
+import pytest
+from langchain_core.documents import Document
+
+from rag import generator as g
+from rag.prompt import translation_valid
+
+
+def test_same_text_ignores_pdf_line_breaks_inside_words():
+    source = "기한을 직접 정하거나 추정하\n지 않는다."
+    assert g._same_text("기한을 직접 정하거나 추정하지 않는다.", source)
+    assert not g._same_text("기한을 직접 정한다.", source)
+
+
+def test_same_text_keeps_number_boundaries():
+    assert not g._same_text("100", "10 0")
+    assert g._same_text("10 0", "10\n0")
+
+
+def _msds(cid, no, text):
+    return Document(page_content=text, metadata={"chunk_id": cid, "doc_type": "msds", "product_id": "sigma-179124",
+                                                 "cas_no": "67-64-1", "msds_section_no": no})
+
+
+DOCS = [
+    _msds("D9-s1", 1, "가. 제품명 :\n Acetone\n제품 번호 : 179124\n상표 : SIGALD"),
+    _msds("D9-s3", 3, "화학물질명 CAS 번호 또는 함유량 (% w/w)\n식별번호\nAcetone 67-64-1 >= 95 - <= 100"),
+    _msds("D9-s16", 16, "최종 개정일자 : 2026.07.14"),
+]
+
+
+def test_source_product_facts_reads_sections_1_3_16():
+    facts = {f.field: f for f in g._source_product_facts(DOCS)}
+    assert {k: f.value for k, f in facts.items()} == {
+        "product_name": "Acetone", "product_number": "179124",
+        "concentration": ">= 95 - <= 100", "revision_date": "2026.07.14"}
+    for f in facts.values():   # 인용은 원문 그대로
+        src = next(d for d in DOCS if d.metadata["chunk_id"] == f.citations[0].chunk_id)
+        assert f.citations[0].quote in src.page_content
+
+
+def test_source_product_facts_needs_all_four_and_one_product():
+    assert g._source_product_facts(DOCS[:2]) == []                      # 개정일 없음
+    other = Document(page_content="제품 번호 : 339741", metadata={**DOCS[0].metadata, "product_id": "sigma-339741"})
+    assert g._source_product_facts(DOCS + [other]) == []               # 제품 두 개
+
+
+def test_translation_allows_won_amount_and_korean_gloss_only():
+    assert translation_valid("", "pháp luật quy định phạt tối đa 10억원", "vi")
+    assert translation_valid("", "tai nạn lao động nghiêm trọng (중대산업재해) là", "vi")
+    assert not translation_valid("", "tai nạn lao động 중대산업재해 là", "vi")   # 괄호 없는 한글은 여전히 거부
+    assert not translation_valid("", "Phải đeo găng tay. 보호구를 착용하세요", "vi")
+
+
+def test_msds_data_tables_are_not_truncated_warnings():
+    from rag.prompt import incomplete_critical_chunks
+
+    def doc(no, text):
+        return Document(page_content=text, metadata={"chunk_id": f"D9-s{no}", "doc_type": "msds", "msds_section_no": no})
+    nfpa = "NFPA:\n 인화성\n 3\n 건강 불안정\n 2 0\n 특수 위험성"
+    assert incomplete_critical_chunks([doc(16, nfpa), doc(9, "인화점 : 12 °C\n인화 하한값 : 자료없음 인화 하한값")]) == set()
+    # 경고 문장이 있는 항목은 그대로 검사한다 (잘린 P 문구 → 잘림)
+    assert incomplete_critical_chunks([doc(2, "P305 + P351 + P338 + P310 눈에 묻으면: 몇 분간 물로")]) == {"D9-s2"}
+
+
+def test_law_item_list_gets_its_duty_sentence():
+    text = ("제4조(사업주와 경영책임자등의 안전 및 보건 확보의무) ① 사업주 또는 경영책임자등은 종사자의 안전ㆍ보건상 유해 또는 위험을 방지하기 위하여\n"
+            "그 사업 또는 사업장의 특성 및 규모 등을 고려하여 다음 각 호에 따른 조치를 하여야 한다.\n"
+            "1. 재해예방에 필요한 인력 및 예산 등 안전보건관리체계의 구축 및 그 이행에 관한 조치\n2. 재해 발생 시 재발방지 대책의 수립 및 그 이행에 관한 조치")
+    originals = {"L2-4": Document(page_content=text, metadata={"chunk_id": "L2-4"})}
+    law = type("M", (), {"doc_type": "law"})()
+    st = g.EvidenceStatement(kind="legal_obligation", text="안전보건관리체계 구축 조치가 열거되어 있습니다.",
+                     citations=[g.Citation(chunk_id="L2-4", quote="1. 재해예방에 필요한 인력 및 예산 등 안전보건관리체계의 구축 및 그 이행에 관한 조치")], conditions=[])
+    out = g._with_duty_chapeau(st, originals, {"L2-4": law})
+    assert out.citations[0].quote.endswith("다음 각 호에 따른 조치를 하여야 한다.") and out.citations[0].quote in text
+    assert g._supports_legal_duty(out.citations, {"L2-4": law})
+    # 목록이 아닌 인용(벌칙 조항 등)은 손대지 않는다
+    other = st.model_copy(update={"citations": [g.Citation(chunk_id="L2-4", quote="재해 발생 시 재발방지 대책의 수립")]})
+    assert g._with_duty_chapeau(other, originals, {"L2-4": law}) is other
+
+
+def test_kosha_numbered_item_counts_as_source_requirement():
+    guide = type("M", (), {"doc_type": "guide"})()
+    md = {"K8-8_2": guide}
+    item = g.Citation(chunk_id="K8-8_2", quote="(5) 개인보호구(내산성 보호복 등)를 철저하게 착용한다.")
+    must = g.Citation(chunk_id="K8-8_2", quote="불산을 다룰 때는 보호안경까지 착용을 해야 사고로 인한 피해를 막을 수 있다.")
+    plain = g.Citation(chunk_id="K8-8_2", quote="이 지침은 불산 취급 사업장에 적용한다.")   # 번호 없는 설명 문장
+    assert g._source_technical_requirement(item, md) and g._source_technical_requirement(must, md)
+    assert not g._source_technical_requirement(plain, md)
+
+
+def test_generate_retries_once_only_for_verification_failures(monkeypatch):
+    def result(reason, ok=False):
+        r = g.GenerationOutput(answer="ok" if ok else "보류", sources=[], needs_review=not ok, handoff=not ok)
+        r._review_reasons = [reason]
+        return r
+    hits = [{"text": "원문", "score": 0.1, "metadata": {"chunk_id": "K1-1", "doc_id": "K1"}}]
+    for first, expected_calls in [("claim_mismatch", 2), ("no_evidence", 1), ("verification_unavailable", 1)]:
+        calls = []
+        monkeypatch.setattr(g, "generate_answer", lambda *a, **k: calls.append(1) or result(first))
+        monkeypatch.setattr(g, "build_api_response", lambda r, **k: g.RagResponse(answer=r.answer, sources=[], needs_review=True, handoff=True, latency_ms=0))
+        g.generate("보호구는?", hits, "ko")
+        assert len(calls) == expected_calls, first
+
+
+def test_document_and_clause_numbers_may_come_from_chunk_header():
+    doc = Document(page_content="[KOSHA K-1-2023 유해화학물질 저장 관련 지침 7.2 응급조치]\n7.2 응급조치\n응급조치를 취하여야 한다.",
+                   metadata={"chunk_id": "K1-7_2"})
+    cit = [g.Citation(chunk_id="K1-7_2", quote="응급조치를 취하여야 한다.")]
+    heads = g._cited_headers(cit, {"K1-7_2": doc})
+    assert g._quantities_supported("K-1-2023 지침의 7.2항에 응급조치가 있습니다.", cit, source_headers=heads)
+    assert not g._quantities_supported("K-1-2023 지침은 16개 항목입니다.", cit, source_headers=heads)   # 머리글에 없는 숫자
+    assert not g._quantities_supported("2023 % 농도", cit, source_headers=heads)                       # 수치·단위는 머리글로 통과 안 됨
+
+
+def test_only_cited_or_hazard_warnings_are_attached():
+    msds = lambda no: type("M", (), {"doc_type": "msds", "msds_section_no": no})()
+    md = {"D1-s2": msds(2), "D1-s6": msds(6)}
+    assert g._is_hazard_statement(("D1-s2", "H314 피부에 심한 화상과 눈에 손상을 일으킴"), md)
+    assert not g._is_hazard_statement(("D1-s2", "P280 보호장갑을 착용하시오."), md)      # 예방조치 문구는 인용될 때만
+    assert not g._is_hazard_statement(("D1-s6", "H314 피부에 심한 화상"), md)              # 2항이 아니면 아님
+
+
+@pytest.mark.parametrize("question", [
+    "황산이 묻고 마셨는데 어떻게 해", "황산이 손에 묻었어요", "황산을 마셨어요", "눈에 황산이 들어갔어",
+    "불산이 손에 닿았어요", "硫酸溅到手上了", "I drank some sulfuric acid", "Axit ban vao tay toi",
+])
+def test_body_contact_and_swallowing_are_emergencies(question):
+    from rag.generator import is_emergency
+    assert is_emergency(question)
+
+
+@pytest.mark.parametrize("question", [
+    "황산 피부 접촉 시 조치는?", "희석할 때 손에 묻지 않게 하려면?", "황산을 옮겨 담을 때 보호구는?", "물 마시는 곳은 어디 두나요?",
+])
+def test_contact_prevention_questions_are_not_emergencies(question):
+    from rag.generator import is_emergency
+    assert not is_emergency(question)

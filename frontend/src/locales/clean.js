@@ -13,4 +13,19 @@ export const clean = {
     copied: 'Copied. Paste it wherever you want to share.', printHint: 'In the print dialog, choose “Save as PDF”.', disclaimer: 'AI-assisted guidance. Confirm final decisions with the site supervisor.', translating: 'Creating in the selected language…', failed: 'Could not create the report. Please try again.', back: 'Back to chat',
     faqTitle: 'Frequently asked questions', faqSub: 'Tap a question to ask it', g: { substance: 'By chemical', common: 'General', incident: 'Incidents · emergencies', law: 'Law' } },
 }
-clean.km = { ...clean.en }
+clean.km = {
+  emergency: 'ទំនាក់ទំនងបន្ទាន់', em: { title: 'ទំនាក់ទំនងបន្ទាន់', note: 'ពេលមានអាសន្ន សូមទៅកន្លែងសុវត្ថិភាព ហើយទូរស័ព្ទទៅលេខ 119។ ប្រើលេខបន្ទាន់ដែលបានបិទផ្សាយនៅកន្លែងធ្វើការជាមុន។', fire: 'អគ្គិភ័យ · សង្គ្រោះបន្ទាន់', fireDesc: 'អគ្គិភ័យ · លេចធ្លាយឧស្ម័ន · ប៉ះពាល់សារធាតុគីមី · របួស', police: 'នគរបាល', policeDesc: 'រាយការណ៍បន្ទាន់', labor: 'ក្រសួងការងារ', laborDesc: 'រាយការណ៍ និងពិគ្រោះអំពីគ្រោះថ្នាក់ការងារ', site1: 'អ្នកគ្រប់គ្រងសុវត្ថិភាព', site2: 'អ្នកគ្រប់គ្រងសុខភាព · អ្នកត្រួតពិនិត្យ', siteDesc: 'ក្រុមហ៊ុនត្រូវបញ្ចូលលេខទំនាក់ទំនង', fill: 'ត្រូវបញ្ចូល' },
+  faqTitle: 'សំណួរដែលសួរញឹកញាប់', faqSub: 'ចុចដើម្បីសួរ', g: { substance: 'តាមសារធាតុគីមី', common: 'សំណួរទូទៅ', incident: 'គ្រោះថ្នាក់ · អាសន្ន', law: 'ច្បាប់' },
+  guide: 'សៀវភៅណែនាំ', view: 'មើលសៀវភៅណែនាំ', download: 'ទាញយក PDF', prev: 'ទំព័រមុន', next: 'ទំព័របន្ទាប់', page: 'ទំព័រ', loadFail: 'មិនអាចបើកសៀវភៅណែនាំបានទេ។', loading: 'កំពុងបើកសៀវភៅណែនាំ…',
+  makeReport: 'របាយការណ៍សុវត្ថិភាព', reportTitle: 'របាយការណ៍សុវត្ថិភាព', question: 'សំណួរ', answer: 'ចម្លើយ', sources: 'ប្រភព', lang: 'ភាសារបាយការណ៍', print: 'បោះពុម្ព', pdf: 'រក្សាទុកជា PDF', share: 'ចែករំលែក', close: 'បិទ', original: 'ដើម',
+  copied: 'បានចម្លង។ អ្នកអាចបិទភ្ជាប់ដើម្បីចែករំលែកបាន។', printHint: 'នៅក្នុងផ្ទាំងបោះពុម្ព សូមជ្រើស «រក្សាទុកជា PDF»។', disclaimer: 'ព័ត៌មានជំនួយដោយ AI។ សូមបញ្ជាក់ការសម្រេចចិត្តជាមួយអ្នកទទួលខុសត្រូវ។', translating: 'កំពុងបង្កើតជាភាសាដែលបានជ្រើស…', failed: 'មិនអាចបង្កើតរបាយការណ៍បានទេ។ សូមព្យាយាមម្តងទៀត។', back: 'ត្រឡប់ទៅការសន្ទនា'
+}
+
+const extra = {
+ ko: { retry: '다시 시도', originalKo: '한국어 원문 · 대표 참고자료', regeneration: '언어를 바꾸면 같은 질문과 선택값으로 답변을 다시 생성합니다.', shareFailed: '공유하지 못했습니다. 다시 시도해주세요.' },
+ zh: { retry: '重试', originalKo: '韩文原文 · 参考资料', regeneration: '切换语言会保留问题与选择条件，重新生成回答。', shareFailed: '分享失败，请重试。' },
+ vi: { retry: 'Thử lại', originalKo: 'Bản gốc tiếng Hàn · tài liệu tham khảo', regeneration: 'Đổi ngôn ngữ sẽ tạo lại câu trả lời với cùng câu hỏi và lựa chọn.', shareFailed: 'Không thể chia sẻ. Hãy thử lại.' },
+ en: { retry: 'Retry', originalKo: 'Korean original · reference guide', regeneration: 'Changing language generates a new answer using the same question and selections.', shareFailed: 'Could not share. Please try again.' },
+ km: { retry: 'ព្យាយាមម្តងទៀត', originalKo: 'ឯកសារដើមភាសាកូរ៉េ · ឯកសារយោង', regeneration: 'ការប្តូរភាសានឹងបង្កើតចម្លើយថ្មី ដោយប្រើសំណួរ និងជម្រើសដដែល។', shareFailed: 'មិនអាចចែករំលែកបានទេ។ សូមព្យាយាមម្តងទៀត។' },
+}
+for (const code of Object.keys(extra)) Object.assign(clean[code], extra[code])

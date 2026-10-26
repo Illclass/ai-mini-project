@@ -32,7 +32,7 @@ def test_table_header_in_same_chunk_accepts_verbatim_row(header):
     doc, draft, _ = case(header=header)
     result = run([doc], draft)
     assert result.sources
-    assert '농도: >= 95 - <= 100' in result.answer
+    assert '농도 >= 95 - <= 100' in result.answer
     assert result.sources[0].chunk_id == doc.metadata['chunk_id']
     assert result.review_reasons == ['msds_applicability_unverified']
     assert result.needs_review and not result.handoff

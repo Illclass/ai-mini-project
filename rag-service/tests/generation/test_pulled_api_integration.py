@@ -61,7 +61,9 @@ def test_pulled_api_preserves_generation_contract(monkeypatch, api_case, case):
         )
         monkeypatch.setattr(generator, "build_verification_llm", lambda *a, **k: verifier)
     response = client.post("/rag-query", json={"question": "가상 안내표 자료 설명", "topic": TOPIC_LAW})
-    assert retrieval.call_count == len(provider.calls) == 1
+    # 검색은 한 번. 검증에서 거부(contradicted)되면 생성만 한 번 더 한다 (generator.GENERATION_RETRIES)
+    assert retrieval.call_count == 1
+    assert len(provider.calls) == (1 + generator.GENERATION_RETRIES if case == "contradicted" else 1)
     assert "private" not in response.text
     if case == "generation_timeout":
         assert response.status_code == 503
