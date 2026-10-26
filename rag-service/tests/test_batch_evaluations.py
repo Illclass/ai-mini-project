@@ -1,5 +1,6 @@
 """Batch diagnostics use the real chain and synthetic evidence; no model/network calls."""
 from copy import deepcopy
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -10,6 +11,7 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 from jose import jwt
+from pydantic import ValidationError
 
 from app import auth, main
 from rag import chain, generator, stores
@@ -18,6 +20,15 @@ from tests.test_contract import FAKE_DRAFT, FAKE_HIT, FakeLLM, _all_supported
 
 
 EVALUATION_PATH = "/rag-query/evaluations"
+DATASET_ROOT = Path(__file__).resolve().parents[1] / "eval" / "datasets"
+ORIGINAL_EVALUATION_PAIRS_SHA256 = "fd692cb5be8dbd088dd23f2a3f80f3ec3aca66dcad0a64050dfd2eeefc617ec2"
+VALIDATION_V1_PAIRS_SHA256 = "cdc00cff8366c38d5d357b8bc9b1a16307469fa48de4571acc9de3d4abb5dc52"
+
+
+def _pair_fingerprint(cases):
+    pairs = [{"id": case["id"], "request": case["request"], "expected": case["expected"]} for case in cases]
+    content = json.dumps(pairs, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(content).hexdigest()
 
 
 def _case(case_id, *, question="가상 안내표 자료를 설명해 주세요", expected=None, split="test"):
@@ -191,41 +202,96 @@ def test_batch_requires_auth_and_openapi_documents_path_body(batch_api):
     response = client.post(EVALUATION_PATH, json={"dataset_path": str(path)})
     assert response.status_code == 401 and response.headers["www-authenticate"] == "Bearer"
     answer.assert_not_called()
-    operation = client.get("/openapi.json").json()["paths"][EVALUATION_PATH]["post"]
+    schema = client.get("/openapi.json").json()
+    operation = schema["paths"][EVALUATION_PATH]["post"]
     assert {"BearerAuth": []} in operation["security"]
     assert "requestBody" in operation
+    body_ref = operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    body_schema = schema["components"]["schemas"][body_ref.rsplit("/", 1)[-1]]
+    assert set(body_schema["properties"]) == {"dataset_path"}
+    assert body_schema["required"] == ["dataset_path"]
 
 
-def test_shipped_dataset_has_40_unique_question_expectation_pairs():
-    path = Path(__file__).resolve().parents[1] / "eval" / "diagnostic_cases_40.json"
+@pytest.mark.parametrize("name, split", [("evaluation", "test"), ("validation", "validation")])
+def test_shipped_datasets_have_40_unique_pairs_and_one_purpose(name, split):
+    path = DATASET_ROOT / (name + ".json")
     dataset = json.loads(path.read_text(encoding="utf-8"))
+    main._EvaluationDataset.model_validate(dataset)
     cases = dataset["cases"]
     assert len(cases) == len({case["id"] for case in cases}) == 40
-    assert sum(case["split"] == "test" for case in cases) == 20
-    assert sum(case["split"] == "validation" for case in cases) == 20
+    assert {case["split"] for case in cases} == {split}
     for case in cases:
-        RagRequest.model_validate(case["request"])
+        if case["expected"]["http_status"] == 422:
+            with pytest.raises(ValidationError):
+                RagRequest.model_validate(case["request"])
+        else:
+            RagRequest.model_validate(case["request"])
         assert {"http_status", "outcome"} <= case["expected"].keys()
         assert case["expected"]["outcome"] in {"answered", "held", "error"}
 
 
-def test_entire_shipped_40_case_dataset_executes_with_isolated_diagnostics(batch_api, monkeypatch):
+def test_evaluation_preserves_the_original_40_question_expectation_pairs():
+    dataset = json.loads((DATASET_ROOT / "evaluation.json").read_text(encoding="utf-8"))
+    # Moving and relabelling the development set must not silently change its
+    # existing questions or expected outcomes while creating the held-out set.
+    assert _pair_fingerprint(dataset["cases"]) == ORIGINAL_EVALUATION_PAIRS_SHA256
+
+
+def test_validation_v1_question_expectation_pairs_are_frozen():
+    dataset = json.loads((DATASET_ROOT / "validation.json").read_text(encoding="utf-8"))
+    # A final validation set must not be retuned to match observed model errors.
+    # Deliberate dataset revisions require explicit review and a new fingerprint.
+    assert dataset["version"] == 1
+    assert _pair_fingerprint(dataset["cases"]) == VALIDATION_V1_PAIRS_SHA256
+
+
+def test_evaluation_and_validation_have_no_shared_question_strings():
+    def ids(name):
+        dataset = json.loads((DATASET_ROOT / (name + ".json")).read_text(encoding="utf-8"))
+        return {case["id"] for case in dataset["cases"]}
+
+    def questions(name):
+        dataset = json.loads((DATASET_ROOT / (name + ".json")).read_text(encoding="utf-8"))
+        return {" ".join(case["request"]["question"].split()).casefold() for case in dataset["cases"]
+                if isinstance(case["request"].get("question"), str)}
+    # Translated intent families are reviewed separately; this catches direct
+    # copies and formatting-only duplicates across the two managed datasets.
+    assert questions("evaluation").isdisjoint(questions("validation"))
+    assert ids("evaluation").isdisjoint(ids("validation"))
+
+
+@pytest.mark.parametrize("name, split", [("evaluation", "test"), ("validation", "validation")])
+def test_entire_shipped_dataset_executes_with_isolated_diagnostics(batch_api, monkeypatch, name, split):
     client, headers, root, _, _, _ = batch_api
-    shipped = Path(__file__).resolve().parents[1] / "eval" / "diagnostic_cases_40.json"
+    shipped = DATASET_ROOT / (name + ".json")
     dataset = json.loads(shipped.read_text(encoding="utf-8"))
     # Product resolution/translation is irrelevant to batch orchestration and
     # must not cause live calls in this execution test.
     monkeypatch.setattr(chain, "resolve_product_id", lambda question, topic, language, product_id, equipment_id: product_id)
-    _dataset(root / "forty.json", dataset["cases"])
-    response = client.post(EVALUATION_PATH, json={"dataset_path": "eval/forty.json"}, headers=headers)
+    target = root / "datasets" / (name + ".json")
+    target.parent.mkdir()
+    _dataset(target, dataset["cases"])
+    response = client.post(EVALUATION_PATH, json={"dataset_path": "eval/datasets/" + name + ".json"}, headers=headers)
     data = response.json()
     assert response.status_code == 200 and data["total_cases"] == len(data["results"]) == 40
     assert data["run_id"] == response.headers["x-request-id"]
     assert len({row["request_id"] for row in data["results"]}) == 40
     assert data["summary"]["passed"] + data["summary"]["failed"] == 40
-    assert data["summary"]["by_split"]["test"]["total"] == 20
-    assert data["summary"]["by_split"]["validation"]["total"] == 20
+    assert data["summary"]["by_split"][split]["total"] == 40
+    assert data["summary"]["by_split"]["validation" if split == "test" else "test"]["total"] == 0
     assert all(row["trace"] and row["checks"] for row in data["results"])
+
+
+def test_original_dataset_path_aliases_the_development_evaluation_file(batch_api):
+    client, headers, root, answer, _, _ = batch_api
+    target = root / "datasets" / "evaluation.json"
+    target.parent.mkdir()
+    _dataset(target, [_case("legacy-path")])
+    response = client.post(EVALUATION_PATH, json={"dataset_path": "eval/diagnostic_cases_40.json"}, headers=headers)
+    assert response.status_code == 200
+    assert response.json()["dataset_path"] == "eval/datasets/evaluation.json"
+    assert response.json()["results"][0]["case_id"] == "legacy-path"
+    assert answer.call_count == 1
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), "\ud800"])

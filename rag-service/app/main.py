@@ -659,8 +659,8 @@ class _EvaluationModel(BaseModel):
 
 class _EvaluationRequest(_EvaluationModel):
     dataset_path: str = Field(min_length=1, max_length=1024,
-                              description="서버의 rag-service/eval 안에 있는 JSON 경로. 예: eval/diagnostic_cases_40.json",
-                              examples=["eval/diagnostic_cases_40.json"])
+                              description="서버의 rag-service/eval 안에 있는 JSON 경로. 개발 평가: eval/datasets/evaluation.json, 최종 검증: eval/datasets/validation.json",
+                              examples=["eval/datasets/evaluation.json", "eval/datasets/validation.json"])
 
 
 class _EvaluationExpected(_EvaluationModel):
@@ -710,6 +710,10 @@ def _load_evaluation_dataset(dataset_path: str) -> tuple[_EvaluationDataset, str
             path = root.joinpath(*supplied.parts[1:]).resolve()
         else:
             path = (root / supplied).resolve()
+        # The original 40 cases now live only in evaluation.json. Keep old
+        # clients working without maintaining a second editable dataset copy.
+        if path == root / "diagnostic_cases_40.json":
+            path = (root / "datasets" / "evaluation.json").resolve()
     except (ValueError, RuntimeError):
         raise HTTPException(422, "평가셋 경로 형식이 올바르지 않습니다.") from None
     except OSError:
@@ -823,7 +827,9 @@ class _EvaluationResponse(BaseModel):
     response_model=None,
     description=(
         "dataset_path만 입력하면 서버 rag-service/eval 안의 JSON을 읽어 최대 100개 케이스를 순서대로 실행합니다. "
-        "예: {\"dataset_path\":\"eval/diagnostic_cases_40.json\"}. "
+        "개발 평가: {\"dataset_path\":\"eval/datasets/evaluation.json\"}. "
+        "최종 검증: {\"dataset_path\":\"eval/datasets/validation.json\"}. "
+        "기존 eval/diagnostic_cases_40.json 경로는 개발 평가셋으로 연결됩니다. "
         "각 results 항목은 /rag-query/diagnostics와 같은 진단 필드 및 case_id, request, expected, checks, passed를 가집니다. "
         "인증은 배치 요청에서 한 번 수행하고 케이스별 trace에 재사용을 표시합니다. "
         "한 케이스의 422/500/503도 결과에 남기고 나머지를 계속 실행합니다. "

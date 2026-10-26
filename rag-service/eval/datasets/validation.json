@@ -1,0 +1,882 @@
+{
+  "version": 1,
+  "name": "ChemBridge 최종 검증용 신규 질문 40쌍",
+  "description": "개발·회귀 evaluation.json과 다른 질문 의도로 구성한 최종 검증용 40쌍입니다. 새 도메인 질문 8가족의 다국어 32개와 요청 형식 오류 8개를 모두 validation으로 관리합니다. 제품 식별 정보, 법령의 다른 조문, 미등록·불일치 제품, 요청 오류를 기대 동작·출처·사유로 채점합니다. 같은 질문의 번역본은 이 파일에만 두고, RAG 원문 코퍼스는 두 평가에서 공유합니다. 답변 본문 전체의 사실성을 자동 판정하는 평가는 아닙니다. 개발 중 반복 개선에는 evaluation.json을 사용하고 이 검증셋은 고정해 관리합니다.",
+  "cases": [
+    {
+      "id": "VAL01",
+      "split": "validation",
+      "category": "제품 식별",
+      "request": {
+        "question": "선택한 불산 제품의 MSDS 1항에 적힌 제품명과 제품번호는 무엇인가요?",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_product_identity; 근거/판정: D2 1항. 제품명·제품번호를 같은 제품 MSDS 원문으로 확인한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL02",
+      "split": "validation",
+      "category": "제품 식별",
+      "request": {
+        "question": "所选氢氟酸产品的SDS第1节记载的产品名称和产品编号是什么？",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "zh"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_product_identity; 근거/판정: D2 1항. 제품명·제품번호를 같은 제품 MSDS 원문으로 확인한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL03",
+      "split": "validation",
+      "category": "제품 식별",
+      "request": {
+        "question": "Tên sản phẩm và mã sản phẩm ghi trong mục 1 của SDS cho sản phẩm axit flohydric đã chọn là gì?",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "vi"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_product_identity; 근거/판정: D2 1항. 제품명·제품번호를 같은 제품 MSDS 원문으로 확인한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL04",
+      "split": "validation",
+      "category": "제품 식별",
+      "request": {
+        "question": "What product name and product number are recorded in section 1 of the SDS for the selected hydrofluoric acid product?",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "en"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_product_identity; 근거/판정: D2 1항. 제품명·제품번호를 같은 제품 MSDS 원문으로 확인한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL05",
+      "split": "validation",
+      "category": "CAS 식별",
+      "request": {
+        "question": "선택한 불산 제품의 MSDS 3항에서 불화수소 성분의 CAS 번호를 확인해 주세요.",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_cas_identity; 근거/판정: D2 3항. 구성성분의 CAS 번호를 원문에서 확인한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL06",
+      "split": "validation",
+      "category": "CAS 식별",
+      "request": {
+        "question": "请核对所选氢氟酸产品SDS第3节中氟化氢成分的CAS编号。",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "zh"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_cas_identity; 근거/판정: D2 3항. 구성성분의 CAS 번호를 원문에서 확인한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL07",
+      "split": "validation",
+      "category": "CAS 식별",
+      "request": {
+        "question": "Hãy xác định số CAS của thành phần hydro florua trong mục 3 của SDS cho sản phẩm axit flohydric đã chọn.",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "vi"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_cas_identity; 근거/판정: D2 3항. 구성성분의 CAS 번호를 원문에서 확인한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL08",
+      "split": "validation",
+      "category": "CAS 식별",
+      "request": {
+        "question": "សូមបញ្ជាក់លេខ CAS របស់សមាសធាតុអ៊ីដ្រូសែនហ្វ្លុយអរីត នៅក្នុងផ្នែកទី 3 នៃ SDS សម្រាប់ផលិតផលអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិកដែលបានជ្រើសរើស។",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "km"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_cas_identity; 근거/판정: D2 3항. 구성성분의 CAS 번호를 원문에서 확인한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL09",
+      "split": "validation",
+      "category": "농도 식별",
+      "request": {
+        "question": "선택한 불산 제품의 MSDS 3항에는 불화수소 함유량 범위가 어떻게 기재되어 있나요?",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_concentration_identity; 근거/판정: D2 3항. 성분 함유량의 범위를 그대로 확인하며 희석·혼합 방법은 요구하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL10",
+      "split": "validation",
+      "category": "농도 식별",
+      "request": {
+        "question": "所选氢氟酸产品SDS第3节如何记载氟化氢含量范围？",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "zh"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_concentration_identity; 근거/판정: D2 3항. 성분 함유량의 범위를 그대로 확인하며 희석·혼합 방법은 요구하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL11",
+      "split": "validation",
+      "category": "농도 식별",
+      "request": {
+        "question": "How is the hydrogen fluoride concentration range recorded in section 3 of the SDS for the selected product?",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "en"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_concentration_identity; 근거/판정: D2 3항. 성분 함유량의 범위를 그대로 확인하며 희석·혼합 방법은 요구하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL12",
+      "split": "validation",
+      "category": "농도 식별",
+      "request": {
+        "question": "នៅក្នុងផ្នែកទី 3 នៃ SDS សម្រាប់ផលិតផលអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិកដែលបានជ្រើសរើស តើបានកត់ត្រាចន្លោះកំហាប់អ៊ីដ្រូសែនហ្វ្លុយអរីតយ៉ាងដូចម្តេច?",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "km"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_concentration_identity; 근거/판정: D2 3항. 성분 함유량의 범위를 그대로 확인하며 희석·혼합 방법은 요구하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL13",
+      "split": "validation",
+      "category": "개정일 식별",
+      "request": {
+        "question": "선택한 불산 제품의 MSDS 최종 개정일은 언제인가요? 최초 작성일이나 인쇄일과 구분해서 알려주세요.",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_revision_identity; 근거/판정: D2 16항 및 첫 페이지의 최종 개정일자. 최초 작성일·인쇄일과 구분한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL14",
+      "split": "validation",
+      "category": "개정일 식별",
+      "request": {
+        "question": "Ngày sửa đổi cuối cùng của SDS cho sản phẩm axit flohydric đã chọn là ngày nào? Hãy phân biệt với ngày lập đầu tiên và ngày in.",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "vi"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_revision_identity; 근거/판정: D2 16항 및 첫 페이지의 최종 개정일자. 최초 작성일·인쇄일과 구분한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL15",
+      "split": "validation",
+      "category": "개정일 식별",
+      "request": {
+        "question": "What is the last revision date of the SDS for the selected hydrofluoric acid product, distinguished from its original preparation and print dates?",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "en"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_revision_identity; 근거/판정: D2 16항 및 첫 페이지의 최종 개정일자. 최초 작성일·인쇄일과 구분한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL16",
+      "split": "validation",
+      "category": "개정일 식별",
+      "request": {
+        "question": "តើកាលបរិច្ឆេទកែប្រែចុងក្រោយនៃ SDS សម្រាប់ផលិតផលអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិកដែលបានជ្រើសរើសជាថ្ងៃណា? សូមបែងចែកវាពីកាលបរិច្ឆេទរៀបចំដំបូង និងកាលបរិច្ឆេទបោះពុម្ព។",
+        "topic": "chemical_safety",
+        "product_id": "sigma-695068",
+        "equipment_id": null,
+        "language": "km"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "D2"
+        ]
+      },
+      "notes": "family=hf_revision_identity; 근거/판정: D2 16항 및 첫 페이지의 최종 개정일자. 최초 작성일·인쇄일과 구분한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL17",
+      "split": "validation",
+      "category": "법령 조항 정보",
+      "request": {
+        "question": "중대재해처벌법 제8조 제1항은 안전보건교육 수강 대상을 어떻게 규정하나요? 조문 내용만 설명해 주세요.",
+        "topic": "serious_accident_law",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "L2"
+        ]
+      },
+      "notes": "family=sapa_article8_education_recipient; 근거/판정: L2 제8조 제1항. 조문에 적힌 안전보건교육 수강 대상을 설명하며 특정 개인의 책임·처벌은 판단하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL18",
+      "split": "validation",
+      "category": "법령 조항 정보",
+      "request": {
+        "question": "《重大灾害处罚法》第8条第1款如何规定安全卫生教育的参加对象？请只说明条文内容。",
+        "topic": "serious_accident_law",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "zh"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "L2"
+        ]
+      },
+      "notes": "family=sapa_article8_education_recipient; 근거/판정: L2 제8조 제1항. 조문에 적힌 안전보건교육 수강 대상을 설명하며 특정 개인의 책임·처벌은 판단하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL19",
+      "split": "validation",
+      "category": "법령 조항 정보",
+      "request": {
+        "question": "Khoản 1 Điều 8 của Luật xử phạt tai nạn nghiêm trọng quy định đối tượng tham gia đào tạo an toàn và sức khỏe như thế nào? Chỉ giải thích nội dung điều khoản.",
+        "topic": "serious_accident_law",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "vi"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "L2"
+        ]
+      },
+      "notes": "family=sapa_article8_education_recipient; 근거/판정: L2 제8조 제1항. 조문에 적힌 안전보건교육 수강 대상을 설명하며 특정 개인의 책임·처벌은 판단하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL20",
+      "split": "validation",
+      "category": "법령 조항 정보",
+      "request": {
+        "question": "How does Article 8(1) of the Serious Accidents Punishment Act describe who receives safety and health education? Explain only the provision.",
+        "topic": "serious_accident_law",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "en"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "L2"
+        ]
+      },
+      "notes": "family=sapa_article8_education_recipient; 근거/판정: L2 제8조 제1항. 조문에 적힌 안전보건교육 수강 대상을 설명하며 특정 개인의 책임·처벌은 판단하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL21",
+      "split": "validation",
+      "category": "법령 적용범위 정보",
+      "request": {
+        "question": "중대재해처벌법 제9조 제1항에 언급된 원료나 제조물의 결함은 어떤 종류인가요? 조문의 범위만 설명해 주세요.",
+        "topic": "serious_accident_law",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "L2"
+        ]
+      },
+      "notes": "family=sapa_article9_product_defect_scope; 근거/판정: L2 제9조 제1항. 원료·제조물 결함의 문서상 범위 설명이며 현장 적용 여부나 작업 안전 승인은 요구하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL22",
+      "split": "validation",
+      "category": "법령 적용범위 정보",
+      "request": {
+        "question": "《重大灾害处罚法》第9条第1款提到哪些类型的原料或制造品缺陷？请只解释条文的范围。",
+        "topic": "serious_accident_law",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "zh"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "L2"
+        ]
+      },
+      "notes": "family=sapa_article9_product_defect_scope; 근거/판정: L2 제9조 제1항. 원료·제조물 결함의 문서상 범위 설명이며 현장 적용 여부나 작업 안전 승인은 요구하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL23",
+      "split": "validation",
+      "category": "법령 적용범위 정보",
+      "request": {
+        "question": "Khoản 1 Điều 9 của Luật xử phạt tai nạn nghiêm trọng đề cập những loại khiếm khuyết nào của nguyên liệu hoặc sản phẩm? Chỉ giải thích phạm vi điều khoản.",
+        "topic": "serious_accident_law",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "vi"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "L2"
+        ]
+      },
+      "notes": "family=sapa_article9_product_defect_scope; 근거/판정: L2 제9조 제1항. 원료·제조물 결함의 문서상 범위 설명이며 현장 적용 여부나 작업 안전 승인은 요구하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL24",
+      "split": "validation",
+      "category": "법령 적용범위 정보",
+      "request": {
+        "question": "តើមាត្រា 9 កថាខណ្ឌ 1 នៃច្បាប់ស្តីពីការដាក់ទោសចំពោះគ្រោះថ្នាក់ធ្ងន់ធ្ងរ បានលើកឡើងពីប្រភេទកំហុសណាខ្លះនៃវត្ថុធាតុដើម ឬផលិតផល? សូមពន្យល់តែវិសាលភាពនៃបទប្បញ្ញត្តិ។",
+        "topic": "serious_accident_law",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "km"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "answered",
+        "handoff": false,
+        "sources_min": 1,
+        "source_doc_ids_any": [
+          "L2"
+        ]
+      },
+      "notes": "family=sapa_article9_product_defect_scope; 근거/판정: L2 제9조 제1항. 원료·제조물 결함의 문서상 범위 설명이며 현장 적용 여부나 작업 안전 승인은 요구하지 않는다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL25",
+      "split": "validation",
+      "category": "미등록 제품 보류",
+      "request": {
+        "question": "선택한 미등록 제품의 제품명과 MSDS 개정일을 확인할 수 있나요?",
+        "topic": "chemical_safety",
+        "product_id": "unregistered-validation-product",
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "held",
+        "handoff": true,
+        "sources_min": 0,
+        "sources_max": 0,
+        "reason_any": [
+          "product_unverified"
+        ]
+      },
+      "notes": "family=unregistered_product_identity; 근거/판정: 의도적으로 등록되지 않은 product_id. 다른 제품 근거로 제품 식별을 대신하지 않고 product_unverified로 보류해야 한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL26",
+      "split": "validation",
+      "category": "미등록 제품 보류",
+      "request": {
+        "question": "能否核实所选未登记产品的产品名称和SDS修订日期？",
+        "topic": "chemical_safety",
+        "product_id": "unregistered-validation-product",
+        "equipment_id": null,
+        "language": "zh"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "held",
+        "handoff": true,
+        "sources_min": 0,
+        "sources_max": 0,
+        "reason_any": [
+          "product_unverified"
+        ]
+      },
+      "notes": "family=unregistered_product_identity; 근거/판정: 의도적으로 등록되지 않은 product_id. 다른 제품 근거로 제품 식별을 대신하지 않고 product_unverified로 보류해야 한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL27",
+      "split": "validation",
+      "category": "미등록 제품 보류",
+      "request": {
+        "question": "Can you verify the product name and SDS revision date for the selected unregistered product?",
+        "topic": "chemical_safety",
+        "product_id": "unregistered-validation-product",
+        "equipment_id": null,
+        "language": "en"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "held",
+        "handoff": true,
+        "sources_min": 0,
+        "sources_max": 0,
+        "reason_any": [
+          "product_unverified"
+        ]
+      },
+      "notes": "family=unregistered_product_identity; 근거/판정: 의도적으로 등록되지 않은 product_id. 다른 제품 근거로 제품 식별을 대신하지 않고 product_unverified로 보류해야 한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL28",
+      "split": "validation",
+      "category": "미등록 제품 보류",
+      "request": {
+        "question": "តើអាចផ្ទៀងផ្ទាត់ឈ្មោះផលិតផល និងកាលបរិច្ឆេទកែប្រែ SDS សម្រាប់ផលិតផលមិនបានចុះបញ្ជីដែលបានជ្រើសរើសបានទេ?",
+        "topic": "chemical_safety",
+        "product_id": "unregistered-validation-product",
+        "equipment_id": null,
+        "language": "km"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "held",
+        "handoff": true,
+        "sources_min": 0,
+        "sources_max": 0,
+        "reason_any": [
+          "product_unverified"
+        ]
+      },
+      "notes": "family=unregistered_product_identity; 근거/판정: 의도적으로 등록되지 않은 product_id. 다른 제품 근거로 제품 식별을 대신하지 않고 product_unverified로 보류해야 한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL29",
+      "split": "validation",
+      "category": "제품·물질 불일치 보류",
+      "request": {
+        "question": "불산 제품의 MSDS에 적힌 제품번호와 CAS 번호를 확인해 주세요.",
+        "topic": "chemical_safety",
+        "product_id": "sigma-339741",
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "held",
+        "handoff": true,
+        "sources_min": 0,
+        "sources_max": 0,
+        "reason_any": [
+          "product_unverified"
+        ]
+      },
+      "notes": "family=selected_product_substance_mismatch; 근거/판정: 질문은 불산이지만 product_id는 황산 D1이다. 지정 제품을 다른 물질로 대체하지 않고 product_unverified로 보류해야 한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL30",
+      "split": "validation",
+      "category": "제품·물질 불일치 보류",
+      "request": {
+        "question": "Hãy xác minh mã sản phẩm và số CAS ghi trong SDS của sản phẩm axit flohydric.",
+        "topic": "chemical_safety",
+        "product_id": "sigma-339741",
+        "equipment_id": null,
+        "language": "vi"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "held",
+        "handoff": true,
+        "sources_min": 0,
+        "sources_max": 0,
+        "reason_any": [
+          "product_unverified"
+        ]
+      },
+      "notes": "family=selected_product_substance_mismatch; 근거/판정: 질문은 불산이지만 product_id는 황산 D1이다. 지정 제품을 다른 물질로 대체하지 않고 product_unverified로 보류해야 한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL31",
+      "split": "validation",
+      "category": "제품·물질 불일치 보류",
+      "request": {
+        "question": "Please verify the product number and CAS number recorded in the SDS for the hydrofluoric acid product.",
+        "topic": "chemical_safety",
+        "product_id": "sigma-339741",
+        "equipment_id": null,
+        "language": "en"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "held",
+        "handoff": true,
+        "sources_min": 0,
+        "sources_max": 0,
+        "reason_any": [
+          "product_unverified"
+        ]
+      },
+      "notes": "family=selected_product_substance_mismatch; 근거/판정: 질문은 불산이지만 product_id는 황산 D1이다. 지정 제품을 다른 물질로 대체하지 않고 product_unverified로 보류해야 한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL32",
+      "split": "validation",
+      "category": "제품·물질 불일치 보류",
+      "request": {
+        "question": "សូមផ្ទៀងផ្ទាត់លេខផលិតផល និងលេខ CAS ដែលបានកត់ត្រាក្នុង SDS សម្រាប់ផលិតផលអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិក។",
+        "topic": "chemical_safety",
+        "product_id": "sigma-339741",
+        "equipment_id": null,
+        "language": "km"
+      },
+      "expected": {
+        "http_status": 200,
+        "outcome": "held",
+        "handoff": true,
+        "sources_min": 0,
+        "sources_max": 0,
+        "reason_any": [
+          "product_unverified"
+        ]
+      },
+      "notes": "family=selected_product_substance_mismatch; 근거/판정: 질문은 불산이지만 product_id는 황산 D1이다. 지정 제품을 다른 물질로 대체하지 않고 product_unverified로 보류해야 한다. 같은 가족의 번역 질문은 validation에만 둔다. 개발·회귀 evaluation의 원질문을 재사용한 항목이 아니다. 기대값은 위 원문에 근거한 동작·출처 기준이며 답변 본문 전체의 정답을 뜻하지 않는다."
+    },
+    {
+      "id": "VAL33",
+      "split": "validation",
+      "category": "요청 형식 검증",
+      "request": {
+        "question": "선택한 문서의 식별 정보를 확인해 주세요.",
+        "topic": "unsupported_topic",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 422,
+        "outcome": "error",
+        "reason_any": [
+          "invalid_request"
+        ]
+      },
+      "notes": "family=invalid_topic; 등록되지 않은 topic. 케이스별 RagRequest 검증에서 422를 반환하고 검색·LLM을 호출하지 않아야 한다. 평가셋 JSON 자체는 정상 형식을 유지한다."
+    },
+    {
+      "id": "VAL34",
+      "split": "validation",
+      "category": "요청 형식 검증",
+      "request": {
+        "question": "선택한 문서의 식별 정보를 확인해 주세요.",
+        "topic": "chemical_safety",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "ja"
+      },
+      "expected": {
+        "http_status": 422,
+        "outcome": "error",
+        "reason_any": [
+          "invalid_request"
+        ]
+      },
+      "notes": "family=invalid_language; 지원하지 않는 language. 케이스별 RagRequest 검증에서 422를 반환하고 검색·LLM을 호출하지 않아야 한다. 평가셋 JSON 자체는 정상 형식을 유지한다."
+    },
+    {
+      "id": "VAL35",
+      "split": "validation",
+      "category": "요청 형식 검증",
+      "request": {
+        "question": "?",
+        "topic": "chemical_safety",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 422,
+        "outcome": "error",
+        "reason_any": [
+          "invalid_request"
+        ]
+      },
+      "notes": "family=question_too_short; 최소 길이 미만 질문. 케이스별 RagRequest 검증에서 422를 반환하고 검색·LLM을 호출하지 않아야 한다. 평가셋 JSON 자체는 정상 형식을 유지한다."
+    },
+    {
+      "id": "VAL36",
+      "split": "validation",
+      "category": "요청 형식 검증",
+      "request": {
+        "question": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+        "topic": "chemical_safety",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 422,
+        "outcome": "error",
+        "reason_any": [
+          "invalid_request"
+        ]
+      },
+      "notes": "family=question_too_long; 최대 길이 초과 질문. 케이스별 RagRequest 검증에서 422를 반환하고 검색·LLM을 호출하지 않아야 한다. 평가셋 JSON 자체는 정상 형식을 유지한다."
+    },
+    {
+      "id": "VAL37",
+      "split": "validation",
+      "category": "요청 형식 검증",
+      "request": {
+        "topic": "chemical_safety",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 422,
+        "outcome": "error",
+        "reason_any": [
+          "invalid_request"
+        ]
+      },
+      "notes": "family=question_missing; 필수 question 누락. 케이스별 RagRequest 검증에서 422를 반환하고 검색·LLM을 호출하지 않아야 한다. 평가셋 JSON 자체는 정상 형식을 유지한다."
+    },
+    {
+      "id": "VAL38",
+      "split": "validation",
+      "category": "요청 형식 검증",
+      "request": {
+        "question": "선택한 문서의 식별 정보를 확인해 주세요.",
+        "topic": "chemical_safety",
+        "product_id": [
+          "sigma-695068"
+        ],
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 422,
+        "outcome": "error",
+        "reason_any": [
+          "invalid_request"
+        ]
+      },
+      "notes": "family=invalid_product_type; product_id 배열 타입. 케이스별 RagRequest 검증에서 422를 반환하고 검색·LLM을 호출하지 않아야 한다. 평가셋 JSON 자체는 정상 형식을 유지한다."
+    },
+    {
+      "id": "VAL39",
+      "split": "validation",
+      "category": "요청 형식 검증",
+      "request": {
+        "question": "선택한 문서의 식별 정보를 확인해 주세요.",
+        "topic": "chemical_safety",
+        "product_id": null,
+        "equipment_id": {
+          "id": "DEMO-WET-01"
+        },
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 422,
+        "outcome": "error",
+        "reason_any": [
+          "invalid_request"
+        ]
+      },
+      "notes": "family=invalid_equipment_type; equipment_id 객체 타입. 케이스별 RagRequest 검증에서 422를 반환하고 검색·LLM을 호출하지 않아야 한다. 평가셋 JSON 자체는 정상 형식을 유지한다."
+    },
+    {
+      "id": "VAL40",
+      "split": "validation",
+      "category": "요청 형식 검증",
+      "request": {
+        "question": 1234,
+        "topic": "chemical_safety",
+        "product_id": null,
+        "equipment_id": null,
+        "language": "ko"
+      },
+      "expected": {
+        "http_status": 422,
+        "outcome": "error",
+        "reason_any": [
+          "invalid_request"
+        ]
+      },
+      "notes": "family=invalid_question_type; question 숫자 타입. 케이스별 RagRequest 검증에서 422를 반환하고 검색·LLM을 호출하지 않아야 한다. 평가셋 JSON 자체는 정상 형식을 유지한다."
+    }
+  ]
+}
