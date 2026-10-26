@@ -231,3 +231,43 @@ def test_example_parenthesis_period_does_not_split_warning():
     doc = Document(page_content=raw, metadata={"chunk_id": "M1", "doc_type": "msds", "msds_section_no": 7})
     quotes = [q for _, q in critical_passages([doc]).values()]
     assert any("(예. 초과압 밸브) 용기를 밀폐할 것" in q for q in quotes)
+
+
+def test_foreign_amounts_native_numbers_and_time_units():
+    from rag.generator import Citation, _quantities_supported, _localize_units
+    law = [Citation(chunk_id="L2", quote="7년 이하의 징역 또는 1억원 이하의 벌금에 처한다.")]
+    assert _quantities_supported("imprisonment for up to 7 years or a fine of up to 100 million won", law)
+    assert not _quantities_supported("imprisonment for up to 7 years or a fine of up to 1 billion won", law)
+    hour = [Citation(chunk_id="M1", quote="한 시간 내에 의학적 치료가 불가능하다면")]
+    assert _quantities_supported("如果 1 小时内无法获得医疗救治", hour)
+    assert not _quantities_supported("如果 2 小时内无法获得医疗救治", hour)
+    gear = [Citation(chunk_id="M2", quote="관한 개인보호구를 착용")]
+    assert not _quantities_supported("wear 1 set of protective equipment", gear)   # "관한 개인"은 "한 개"가 아니다
+    assert _localize_units("渗透时间为480 분、厚度为0.7 mm", "zh") == "渗透时间为480 分钟、厚度为0.7 mm"
+    assert _localize_units("480 분 이상", "zh") == "480 分钟 이상"
+    assert _localize_units("분석 결과", "en") == "분석 결과"
+
+
+def test_exclusion_words_vietnamese_tru_and_chinese_chu_wai():
+    from rag.prompt import translation_valid
+    src = "사업주는 허가대상 유해물질(베릴륨 및 석면은 제외한다)을 제조하는 경우 작업수칙을 정하여야 한다."
+    assert translation_valid(src, "Người sử dụng lao động phải lập quy tắc khi sản xuất chất độc hại (trừ berili và amiăng).", "vi")
+    assert translation_valid(src, "雇主在制造许可对象有害物质（除铍和石棉外）时，必须制定作业规程。", "zh")
+    assert not translation_valid(src, "Người sử dụng lao động phải lập quy tắc khi sản xuất chất độc hại, berili và amiăng.", "vi")
+
+
+def test_multiline_law_page_header_is_removed():
+    from ingest_law import clean_noise
+    raw = "② 사업주는 보안경을 지급하고 착용하도록 하여야\n법제처\n\n81\n\n국가법령정보센터\n\n산업안전보건기준에 관한 규칙\n한다."
+    assert clean_noise(raw) == "② 사업주는 보안경을 지급하고 착용하도록 하여야\n한다."
+
+
+def test_coded_precaution_keeps_all_its_sentences():
+    from langchain_core.documents import Document
+    from rag.prompt import critical_passages
+    raw = ("P403 + P233 환기가 잘 되는 곳에 보관하시오. 용기를 단단히\n밀폐하시오.\n"
+           "P403 + P235 환기가 잘 되는 곳에 보관하시오. 저온으로\n유지하시오.\n")
+    doc = Document(page_content=raw, metadata={"chunk_id": "M9", "doc_type": "msds", "msds_section_no": 2})
+    quotes = sorted(q for _, q in critical_passages([doc]).values())
+    assert quotes == ["P403 + P233 환기가 잘 되는 곳에 보관하시오. 용기를 단단히\n밀폐하시오.",
+                      "P403 + P235 환기가 잘 되는 곳에 보관하시오. 저온으로\n유지하시오."]
