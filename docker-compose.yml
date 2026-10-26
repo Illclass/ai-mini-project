@@ -1,0 +1,122 @@
+name: chembridge
+
+x-python: &python
+  image: chembridge-rag:local
+  build:
+    context: .
+    dockerfile: frontend/deploy/python.Dockerfile
+    target: rag
+  environment: &python-env
+    HF_HOME: /models
+    TOKENIZERS_PARALLELISM: 'false'
+    OMP_NUM_THREADS: '2'
+  volumes:
+    - models:/models
+  restart: unless-stopped
+
+services:
+  db:
+    image: mariadb:11.4
+    env_file: auth-server/.env
+    environment:
+      MARIADB_DATABASE: sql_db
+    entrypoint: ['/bin/sh', '-ec', 'export MARIADB_ROOT_PASSWORD="$$DB_PASSWORD"; exec docker-entrypoint.sh mariadbd']
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./frontend/deploy/init-db.sql:/docker-entrypoint-initdb.d/01-users.sql:ro
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  auth:
+    build:
+      context: .
+      dockerfile: frontend/deploy/auth.Dockerfile
+    env_file: auth-server/.env
+    environment:
+      DB_URL: jdbc:mariadb://db:3306/sql_db
+      DB_USER: root
+      JAVA_TOOL_OPTIONS: '-XX:MaxRAMPercentage=60'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/login >/dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  index-init:
+    <<: *python
+    env_file: rag-service/.env
+    working_dir: /app/rag-service
+    command: ['bash', '/app/deploy/init-index.sh']
+    volumes:
+      - models:/models
+      - indexes:/app/rag-service/faiss_db
+      - ./rag-service/faiss_db:/seed:ro
+    restart: 'no'
+
+  rag:
+    <<: *python
+    env_file: [rag-service/.env, auth-server/.env]
+    working_dir: /app/rag-service
+    command: ['python', '-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '8001', '--workers', '1']
+    volumes:
+      - models:/models
+      - indexes:/app/rag-service/faiss_db:ro
+    depends_on:
+      index-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'python', '/app/deploy/healthcheck.py', 'rag']
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+
+  voice:
+    <<: *python
+    image: chembridge-voice:local
+    build:
+      context: .
+      dockerfile: frontend/deploy/python.Dockerfile
+      target: voice
+    env_file: [voice-service/app/.env, auth-server/.env]
+    working_dir: /app/voice-service
+    command: ['python', '-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '8008', '--workers', '1']
+    healthcheck:
+      test: ['CMD', 'python', '/app/deploy/healthcheck.py', 'voice']
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 120s
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/deploy/web.Dockerfile
+    ports:
+      - '127.0.0.1:${WEB_PORT:-5190}:80'
+    depends_on:
+      auth:
+        condition: service_healthy
+      rag:
+        condition: service_healthy
+      voice:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1/']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  indexes:
+  models:

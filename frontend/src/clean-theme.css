@@ -252,17 +252,66 @@ body .scope-menu button { font-size:14px; min-height:40px; }
 #app .clear-chat-empty .clear-empty-icon { order:2; margin-bottom:6px; }
 #app .clear-chat-empty h2 { order:3; margin:0; }
 
-/* 최종: 안내(아이콘·제목)는 남은 여백 한가운데, 예상질문은 입력창 바로 위 */
-#app .clear-conversation { display:flex; flex-direction:column; }
-#app .clear-chat-empty { flex:1; width:100%; display:flex; flex-direction:column; align-items:center; padding:8px 0 0; min-height:0; }
-#app .clear-chat-empty .clear-empty-icon { order:1; margin:auto 0 6px; }
-#app .clear-chat-empty h2 { order:2; margin:0 0 auto; }
-#app .clear-chat-empty .clear-suggestions, #app .clear-chat-empty .faq-board { order:3; margin:12px 0 0; }
+/* Chat workspace: only the conversation scrolls; selectors and input stay visible. */
+#app .app-shell.chat-page { height:100dvh; min-height:0; display:flex; flex-direction:column; align-items:stretch; overflow:hidden; }
+#app .chat-page > .clear-chat-header { flex:0 0 56px; width:100%; height:56px; }
+#app .chat-page .clear-chat-main { flex:1 1 0; width:100%; min-height:0; padding:12px 24px; overflow:hidden; }
+#app .chat-page .clear-chat-main.has-guide { grid-template-columns:minmax(280px,.85fr) minmax(0,1.15fr); align-items:stretch; gap:20px; }
+#app .chat-page .chat-pane { height:100%; min-height:0; overflow:hidden; padding:12px; gap:8px; }
+#app .chat-controls { flex:none; display:flex; flex-direction:column; gap:8px; }
+#app .chat-controls .chat-topic-picker { margin:0; }
+#app .chat-controls .chat-scope { padding:8px 10px; }
+#app .chat-page .clear-conversation { position:relative; flex:1 1 0; min-height:0; max-height:none; overflow-y:auto; overscroll-behavior-y:contain; scrollbar-gutter:stable; padding:0 4px 8px 0; border:0; border-radius:0; box-shadow:none; background:none; }
+#app .chat-page .clear-chat-empty { flex:1; width:100%; height:auto; min-height:0; padding:12px 0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+#app .chat-page .clear-chat-empty .clear-empty-icon { order:0; margin:0 0 6px; }
+#app .chat-page .clear-chat-empty h2 { order:1; margin:0; }
+#app .chat-page .clear-chat-empty:has(.faq-board) { justify-content:flex-start; padding-top:0; }
+#app .chat-page .clear-chat-empty:has(.faq-board) > .clear-empty-icon,
+#app .chat-page .clear-chat-empty:has(.faq-board) > h2 { display:none; }
+#app .chat-page .clear-chat-empty .faq-board { order:0; margin:0; }
+#app .chat-input-dock { flex:none; display:flex; flex-direction:column; gap:8px; }
+#app .chat-input-dock .chat-followup { margin:0; gap:6px; }
+#app .chat-input-dock .chat-followup button { padding:8px 12px; font-size:14px; line-height:1.45; }
+#app .chat-input-dock .clear-composer { position:static; margin:0; padding:8px 12px; }
+#app .chat-input-dock .clear-composer textarea { display:block; height:44px; min-height:44px; max-height:min(120px,18dvh); font-size:16px; line-height:1.5; }
+#app .chat-page .guide-viewer { position:static; height:100%; min-height:0; overflow:hidden; margin:0; padding:16px; gap:12px; }
+#app .chat-page .guide-head, #app .chat-page .guide-controls { flex:none; }
+#app .chat-page .guide-stage { flex:1 1 0; min-height:0; padding:12px; }
+#app .chat-page .guide-book { width:100%; max-width:460px; height:100%; min-height:0; }
+#app .chat-page .guide-book > .stf__parent,
+#app .chat-page .guide-book .stf__wrapper { width:100%; height:100%; }
 
-/* 대화 영역: 기존 유리 상자(고정 높이·둥근 테두리·내부 스크롤) 제거 → 잘림 방지 */
-#app .clear-conversation { max-height:none; min-height:300px; overflow:visible; border:0; border-radius:0; box-shadow:none; background:none; }
-#app .clear-composer { position:sticky; bottom:12px; z-index:2; }
-#app .clear-chat-main { gap:0; }
+/* Home fills the viewport, with six cards sharing the remaining space. */
+#app .app-shell.home-page { height:100dvh; min-height:0; display:flex; flex-direction:column; align-items:stretch; overflow:hidden; }
+#app .home-page > .clear-chat-header { flex:0 0 56px; width:100%; height:56px; }
+#app .home-page .glass-home { flex:1 1 0; width:100%; min-height:0; overflow:hidden; }
+#app .home-page .glass-home-main { width:100%; height:100%; min-height:0; padding:clamp(16px,4dvh,40px) 24px; }
+#app .home-page .sand-title { flex:none; font-size:clamp(26px,4.5dvh,36px); line-height:1.35; }
+#app .home-page .clean-home-sub { flex:none; margin-bottom:clamp(12px,3dvh,24px); }
+#app .home-page .glass-situation-grid { flex:1 1 0; min-height:0; grid-template-rows:repeat(2,minmax(0,1fr)); gap:clamp(10px,2dvh,20px); }
+#app .home-page .glass-situation { min-height:0; padding:clamp(14px,2.8dvh,28px); gap:clamp(6px,1.3dvh,12px); justify-content:center; }
+#app .home-page .home-free-question { flex:none; height:clamp(44px,8dvh,64px); margin-top:clamp(12px,2.5dvh,24px); }
+@media (max-width:900px) {
+ #app .home-page .glass-situation-grid { grid-template-rows:repeat(3,minmax(0,1fr)); }
+ #app .home-page .glass-situation { padding:12px 16px; gap:6px; }
+ #app .home-page .home-tile-symbol { width:36px; height:36px; }
+}
+@media (max-height:650px) {
+ #app .home-page .home-tile-symbol { width:34px; height:34px; }
+ #app .home-page .home-tile-title { font-size:18px; }
+ #app .home-page .home-tile-sub { font-size:13px; }
+}
+@media (max-width:1180px) {
+ #app .chat-page .clear-chat-main.has-guide { display:block; }
+ #app .chat-page .guide-viewer { display:none; }
+}
+@media (max-width:600px) {
+ #app .chat-page .clear-chat-main { padding:8px; }
+ #app .chat-page .chat-pane { padding:12px; gap:8px; }
+ #app .chat-controls { gap:8px; }
+ #app .chat-controls .chat-scope-controls { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+ #app .chat-input-dock .chat-followup button { font-size:13px; padding:7px 10px; }
+}
 
 /* 보고서 추가 영역 */
 .report-extra { display:flex; flex-direction:column; gap:14px; margin-top:8px; }
@@ -335,18 +384,9 @@ body .scope-menu button { font-size:14px; min-height:40px; }
 #app .voice-convo-end { height:52px; padding:0 24px; border-radius:14px; border:0; background:#B4412F; color:#fff; font-size:17px; font-weight:700; }
 #app .convo-start { background:var(--c-teal-soft); color:var(--c-teal); border-color:transparent; font-weight:700; }
 
-/* 답변이 잘 보이게 (김규빈 2026-10-26): 대화 중에는 지침서를 접고, 범위 선택·입력칸을 줄이고, 답변 글자를 조금 줄인다 */
-#app .clear-answer-text { font-size:16px; line-height:1.7; }
+/* Long informational lists can fold without changing the compact chat layout. */
 #app .clear-more { display:inline-flex; margin:2px 0; padding:4px 12px; border:1px solid var(--c-line); border-radius:999px; background:var(--c-teal-soft); color:var(--c-teal); font-size:13px; font-weight:700; cursor:pointer; }
 #app .clear-more:hover { border-color:var(--c-teal); }
-#app .clear-exchange { scroll-margin-top:16px; }
-#app .chat-scope.is-compact { padding:8px 12px; }
-#app .chat-scope.is-compact .chat-scope-controls>label { display:flex; align-items:center; gap:8px; }
-#app .chat-scope.is-compact .chat-scope-controls>label>span { white-space:nowrap; }
-#app .chat-scope.is-compact .chat-scope-controls>label>:last-child { flex:1; min-width:0; }
-#app .clear-composer textarea { min-height:44px; }
-#app .clear-composer textarea[rows='1'] { min-height:28px; height:28px; }   /* 대화 중에는 한 줄 (늘려 쓸 수 있음) */
-#app .clear-exchange:last-child { scroll-margin-bottom:160px; }
 
 /* Direct original-MSDS citations. Section controls are separate from supplier links. */
 #app .source-group { background:var(--c-teal-soft); border-radius:14px; padding:4px 10px 10px; max-width:100%; }
@@ -369,3 +409,65 @@ body .scope-menu button { font-size:14px; min-height:40px; }
 .source-viewer-controls button:disabled { opacity:.4; cursor:default; }
 .source-viewer:lang(km) { font-family:'Noto Sans Khmer',sans-serif; }
 @media(max-width:600px) { .source-overlay { padding:6px; } .source-viewer { height:97dvh; padding:12px; border-radius:12px; gap:9px; } .source-viewer h2 { font-size:16px; } .source-viewer-sections button { font-size:12px; } .source-paper { padding:4px; } }
+
+/* Conversation first; the document panel is opened explicitly. */
+#app .chat-page .clear-chat-main { position:relative; padding-left:40px; }
+#app .chat-page .clear-chat-main:not(.has-guide) .chat-pane { max-width:none; }
+#app .guide-toggle { position:fixed; left:0; top:calc(50% + 28px); z-index:30; width:30px; height:64px; padding:0; display:grid; place-items:center; color:var(--c-teal); background:#fff; border:1px solid #C5D1CD; border-left:0; border-radius:0 12px 12px 0; box-shadow:2px 2px 8px #12302a10; }
+#app .guide-toggle:focus-visible { outline:2px solid var(--c-teal); outline-offset:2px; }
+#app .chat-page .clear-exchange { padding:14px 16px; }
+#app .chat-page .clear-question { margin-bottom:14px; }
+#app .chat-page .clear-question p { font-size:16px; line-height:1.55; padding:10px 14px; }
+#app .chat-page .clear-answer { padding:12px 16px; }
+#app .chat-page .clear-answer-heading { margin-bottom:10px; }
+#app .chat-page .clear-answer-text { font-size:17px; line-height:1.55; margin:8px 0; }
+#app .chat-page .clear-answer-tools { margin-top:14px; gap:8px; }
+#app .chat-page .guide-viewer { padding:12px; gap:8px; }
+#app .chat-page .guide-stage { padding:0; background:#fff; }
+#app .chat-page .guide-book { max-width:none; filter:none; }
+@media (min-width:901px) and (max-width:1180px) {
+ #app .chat-page .clear-chat-main.has-guide { display:grid; grid-template-columns:minmax(280px,.8fr) minmax(0,1.2fr); gap:12px; }
+ #app .chat-page .has-guide .guide-viewer { display:flex; }
+}
+@media (max-width:900px) {
+ #app .chat-page .has-guide .guide-viewer { display:flex; position:absolute; left:36px; top:12px; bottom:12px; height:auto; width:min(480px,calc(100% - 48px)); z-index:20; box-shadow:8px 0 32px #12302a20; }
+}
+
+/* Reserve the workspace for reading; keep controls compact. */
+#app .chat-controls { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:8px 12px; }
+#app .chat-controls .clear-chat-heading { grid-column:1 / -1; }
+#app .chat-controls .chat-scope { padding:6px 8px; }
+#app .chat-controls .chat-scope-controls { gap:10px; }
+#app .chat-controls .chat-scope-controls > label { display:flex; align-items:center; gap:8px; }
+#app .chat-controls .chat-scope-controls > label > span { flex:none; font-size:12px; }
+#app .chat-controls .scope-trigger { flex:1; min-width:0; height:36px; min-height:36px; padding:6px 10px; font-size:13px; border-radius:9px; }
+#app .chat-input-dock { gap:4px; }
+#app .suggestions-toggle { align-self:flex-end; display:flex; align-items:center; gap:8px; padding:7px 14px; min-height:36px; background:var(--c-teal-soft); color:var(--c-teal); border:1px solid #A9CBC5; border-radius:10px; font-size:14px; font-weight:600; transition:background .15s,border-color .15s; }
+#app .suggestions-toggle:hover { background:#D3E9E4; border-color:var(--c-teal); }
+#app .suggestions-toggle:focus-visible { outline:2px solid var(--c-teal); outline-offset:2px; }
+#app .chat-input-dock .clear-composer { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:6px 10px; padding:6px 8px; }
+#app .chat-input-dock .clear-composer textarea { grid-column:1; grid-row:1; height:40px; min-height:40px; max-height:112px; resize:none; padding:8px 4px; line-height:24px; overflow-y:auto; }
+#app .chat-input-dock .clear-composer-controls { grid-column:2; grid-row:1; margin:0; gap:6px; }
+#app .chat-input-dock .clear-mic, #app .chat-input-dock .clear-send { width:40px; height:40px; min-height:40px; padding:0; border-radius:10px; }
+#app .chat-input-dock .clear-mic span { display:none; }
+#app .chat-input-dock .clear-voice-state, #app .chat-input-dock .chat-voice-error { grid-column:1 / -1; margin:0; }
+#app .chat-page .has-guide .chat-controls { grid-template-columns:1fr; }
+@media (max-width:1000px) {
+ #app .chat-controls { grid-template-columns:1fr; }
+}
+@media (max-width:600px) {
+ #app .chat-controls .chat-scope-controls > label { flex-direction:column; align-items:stretch; gap:3px; }
+ #app .chat-input-dock .clear-composer { gap:4px; }
+ #app .chat-input-dock .clear-composer-controls { gap:4px; }
+ #app .chat-input-dock .clear-mic, #app .chat-input-dock .clear-send { width:36px; }
+}
+
+#app .guide-zoom-controls { flex:none; display:flex; justify-content:center; align-items:center; gap:6px; }
+#app .guide-zoom-controls button { display:grid; place-items:center; height:34px; min-width:34px; padding:0 8px; color:var(--c-teal); background:var(--c-teal-soft); border:1px solid #B6CEC9; border-radius:8px; }
+#app .guide-zoom-controls button:disabled { opacity:.4; }
+#app .guide-zoom-controls .guide-zoom-fit { min-width:64px; font-size:13px; font-variant-numeric:tabular-nums; }
+#app .guide-zoom-controls button:focus-visible { outline:2px solid var(--c-teal); outline-offset:2px; }
+#app .guide-book.is-zoomed { visibility:hidden; pointer-events:none; }
+#app .guide-zoom-viewport { position:absolute; inset:0; overflow:auto; overscroll-behavior:contain; background:#EDF2F0; }
+#app .guide-zoom-sheet { width:100%; height:100%; }
+#app .guide-zoom-sheet img { display:block; max-width:none; margin:0 auto; user-select:none; }
