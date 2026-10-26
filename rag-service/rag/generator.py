@@ -20,6 +20,7 @@ import httpx
 from langchain_core.documents import Document
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import BaseMessage
+from rag import lexicon
 from rag import prompt, llm
 from rag.diagnostics import record_failure
 from rag.llm import call_llm, RAGConfigurationError, validate_timeout as _valid_timeout, DEFAULT_MODEL as DEFAULT_LLM_MODEL
@@ -91,6 +92,7 @@ def is_emergency(question: str) -> bool:
         or re.search(vi, normalized(text)) or re.search(vi_incident, normalized(text))
         or re.search(en, text) or re.search(en_incident, text)
         or re.search(km, question)
+        or lexicon.emergency_match(question)   # data/lexicon/emergency.json (외국어 비상 표현 사전)
     )
 
 def is_prohibited_request(question: str) -> bool:

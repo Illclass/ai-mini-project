@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
+from rag import lexicon
 from rag.schema import Hit, LANGUAGES, DOC_TYPE_MSDS, DOC_TYPE_GUIDE
 
 MODES = ("qa", "learn", "precheck")
@@ -779,7 +780,8 @@ def build_document_messages(
                       + f"\n답변 언어: {language}. mode: {mode}."
                       + "\n출력 언어 이름: " + LANGUAGE_NAMES[language]
                       + "\n번역 용어집 (사실 근거 아님): "
-                      + json.dumps(TRANSLATION_TERMS[language], ensure_ascii=False)
+                      + json.dumps(TRANSLATION_TERMS[language] | lexicon.glossary_for(language, [doc.page_content for doc in documents]),
+                                   ensure_ascii=False)
                       + "\ncritical_translations에는 다음 경고 ID를 빠짐없이 각각 한 번씩 포함하세요: "
                       + json.dumps(list(critical_passages(documents)), ensure_ascii=False)
                       + ("\n한국어(ko)는 경고 원문을 서버가 직접 표시합니다. critical_translations는 []로 반환하세요."
