@@ -15,13 +15,17 @@ import ReportModal from './components/ReportModal.vue'
 import EmergencyContacts from './components/EmergencyContacts.vue'
 import { clean } from './locales/clean'
 import candidates from './api/candidates.json'
+import { lawRecommendations } from './api/recommendations.js'
 import { guideFor } from './api/guides'
 import { spring as vSpring } from './directives/spring'
 import './chat-glass.css'
 import { copy } from './locales'
 import * as api from './api'
 import { failureKey } from './api/client.js'
-import { answerLines, foldAnswer, groupSources } from './api/sources.js'
+import { answerLines, foldAnswer } from './api/sources.js'
+import SourceLinks from './components/SourceLinks.vue'
+const SourceViewer = defineAsyncComponent(() => import('./components/SourceViewer.vue'))
+const sourceSelection=ref(null)
 import { apiCopy } from './locales/api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
@@ -73,11 +77,11 @@ function answerView(message){const lines=foldAnswer(answerLines(message.response
 const faq=computed(()=>{
  const list=(candidates[language.value]||candidates.ko)[isLaw.value?'law':'chemical']||[]
  const groups=[]
- for(const item of list){let g=groups.find(x=>x.key===item.g);if(!g){g={key:item.g,items:[]};groups.push(g)}g.items.push(item.q)}
+ for(const item of list){let g=groups.find(x=>x.key===item.g);if(!g){g={key:item.g,items:[]};groups.push(g)}g.items.push(item)}
  return groups
 })
 function onKey(event){if(event.key!=='Enter'||event.shiftKey||event.isComposing||event.keyCode===229)return;event.preventDefault();send()}
-const suggestions=computed(()=>topic.value===api.contract.topics.law?[a.value.lawQuestion]:suggestedQuestions({situation:situation.value,language:language.value,equipmentId:equipmentId.value,productId:productId.value}))
+const suggestions=computed(()=>topic.value===api.contract.topics.law?lawRecommendations(language.value).map(x=>x.q):suggestedQuestions({situation:situation.value,language:language.value,equipmentId:equipmentId.value,productId:productId.value}))
 const feedback=computed(()=>feedbackCopy[language.value]), slowResponse=ref(false)
 let slowTimer
 watch(pending,value=>{clearTimeout(slowTimer);slowResponse.value=false;if(value)slowTimer=setTimeout(()=>{slowResponse.value=true},12000)})
@@ -100,7 +104,7 @@ watch(language,v=>{document.documentElement.lang=v;document.title=`ChemBridge ·
 document.documentElement.lang=language.value
 document.title=`ChemBridge · ${copy[language.value].service}`
 function stop(){audio?.pause();audio=null;if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}playing.value=null;audioDone?.();audioDone=null}
-function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;endConvo();stop()}
+function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;sourceSelection.value=null;endConvo();stop()}
 function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
 function open(key,selectedTopic=api.contract.topics.chemical){productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
 function changeTopic(value){if(busy.value)return;open(situation.value,value)}
@@ -130,6 +134,7 @@ async function signup(credentials){
  catch(error){loginError.value=error.status===400?'signupDuplicate':errorKey(error)}
  finally{signingIn.value=false}
 }
+function fillFaq(item){if(busy.value)return;if(item.product_id){equipmentId.value=item.equipment_id||'';productId.value=item.product_id}fill(item.q)}
 function fill(text){if(busy.value)return;voice.value='idle';voiceDraft=false;question.value=text;nextTick(()=>input.value?.focus())}
 async function scroll(){await nextTick();thread.value?.lastElementChild?.scrollIntoView({behavior:'smooth',block:'start'})}   // 긴 답변도 질문부터 읽게 맨 위에 맞춘다
 async function send(retryMessage){
@@ -205,7 +210,7 @@ async function play(message){
   const finished=new Promise(resolve=>{audioDone=resolve})
   await audio.play()
   await finished   // 음성 대화 모드는 다 읽은 뒤에 다시 듣는다
- }catch(error){if(playing.value===id){stop();voiceError.value=error.status===401?'expired':'speakFailed'}}
+ }catch(error){if(playing.value===id){stop();if(error.status===401){expire(message);return}voiceError.value='speakFailed'}}
 }
 // ── 음성 대화 모드 ──
 async function startConvo(){
@@ -284,7 +289,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
       <h2>{{t.emptyTitle}}</h2>
       <div v-if="situation==='free'&&!equipmentId&&!productId" class="faq-board" :aria-label="c.faqTitle">
         <p class="faq-sub">{{c.faqTitle}} · {{c.faqSub}}</p>
-        <section v-for="group in faq" :key="group.key" class="faq-group"><h3>{{c.g[group.key]}}</h3><div class="faq-items"><button v-for="q in group.items" :key="q" type="button" class="faq-item" @click="fill(q)"><span>{{q}}</span><Icon name="arrow" :size="16" /></button></div></section>
+        <section v-for="group in faq" :key="group.key" class="faq-group"><h3>{{c.g[group.key]}}</h3><div class="faq-items"><button v-for="item in group.items" :key="item.q" type="button" class="faq-item" @click="fillFaq(item)"><span>{{item.q}}</span><Icon name="arrow" :size="16" /></button></div></section>
       </div>
       <div v-else class="clear-suggestions" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
     </div>
@@ -315,7 +320,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
                보류 이유를 위에서 보여 줬으면 서버의 일반 보류 문구는 같은 말이라 숨긴다. 오류 번호는 연결·생성 오류일 때만. -->
           <p v-if="!(message.response.handoff&&!isEmergency(message.response)&&failureKey(message.response))" class="clear-answer-text"><template v-for="view in [answerView(message)]" :key="'view'"><template v-for="(line,li) in view.lines" :key="li"><template v-if="li">{{'\n'}}</template><span :class="{'clear-answer-subhead':line.heading,'clear-original':line.original}"><template v-for="(part,pi) in line.parts" :key="pi"><sup v-if="part.mark" class="clear-mark">{{part.mark}}</sup><template v-else>{{part.text}}</template></template></span><template v-if="line.more&&!message.expanded">{{'\n'}}<button type="button" class="clear-more" @click="message.expanded=true">{{c.more.replace('{n}',line.more)}}</button></template></template><template v-if="view.folds&&message.expanded">{{'\n'}}<button type="button" class="clear-more" @click="message.expanded=false">{{c.less}}</button></template></template></p>
           <div class="clear-answer-tools">
-            <!-- 같은 문서의 출처는 한 줄로 묶는다 (번호는 본문과 같음) --><template v-for="group in groupSources(message.response.sources)" :key="group.key"><a v-if="sourceUrl(group.url)" v-spring class="clear-source" :href="sourceUrl(group.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{group.label}}]</span><span>{{group.title}}<template v-if="group.sections.length"> · {{group.sections.join(' · ')}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{group.label}}]</span><span>{{group.title}}<template v-if="group.sections.length"> · {{group.sections.join(' · ')}}</template></span></span></template>
+            <SourceLinks :sources="message.response.sources" :language="language" @open="sourceSelection=$event" />
             <button v-if="api.VOICE_LANGUAGES.includes(message.language)" v-spring class="clear-listen" :disabled="busy" :aria-pressed="playing===message.id" @click="play(message)"><Icon :name="playing===message.id?'stop':'sound'" :size="19" />{{playing===message.id?t.stop:a.listenAnswer}}</button>
             <button v-spring type="button" class="clear-report" @click="report=message"><Icon name="file" :size="19" />{{c.makeReport}}</button>
           </div>
@@ -349,6 +354,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
   <p class="voice-convo-hint">{{a.convoHint}}</p>
   <button type="button" class="voice-convo-end" @click="endConvo">{{a.convoEnd}}</button>
 </section>
+<SourceViewer v-if="sourceSelection" :selection="sourceSelection" :language="language" @close="sourceSelection=null" />
 <EmergencyContacts v-if="contacts" :language="language" @close="contacts=false" />
 <ReportModal v-if="report" :message="report" :title="title" :scope="scopeLabel(report)" :language="language" @close="report=null" @auth-expired="expire" />
 <div v-if="modal" class="modal-backdrop" @click.self="modal=null"><section ref="modalElement" @keydown="trapFocus" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="modal"><span class="modal-icon"><Icon :name="modal==='voice'?'mic':'file'" :size="28"/></span><h2 id="modal-title">{{modal==='voice'?t.permissionTitle:t.sourceTitle}}</h2><p>{{modal==='voice'?t.permissionBody:t.sourceBody}}</p><div class="modal-actions"><button class="secondary" autofocus @click="modal=null">{{t.close}}</button><button v-if="modal==='voice'" class="primary" @click="beginRecording">{{t.startVoice}}<Icon name="arrow" :size="17"/></button></div></section></div>

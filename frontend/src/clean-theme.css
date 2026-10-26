@@ -347,3 +347,25 @@ body .scope-menu button { font-size:14px; min-height:40px; }
 #app .clear-composer textarea { min-height:44px; }
 #app .clear-composer textarea[rows='1'] { min-height:28px; height:28px; }   /* 대화 중에는 한 줄 (늘려 쓸 수 있음) */
 #app .clear-exchange:last-child { scroll-margin-bottom:160px; }
+
+/* Direct original-MSDS citations. Section controls are separate from supplier links. */
+#app .source-group { background:var(--c-teal-soft); border-radius:14px; padding:4px 10px 10px; max-width:100%; }
+#app .source-group .source-document { border:0; box-shadow:none; margin:0; background:none; padding:10px 4px; text-align:left; cursor:pointer; }
+.source-sections { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.source-sections button { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid #B9CFCA; border-radius:9px; background:#fff; color:var(--c-teal); font-size:14px; cursor:pointer; }
+.source-sections a { color:var(--c-muted); font-size:13px; padding:8px; }
+.source-overlay { position:fixed; inset:0; z-index:1100; background:#132F2A80; padding:20px; display:flex; justify-content:center; align-items:center; }
+.source-viewer { width:min(1050px,100%); height:min(94vh,1100px); display:flex; flex-direction:column; gap:12px; background:var(--c-ground); border-radius:20px; padding:20px; color:var(--c-ink); box-shadow:0 20px 70px #102E2940; }
+.source-viewer-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.source-viewer-heading span { color:var(--c-teal); font-size:13px; }
+.source-viewer h2 { margin:3px 0 0; font-size:20px; overflow-wrap:anywhere; }
+.source-close, .source-viewer-controls button, .source-viewer-controls a, .source-viewer-sections button { border:1px solid #BCCFC9; border-radius:9px; background:white; padding:9px 12px; color:var(--c-teal); cursor:pointer; text-decoration:none; }
+.source-viewer-sections { display:flex; gap:8px; flex-wrap:wrap; }
+.source-viewer-sections button[aria-pressed=true] { background:var(--c-teal); color:#fff; }
+.source-original-note { margin:0; font-size:13px; color:var(--c-muted); }
+.source-paper { flex:1; min-height:0; overflow:auto; background:#E1E9E6; padding:12px; border-radius:10px; text-align:center; }
+.source-paper canvas { display:block; width:100%; max-width:900px; height:auto; margin:auto; background:white; }
+.source-viewer-controls { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; font-size:13px; }
+.source-viewer-controls button:disabled { opacity:.4; cursor:default; }
+.source-viewer:lang(km) { font-family:'Noto Sans Khmer',sans-serif; }
+@media(max-width:600px) { .source-overlay { padding:6px; } .source-viewer { height:97dvh; padding:12px; border-radius:12px; gap:9px; } .source-viewer h2 { font-size:16px; } .source-viewer-sections button { font-size:12px; } .source-paper { padding:4px; } }

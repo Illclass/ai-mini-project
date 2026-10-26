@@ -1,4 +1,22 @@
 import contract from './contract.json' with { type: 'json' }
+import { copy } from '../locales/index.js'
+import { apiCopy } from '../locales/api.js'
+import { scopeCopy } from '../locales/scope.js'
+import { catalog, equipmentFor, equipmentLabel, productLabel } from './scope.js'
+
+// UI labels follow the report language; source titles and the original question stay intact.
+export function reportLabels(message, language) {
+ const code = copy[language] ? language : 'ko'
+ const index = ['before', 'handling', 'storage', 'during', 'after', 'emergency'].indexOf(message.situation)
+ const title = message.topic === contract.topics.law ? apiCopy[code].law : index < 0 ? copy[code].free : copy[code].topicTitles[index]
+ const equipment = equipmentFor(message.equipment_id)
+ const product = catalog.products.find(item => item.product_id === message.product_id)
+ const scope = message.topic === contract.topics.law ? '' : [
+  equipment ? equipmentLabel(equipment, code, scopeCopy[code].demo) : '',
+  product ? productLabel(product, code) : '',
+ ].filter(Boolean).join(' / ')
+ return { title, scope }
+}
 
 export function reportRequest(message, language) {
   return Object.fromEntries(contract.requestFields.map(key => [key, key === 'language' ? language : message[key] ?? null]))

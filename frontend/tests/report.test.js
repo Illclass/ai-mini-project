@@ -57,3 +57,32 @@ test('new guide, report and emergency controls are localized in all contract lan
  }
  assert.notEqual(clean.km.reportTitle, clean.en.reportTitle)
 })
+
+// The site guide is also shown as a static downloadable PDF. Keep the copies identical.
+test('work cleanup PDF matches the current S1 source document', () => {
+ assert.deepEqual(readFileSync(new URL('../public/guides/after.pdf', import.meta.url)), readFileSync(new URL('../../rag-service/data/site/S1_가상현장안전지침.pdf', import.meta.url)))
+})
+
+test('report situation, legal topic and scope labels follow all five report languages', async()=>{
+ const {reportLabels}=await import('../src/api/report.js')
+ const {copy}=await import('../src/locales/index.js')
+ const {apiCopy}=await import('../src/locales/api.js')
+ const {scopeCopy}=await import('../src/locales/scope.js')
+ for(const lang of contract.languages){
+  for(const [index,situation]of ['before','handling','storage','during','after','emergency'].entries()){
+   const labels=reportLabels({...message,situation,equipment_id:'DEMO-WET-01'},lang)
+   assert.equal(labels.title,copy[lang].topicTitles[index])
+   assert.ok(labels.scope.includes(scopeCopy[lang].demo))
+   assert.ok(labels.scope.includes('sigma-339741'))
+   if(lang!=='ko')assert.ok(!labels.scope.includes('시연용')&&!labels.scope.includes('황산'))
+  }
+  assert.equal(reportLabels({...message,situation:'free'},lang).title,copy[lang].free)
+  assert.deepEqual(reportLabels({...message,topic:contract.topics.law},lang),{title:apiCopy[lang].law,scope:''})
+ }
+})
+test('report localization leaves the original question, IDs, language and API payload intact',async()=>{
+ const {reportLabels}=await import('../src/api/report.js')
+ const snapshot=structuredClone(message),before=reportRequest(message,'en')
+ reportLabels(message,'en');reportLabels(message,'zh')
+ assert.deepEqual(message,snapshot);assert.deepEqual(reportRequest(message,'en'),before)
+})
