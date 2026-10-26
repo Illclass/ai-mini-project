@@ -46,7 +46,9 @@ def is_emergency(question: str) -> bool:
         r"|(?:gas|leak).{0,15}(?:alarm|alert).{0,15}(?:went off|is sounding|sounded|triggered|is ringing|going off)"
         r"|(?:strange|unusual|unknown|weird) (?:smell|odor)"
     )
-    km = r"ចូលភ្នែក|ប្រឡាក់ស្បែក|ប៉ះស្បែក|លេចធ្លាយ|សំឡេងរោទិ៍|ក្លិនចម្លែក|ស្រូបចូល|សន្លប់|ពិបាកដកដង្ហើម"
+    # 누출은 "새고 있다/샜다"(កំពុង/បាន + លេចធ្លាយ, លេចធ្លាយហើយ)일 때만. 명사 "ការលេចធ្លាយ"(누출)만 있으면
+    # "누출과 오염 관련 주의사항은?" 같은 추천 질문 8개가 비상으로 잡혔다 (김규빈 2026-10-25).
+    km = r"ចូលភ្នែក|ប្រឡាក់ស្បែក|ប៉ះស្បែក|(?:កំពុង|បាន)\s*លេចធ្លាយ|លេចធ្លាយ\s*ហើយ|សំឡេងរោទិ៍|ក្លិនចម្លែក|ស្រូបចូល|សន្លប់|ពិបាកដកដង្ហើម"
     # 기존 노출·누출 규칙을 유지하고, 장비 작업 중 보고되는 신호를 추가한다.
     # 단순히 "작업복", "경보", "냄새"가 있다는 이유만으로 비상 처리하지 않는다.
     ko_incident = (
@@ -445,9 +447,11 @@ def _quantities_supported(text: str, citations: list[Citation], *, source_identi
         return False
     # 문서·조항 번호(K-1-2023, 7.2)는 인용 청크 머리글에서도 찾는다. 수치·단위·날짜 비교에는 쓰지 않는다
     headers = canonical(source_headers)
-    number = r"[+-]?\d+(?:[.,]\d+)?"
+    # 부호는 앞이 글자·숫자가 아닐 때만 ("Article 44-2"의 "-2"는 음수가 아니다).
+    # 단위 뒤에 로마자가 이어지면 단위가 아니다 ("H318 Gây"의 "318 g"는 318그램이 아니다) (김규빈 2026-10-25)
+    number = r"(?<![\w.])[+-]?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?"
     unit = r"ppm|ppb|mg/m3|μg/m3|g/l|mg/l|°c|°f|%|kg|mg|μg|ml|l|g"
-    measurements = rf"({number})\s*({unit})(?![a-z])"
+    measurements = rf"({number})\s*({unit})(?![a-zà-ỹđ])"
     dates = r"\d{4}[-/.]\d{1,2}[-/.]\d{1,2}"
     return all(
         set(re.findall(pattern, claim)).issubset(
@@ -1070,6 +1074,7 @@ def generate_answer(
     for item in draft.critical_translations:
         if item.passage_id not in passages or item.passage_id in translated:
             return review("invalid_translation")
+        item = _with_source_list_marker(item, passages[item.passage_id][1])
         if _unsafe_critical_translation(item.text, passages[item.passage_id][1]) or not translation_valid(passages[item.passage_id][1], item.text, language,
                 source_doc_type=metadata_by_id[passages[item.passage_id][0]].doc_type,
                 source_identifiers=_cited_cas_identifiers(
@@ -1115,17 +1120,34 @@ def generate_answer(
     if mode != "qa":
         parts.append(text[mode])
     headed = len(kind_order) > 1 or kind_order[:1] != ["information"] or bool(required)
+    # 같은 종류 안에서 잇달아 나오는 문장의 적용 조건이 똑같으면 조건은 마지막 문장 아래 한 번만 쓴다
+    # ("비상 대응 인원이 아닌 경우"가 다섯 번 반복되던 것 → "적용 조건(위 5개 공통): …") (김규빈 2026-10-26)
+    def condition_key(statement):
+        return tuple(re.sub(r"\s+", " ", c.text).strip() for c in statement.conditions)
+
+    def condition_line(statement, count):
+        label = text["conditions"] if count == 1 else text["conditions_shared"].format(n=count)
+        return "  " + label + " " + " / ".join(
+            f"{condition.text.strip()} {markers(condition.citations)}" for condition in statement.conditions)
+
     previous_kind = None
-    for statement in draft.statements:
+    run = 0
+    for index, statement in enumerate(draft.statements):
         if statement.kind != previous_kind:
             flush()
             if headed:
                 paragraph.append(labels[statement.kind])
         paragraph.append(f"- {statement.text.strip()} {markers(statement.citations)}")
         previous_kind = statement.kind
-        if statement.conditions:
-            paragraph.append("  " + text["conditions"] + " " + " / ".join(
-                f"{condition.text.strip()} {markers(condition.citations)}" for condition in statement.conditions))
+        if not statement.conditions:
+            run = 0
+            continue
+        run += 1
+        following = draft.statements[index + 1] if index + 1 < len(draft.statements) else None
+        if following is not None and following.kind == statement.kind and condition_key(following) == condition_key(statement):
+            continue
+        paragraph.append(condition_line(statement, run))
+        run = 0
     flush()
     if required:
         # 한국어는 본문이 이미 인용한 경고 문장은 다시 싣지 않는다 (같은 내용 반복 방지). 번역 답변은 번역 확인을 위해 모두 싣는다.
@@ -1135,10 +1157,12 @@ def generate_answer(
             if language == "ko" and any(_same_text(q, original) or _same_text(original, q) for q in quoted):
                 continue
             # Display soft line breaks as spaces; citation evidence stays verbatim.
-            translated_text = re.sub(r"\s+", " ", original) if language == "ko" else translated[pid]
+            # 번역문·원문도 PDF 줄바꿈을 한 줄로 편다. 원문이 여러 줄로 흩어져 번역이 덜 된 것처럼 보였다 (김규빈 2026-10-25)
+            translated_text = re.sub(r"\s+", " ", original if language == "ko" else translated[pid]).strip()
             lines.append(f"- {translated_text} [{source_numbers[cid]}]")
             if language != "ko":
-                lines.append(f"  {text['original']}: {original}")
+                flat_original = re.sub(r"\s+", " ", original).strip()
+                lines.append(f"  {text['original']}: {flat_original}")
         if lines:
             parts.append(text["warnings"] + "\n" + "\n".join(lines))
     closing = []
@@ -1286,6 +1310,19 @@ def needs_review(hits: List[Hit], answer_text: str) -> bool:
 def needs_handoff(question: str, hits: List[Hit]) -> bool:
     """Legacy Korean preflight helper; generate() applies multilingual checks."""
     return not hits or preflight_result(question, "ko") is not None
+
+
+_LIST_MARKER = re.compile(r"^\s*([(（]\s*\d{1,2}\s*[)）]|\d{1,2}[.)](?=\s))")
+
+
+def _with_source_list_marker(item, original: str):
+    """원문 경고가 목록 번호 "(3)"로 시작하는데 번역이 번호를 빼먹으면 같은 번호를 앞에 붙인다.
+    번호가 빠진 번역은 숫자 검사에서 '3이 사라졌다'로 보류됐다 (베트남어 추천 질문, 김규빈 2026-10-25).
+    번호만 원문 그대로 되살리므로 번역 내용은 바꾸지 않고, 숫자·금지 검사는 그대로 받는다."""
+    marker = _LIST_MARKER.match(original)
+    if not marker or _LIST_MARKER.match(item.text):
+        return item
+    return item.model_copy(update={"text": f"{marker.group(1)} {item.text.lstrip()}"})
 
 
 # 자료에 없다는 문장 (위 설명 참고). "독성 자료는 없다고 적혀 있어요"처럼 원문 내용을 옮긴 문장은 남긴다.

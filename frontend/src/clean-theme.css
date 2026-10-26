@@ -89,6 +89,7 @@ body .glass-language-menu button[aria-selected='true'], body .glass-language-men
 #app .clear-assistant-icon { background:var(--c-teal-soft); color:var(--c-teal); border:0; box-shadow:none; }
 #app .clear-answer-text { color:var(--c-ink); text-shadow:none; line-height:1.7; }
 #app .clear-answer-subhead { font-weight:700; color:var(--c-teal); }   /* 답변 소제목 (알아둘 내용·권고사항·⚠ 주의사항) */
+#app .clear-original { font-size:.82em; color:var(--c-muted); }   /* 번역 경고 아래 대조용 한국어 원문 */
 #app .clear-mark { margin-left:2px; font-size:11px; font-weight:500; color:var(--c-muted); vertical-align:super; line-height:0; }   /* 본문 출처 번호 */
 #app .clear-source { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:8px; background:var(--c-teal-soft); color:#0B4744; border:0; box-shadow:none; font-size:12px; font-weight:500; text-decoration:none; }
 #app .clear-listen, #app .clear-report { display:inline-flex; align-items:center; gap:8px; height:40px; padding:0 14px; border-radius:12px; background:#fff; color:var(--c-teal); border:1.5px solid var(--c-teal); box-shadow:none; font-size:14px; font-weight:700; }
@@ -382,6 +383,10 @@ body .scope-menu button { font-size:14px; min-height:40px; }
 #app .voice-convo-hint { margin:0; color:var(--c-muted); font-size:14px; }
 #app .voice-convo-end { height:52px; padding:0 24px; border-radius:14px; border:0; background:#B4412F; color:#fff; font-size:17px; font-weight:700; }
 #app .convo-start { background:var(--c-teal-soft); color:var(--c-teal); border-color:transparent; font-weight:700; }
+
+/* Long informational lists can fold without changing the compact chat layout. */
+#app .clear-more { display:inline-flex; margin:2px 0; padding:4px 12px; border:1px solid var(--c-line); border-radius:999px; background:var(--c-teal-soft); color:var(--c-teal); font-size:13px; font-weight:700; cursor:pointer; }
+#app .clear-more:hover { border-color:var(--c-teal); }
 
 /* Direct original-MSDS citations. Section controls are separate from supplier links. */
 #app .source-group { background:var(--c-teal-soft); border-radius:14px; padding:4px 10px 10px; max-width:100%; }

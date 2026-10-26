@@ -487,3 +487,14 @@ def test_decision_requests_never_call_provider(guide, question):
 def test_reference_lookup_is_not_a_safety_approval(guide, question):
     _, llm = run([guide], draft(guide_statement(guide)), question=question)
     assert len(llm.messages) == 1
+
+
+def test_same_condition_on_consecutive_statements_is_written_once(guide):
+    first, second = guide_statement(guide), guide_statement(guide)
+    second["text"] = "제공된 안내자료는 표지 색을 청록색으로 하도록 권고합니다."
+    result, _ = run([guide], draft(first, second))
+    assert result.answer.count("교육실 안내에 한하여") == 1
+    assert "적용 조건(위 2개 공통):" in result.answer
+    lines = result.answer.splitlines()
+    shared = next(i for i, line in enumerate(lines) if "위 2개 공통" in line)
+    assert lines[shared - 1].startswith("- ") and lines[shared - 2].startswith("- ")

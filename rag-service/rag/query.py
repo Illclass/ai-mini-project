@@ -2,6 +2,7 @@
 
 문서가 한국어라서 검색 전에 질문을 한국어·표준 용어로 맞춘다.
 """
+import re
 from functools import lru_cache
 from typing import List
 
@@ -62,6 +63,27 @@ def _translate(question: str) -> str:
 # 처음에는 bge-m3 가 en · zh 를 번역 없이도 상위 5위 안에 찾아서 vi · km 만 번역했지만,
 # 번역해야 한국어 동의어(기준→정의 등)가 적용된다. zh 6문항·en 6문항 모두 번역 후 1위 (질문당 약 +1초)
 TRANSLATE_LANGUAGES = ("zh", "vi", "en", "km")
+
+
+_VI_MARKS = re.compile(r"[ăâđêôơưĂÂĐÊÔƠƯàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]")
+
+
+def question_language(question: str, language: str) -> str:
+    """질문 글자로 답변 언어를 정한다. 화면 언어가 한국어여도 영어로 물으면 영어로 답한다.
+    한글·크메르·한자가 두 글자 이상이면 그 언어 (영문 물질명·MSDS 가 섞인 한국어 질문은 한국어),
+    그런 글자 없이 로마자만 있으면 en·vi 화면은 그대로, 그 밖에는 베트남어 성조 표시가 있으면 vi, 없으면 en."""
+    count = lambda pattern: len(re.findall(pattern, question))
+    if count(r"[\u1780-\u17ff]") >= 2:
+        return "km"
+    if count(r"[\uac00-\ud7a3]") >= 2:
+        return "ko"
+    if count(r"[\u4e00-\u9fff]") >= 2:
+        return "zh"
+    if count(r"[A-Za-zÀ-ỹ]") >= 6 and len(re.findall(r"[A-Za-zÀ-ỹ]{2,}", question)) >= 2:
+        if language in ("en", "vi"):
+            return language
+        return "vi" if _VI_MARKS.search(question) else "en"
+    return language
 
 
 def to_korean(question: str, language: str) -> str:

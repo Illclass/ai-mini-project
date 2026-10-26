@@ -161,3 +161,73 @@ def test_absence_statements_are_detected(text):
 ])
 def test_source_content_is_not_treated_as_absence(text):
     assert not g._is_absence_statement(text)
+
+
+@pytest.mark.parametrize("question, expected", [
+    ("ពេលផ្ទុក សារធាតុគីមី តើមានការប្រុងប្រយ័ត្នអ្វីចំពោះ ការលេចធ្លាយ និងការបំពុល?", False),   # 누출 관련 주의사항은? (추천 질문)
+    ("សារធាតុគីមីកំពុងលេចធ្លាយ តើខ្ញុំត្រូវធ្វើអ្វី?", True),                                      # 약품이 새고 있어요
+    ("ឧស្ម័នបានលេចធ្លាយ", True),                                                                  # 가스가 샜어요
+])
+def test_khmer_leak_noun_is_not_an_emergency(question, expected):
+    from rag.generator import is_emergency
+    assert is_emergency(question) is expected
+
+
+def test_kosha_page_furniture_split_by_text_is_ignored_in_guide_translation():
+    # 쪽번호와 머리글 사이에 본문 조각이 낀 실제 K-1-2023 배치
+    original = ("(9) 화학물질이 새어 나가는 경우에 반응 및 혼합 등에 따른 화재\n\n- 2 -\n\n폭발을 일\n\n\n"
+                "KOSHA Guide K-1-2023\n\n으키거나 독성이 강한 유해가스 나 증기가 발생할 우려가 있는 물질은 별도\n장소에 저장한다.")
+    translated = "(9) If a chemical could cause a fire or explosion when it leaks, store it in a separate location."
+    from rag.prompt import translation_valid
+    assert translation_valid(original, translated, "en", source_doc_type="guide")
+    assert not translation_valid(original, translated.replace("(9)", "(8)"), "en", source_doc_type="guide")
+
+
+def test_dropped_list_marker_is_restored_from_source():
+    item = g.CriticalTranslation(passage_id="p1", text="Không được sử dụng vật chứa có nguy cơ bị vỡ hoặc rò rỉ.")
+    fixed = g._with_source_list_marker(item, "(3) 운반 도중 파손되거나 누설 위험이 있는 용기를 사용해서는 아니 된다.")
+    assert fixed.text.startswith("(3) ")
+    assert g._with_source_list_marker(fixed, "(3) 원문").text.count("(3)") == 1   # 이미 있으면 그대로
+    assert g._with_source_list_marker(item, "운반 도중 파손 위험").text == item.text  # 번호 없는 원문은 그대로
+
+
+def test_ingest_title_line_and_numbered_heading_are_not_part_of_warning():
+    from rag.prompt import critical_passages
+    body = ("[S1 가상 현장 안전지침 (DEMO-A, 시연용) 13.3 약액이 누출되었을 때]\n13.3 약액이 누출되었을 때\n"
+            "누출 지점에서 벗어나고 주변 사람을 대피시킨다.")
+    doc = Document(page_content=body, metadata={"chunk_id": "S1-13_3", "doc_type": "guide", "title": "S1 가상 현장 안전지침 (DEMO-A, 시연용)"})
+    quotes = [q for _, q in critical_passages([doc]).values()]
+    assert all(not q.startswith("[") and "13.3" not in q for q in quotes)
+
+
+def test_translation_amounts_ordinals_and_avoid_match_source():
+    from rag.prompt import translation_valid
+    law = "경영책임자등은 1년 이상의 징역 또는 10억원 이하의 벌금에 처한다."
+    assert translation_valid(law, "punished by imprisonment for at least 1 year or a fine of up to 1 billion won.", "en")
+    assert translation_valid(law, "bị phạt tù từ 1 năm trở lên hoặc phạt tiền không quá 1 tỷ won.", "vi")
+    assert not translation_valid(law, "imprisonment for at least 1 year or a fine of up to 100 million won.", "en")
+    third = "제3자에게 도급한 경우에는 제2항의 조치를 하여야 한다."
+    assert translation_valid(third, "If work is contracted to a third party, it must take the measures in paragraph ②.", "en")
+    assert not translation_valid(third, "If work is contracted to a second party, it must take the measures in paragraph ②.", "en")
+    assert translation_valid("P273 환경으로 배출하지 마시오.", "P273 Avoid release to the environment.", "en")
+
+
+def test_quantity_check_reads_article_numbers_and_hcodes():
+    from rag.generator import _quantities_supported
+    from rag.generator import Citation
+    law = [Citation(chunk_id="L1", quote="제44조의2(화학사고 발생 시설에 대한 가동중지명령) ① 같은 조 제2항")]
+    assert _quantities_supported("Article 44-2 ① under paragraph 2", law)
+    msds = [Citation(chunk_id="M1", quote="유해·위험 문구 : H318 눈에 심한 손상을 일으킴.")]
+    assert _quantities_supported("Câu cảnh báo nguy hại: H318 Gây tổn thương mắt nghiêm trọng.", msds)
+    temp = [Citation(chunk_id="M2", quote="20 °C 이하에서 보관")]
+    assert not _quantities_supported("Store below -20 °C.", temp)
+    assert not _quantities_supported("Store below 25 °C.", temp)
+
+
+def test_example_parenthesis_period_does_not_split_warning():
+    from langchain_core.documents import Document
+    from rag.prompt import critical_passages
+    raw = "내부 압력이 빠져나올 수 있도록(예. 초과압 밸브) 용기를 밀폐할 것\n가연성 물질 근처에 보관하지 마십시오."
+    doc = Document(page_content=raw, metadata={"chunk_id": "M1", "doc_type": "msds", "msds_section_no": 7})
+    quotes = [q for _, q in critical_passages([doc]).values()]
+    assert any("(예. 초과압 밸브) 용기를 밀폐할 것" in q for q in quotes)

@@ -39,6 +39,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 프론트 패키지 설치 (화면 템플릿 시험에 vue 필요)
+        working-directory: frontend
+        run: npm ci
 
       - name: 프론트 테스트 (API 계약·음성 모드·다국어 문구)
         working-directory: frontend

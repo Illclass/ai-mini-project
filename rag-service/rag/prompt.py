@@ -48,8 +48,12 @@ _CRITICAL_PATTERN = re.compile(
     r"警告|危险|禁止|不得|仅|除外|canh bao|nguy hiem|khong|chi ap dung", re.I,
 )
 _SENTENCE_END = re.compile(r"[.!?。！？](?=\s|[가-힣]|$)")
+# 절 제목 "13.3 약액이 누출되었을 때"도 경계로 본다 (문장으로 끝나지 않는 짧은 줄만. "4.1 보호구를 착용하여야 한다."는 본문).
+# 경계가 아니면 제목이 경고 구절에 붙어, 번역 경고가 제목 숫자(13.3)를 빠뜨렸다며 보류됐다 (김규빈 2026-10-25).
+# 지침 청크 첫 줄 머리말 "[문서 제목 …]"은 아래 _scan_critical_passages 에서 문서 제목으로 확인해 경계로 둔다.
 _HARD_BOUNDARY = re.compile(
-    r"^(?:\[.*\|.*\]$|[0-9]{1,2}\.\s+|"
+    r"^(?:[0-9]{1,2}(?:\.[0-9]{1,2})+\s+[^.!?。:：\n]{1,40}$|"
+    r"\[.*\|.*\]$|[0-9]{1,2}\.\s+|"
     r"(?:제품명|제품 번호|브랜드|회사명|전화|팩스|긴급전화|영업시간|최종 개정일자|"
     r"최초 작성일자|개정 횟수|날짜 형식)\s*(?:[:：]|$)|영업시간\s*[-:]|저작권\b|"
     r"[가-하]\.\s*(?:제품명|회사명|제품의 권고|최초 작성|개정 횟수|기타)|"
@@ -89,6 +93,7 @@ def _scan_critical_passages(documents):
             continue
         cid = doc.metadata['chunk_id']
         raw = doc.page_content
+        title = doc.metadata.get("title") or ""
         start = None
         position = 0
         glossary = False
@@ -127,7 +132,8 @@ def _scan_critical_passages(documents):
                     emit(start, position)
                 start = None
                 glossary = True
-            elif glossary or _HARD_BOUNDARY.search(text) or _SECTION_HEADING.fullmatch(text):
+            elif (glossary or _HARD_BOUNDARY.search(text) or _SECTION_HEADING.fullmatch(text)
+                  or (position == 0 and title and text.startswith("[" + title) and text.endswith("]"))):   # 적재 때 붙인 머리말
                 if start is not None:
                     emit(start, position)
                 start = None
@@ -141,6 +147,8 @@ def _scan_critical_passages(documents):
                 for match in _SENTENCE_END.finditer(raw, position, end):
                     if re.fullmatch(r"[가-하]\.", raw[position:match.end()].strip()):
                         continue  # A list label is not a sentence terminator.
+                    if re.search(r"[(（]\s*(?:예|e\.g)\.$", raw[start:match.end()]):
+                        continue  # "(예. 초과압 밸브)"의 마침표는 문장 끝이 아니다 (김규빈 2026-10-25)
                     emit(start, match.end())
                     start = match.end()
             position = end
@@ -229,9 +237,22 @@ _KOSHA_PDF_REVERSED_FOOTER = re.compile(
     r"[ \t]*-[ \t]*[1-9][0-9]{0,3}[ \t]*-[ \t]*$",
     re.I | re.M,
 )
+# 쪽번호와 머리글 사이에 본문 조각이 끼면 짝을 못 찾는다 ("화재\n- 2 -\n폭발을 일\nKOSHA Guide K-1-2023\n으키거나").
+# 그래서 같은 구절에 KOSHA 머리글 줄이 있으면, 줄 전체가 쪽번호("- 2 -")인 줄과 머리글 줄을 따로도 지운다 (김규빈 2026-10-25).
+# 목록 번호 "(3)"·"3." 은 줄 전체가 아니므로 지우지 않는다.
+_KOSHA_PAGE_NUMBER_LINE = re.compile(r"^[ \t]*-[ \t]*[1-9][0-9]{0,3}[ \t]*-[ \t]*$", re.M)
+_KOSHA_HEADER_LINE = re.compile(
+    r"^[ \t]*KOSHA[ \t]+GUIDE(?:[ \t]*\r?\n|[ \t]+)[A-Z]{1,3}[ \t]*-[ \t]*[1-9][0-9]{0,2}[ \t]*-[ \t]*(?:19|20)[0-9]{2}[ \t]*$",
+    re.I | re.M,
+)
+
+
 def guide_translation_comparison_text(value: str) -> str:
-    """Ignore only a paired recognizable KOSHA PDF footer, never list numbers."""
-    return _KOSHA_PDF_REVERSED_FOOTER.sub("", _KOSHA_PDF_FOOTER.sub("", value))
+    """Ignore recognizable KOSHA PDF page furniture (paired or alone on its line), never list numbers."""
+    value = _KOSHA_PDF_REVERSED_FOOTER.sub("", _KOSHA_PDF_FOOTER.sub("", value))
+    if not _KOSHA_HEADER_LINE.search(value):   # 머리글이 없으면 "- 2 -" 한 줄만으로는 쪽번호라고 보지 않는다
+        return value
+    return _KOSHA_HEADER_LINE.sub("", _KOSHA_PAGE_NUMBER_LINE.sub("", value))
 
 
 
@@ -255,6 +276,43 @@ def calendar_text_with_identifiers(value: str, source_identifiers=()) -> str | N
     for token, identifier in replacements.items():
         parsed = parsed.replace(token, identifier)
     return parsed
+
+
+# 금액·서수는 언어마다 쓰는 법이 달라 숫자를 값으로 맞춰 비교한다 (김규빈 2026-10-25).
+# "10억원" = "1 billion won" = "1 tỷ won" = "10亿韩元", "제3자" = "third party", "③" = "(3)".
+_KO_UNITS = {"만": 10**4, "억": 10**8, "조": 10**12}
+_KO_SMALL = {"천": 1000, "백": 100, "십": 10}
+_WORD_UNITS = {"thousand": 10**3, "million": 10**6, "billion": 10**9, "trillion": 10**12,
+               "nghìn": 10**3, "ngàn": 10**3, "triệu": 10**6, "tỷ": 10**9, "tỉ": 10**9,
+               "万": 10**4, "亿": 10**8, "ពាន់": 10**3, "លាន": 10**6, "ពាន់លាន": 10**9}
+_ORDINALS = {"en": ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"),
+             "vi": ("nhất", "hai", "ba", "tư", "năm", "sáu", "bảy", "tám", "chín", "mười")}
+
+
+def _amount_text(value: str, circled: bool = False) -> str:
+    """금액 표기를 정수로 바꾼다. 원래 숫자는 그대로 비교되도록 단위가 붙은 숫자만 바꾼다.
+    circled 는 번역문에만 켠다: 번역이 ②를 "2"로 쓴 것은 받아 주고, 원문 ③을 번역이 빼먹었다고 새로 막지는 않는다."""
+    value = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", value)            # 1,000,000 → 1000000
+    if circled:
+        value = re.sub(r"[\u2460-\u2473]", lambda m: f" {ord(m[0]) - 0x245F} ", value)   # ①~⑳
+    def korean(m):
+        number = float(m[1]) * _KO_SMALL.get(m[2] or "", 1) * _KO_UNITS[m[3]]
+        return f"{int(number)}"
+    value = re.sub(r"(\d+(?:\.\d+)?)\s*([천백십])?\s*(만|억|조)(?=\s*원|\s*韩元|\s*won)", korean, value)
+    units = "|".join(sorted(map(re.escape, _WORD_UNITS), key=len, reverse=True))
+    return re.sub(rf"(\d+(?:\.\d+)?)\s*({units})", lambda m: f"{int(float(m[1]) * _WORD_UNITS[m[2].lower()])}", value, flags=re.I)
+
+
+def _ordinal_numbers(translated: str, language: str) -> set:
+    found = set()
+    if language in _ORDINALS:
+        pattern = r"\b({})\b" if language == "en" else r"\bthứ\s+({})\b"
+        for word in re.findall(pattern.format("|".join(_ORDINALS[language])), translated.lower()):
+            found.add(str(_ORDINALS[language].index(word) + 1))
+    if language == "zh":
+        for char in re.findall(r"第([一二三四五六七八九十])", translated):
+            found.add(str("一二三四五六七八九十".index(char) + 1))
+    return found
 
 
 def translation_valid(original: str, translated: str, language: str, *, preserved_terms=(), source_doc_type=None, source_identifiers=()) -> bool:
@@ -299,8 +357,8 @@ def translation_valid(original: str, translated: str, language: str, *, preserve
         date_pattern = r"(?<![0-9])[0-9]{4}-[0-9]{2}-[0-9]{2}(?![A-Za-z0-9_])"
         if not set(re.findall(date_pattern, original)).issubset(set(re.findall(date_pattern, translated))):
             return False
-    numbers = set(re.findall(r"\d+(?:[.,]\d+)?", original))
-    translated_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", translated))
+    numbers = set(re.findall(r"\d+(?:[.,]\d+)?", _amount_text(original)))
+    translated_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", _amount_text(translated, circled=True))) | _ordinal_numbers(translated, language)
     if language == "zh":
         # Chinese naturally uses 两个 for "2 places". Recognize exact 0..99
         # integer counts before classifiers, never guess chemical percentages,
@@ -335,8 +393,8 @@ def translation_valid(original: str, translated: str, language: str, *, preserve
         return False
     prohibition = re.search(r"금지|하지\s*마|안\s*됩니다|must not|do not|禁止|不得|khong duoc", normalized(original), re.I)
     if prohibition:
-        required = {"ko": r"금지|안\s*됩니다|하지\s*마|않", "zh": r"禁止|不得|不应|不要|不可|不能|请勿|切勿", "vi": r"khong|cam",
-                    "en": r"must not|do not|don't|never|prohibit|not allowed|forbidden", "km": r"កុំ|មិន|ហាម"}
+        required = {"ko": r"금지|안\s*됩니다|하지\s*마|않", "zh": r"禁止|不得|不应|不要|不可|不能|请勿|切勿|避免", "vi": r"khong|cam|tranh",
+                    "en": r"must not|do not|don't|never|prohibit|not allowed|forbidden|avoid", "km": r"កុំ|មិន|ហាម|ជៀសវាង"}
         if not re.search(required[language], _for_match(translated, language), re.I):
             return False
     exclusion = re.search(r"제외|적용하지\s*않|적용되지\s*않|except|not\s+appl|除外|不适用|khong ap dung", normalized(original), re.I)
@@ -366,6 +424,7 @@ TEXT = {
         "recommendation": "권고사항 (법적 의무 아님)",
         "information": "알아둘 내용",
         "conditions": "적용 조건:",
+        "conditions_shared": "적용 조건(위 {n}개 공통):",
         "missing_conditions": "적용 조건은 확인하지 못했어요. 내 현장에 해당되는지 선임·안전담당자에게 확인하세요.",
         "law_review": "법령은 현행 여부와 적용 버전을 확인하지 않았어요. 공식 원문을 확인하세요.",
         "future": "미래 시행일 자료가 포함되어 현재 적용 여부 판단을 보류합니다.",
@@ -393,6 +452,7 @@ TEXT = {
         "recommendation": "建议事项（非法定义务）",
         "information": "须知内容",
         "conditions": "适用条件：",
+        "conditions_shared": "适用条件（以上{n}条共同）：",
         "missing_conditions": "未能确认适用条件，是否适用于您的现场请向资深同事或安全人员确认。",
         "law_review": "未核实法规是否现行及适用版本，请查看官方原文。",
         "future": "资料包含未来生效日期，暂不判断当前是否适用。",
@@ -420,6 +480,7 @@ TEXT = {
         "recommendation": "Khuyến nghị (không phải nghĩa vụ pháp lý)",
         "information": "Nội dung cần biết",
         "conditions": "Điều kiện áp dụng:",
+        "conditions_shared": "Điều kiện áp dụng (chung cho {n} mục trên):",
         "missing_conditions": "Chưa xác nhận được điều kiện áp dụng. Hãy hỏi nhân viên an toàn xem có áp dụng cho nơi làm việc của bạn không.",
         "law_review": "Chưa xác minh luật còn hiệu lực và phiên bản áp dụng. Hãy xem bản gốc chính thức.",
         "future": "Có tài liệu với ngày có hiệu lực trong tương lai; chưa kết luận khả năng áp dụng hiện tại.",
@@ -447,6 +508,7 @@ TEXT = {
         "recommendation": "Recommendations (not legal obligations)",
         "information": "What to know",
         "conditions": "Conditions:",
+        "conditions_shared": "Conditions (all {n} above):",
         "missing_conditions": "The conditions of application could not be confirmed. Check with a senior colleague or safety officer whether this applies to your site.",
         "law_review": "Whether the law is current and which version applies was not verified. Check the official text.",
         "future": "The materials include a future effective date, so current applicability is not determined.",
@@ -474,6 +536,7 @@ TEXT = {
         "recommendation": "អនុសាសន៍ (មិនមែនកាតព្វកិច្ចច្បាប់)",
         "information": "អ្វីដែលត្រូវដឹង",
         "conditions": "លក្ខខណ្ឌ៖",
+        "conditions_shared": "លក្ខខណ្ឌ (រួមសម្រាប់ {n} ចំណុចខាងលើ)៖",
         "missing_conditions": "មិនអាចបញ្ជាក់លក្ខខណ្ឌអនុវត្តបានទេ។ សូមសួរមន្ត្រីសុវត្ថិភាពថាវាអនុវត្តចំពោះកន្លែងការងាររបស់អ្នកឬអត់។",
         "law_review": "មិនទាន់ផ្ទៀងផ្ទាត់ថាច្បាប់នៅជាធរមាន និងកំណែដែលអនុវត្តទេ។ សូមពិនិត្យអត្ថបទដើមផ្លូវការ។",
         "future": "មានឯកសារដែលមានកាលបរិច្ឆេទចូលជាធរមាននាពេលអនាគត ដូច្នេះមិនសម្រេចការអនុវត្តបច្ចុប្បន្នទេ។",

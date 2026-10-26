@@ -22,7 +22,7 @@ import './chat-glass.css'
 import { copy } from './locales'
 import * as api from './api'
 import { failureKey } from './api/client.js'
-import { answerLines } from './api/sources.js'
+import { answerLines, foldAnswer } from './api/sources.js'
 import SourceLinks from './components/SourceLinks.vue'
 const SourceViewer = defineAsyncComponent(() => import('./components/SourceViewer.vue'))
 const sourceSelection=ref(null)
@@ -71,6 +71,8 @@ const guide=computed(()=>guideFor(situation.value,topic.value,productId.value))
 const guideUrl=computed(()=>guide.value?.url)
 const guideOpen=ref(false), suggestionsOpen=ref(false)
 watch(question,async()=>{await nextTick();if(input.value){input.value.style.height='auto';input.value.style.height=`${Math.min(112,Math.max(40,input.value.scrollHeight))}px`}})
+// Keep safety warnings visible while allowing long informational lists to fold.
+function answerView(message){const lines=foldAnswer(answerLines(message.response.answer));return {folds:lines.some(l=>l.extra),lines:message.expanded?lines:lines.filter(l=>!l.extra)}}
 const faq=computed(()=>{
  const list=(candidates[language.value]||candidates.ko)[isLaw.value?'law':'chemical']||[]
  const groups=[]
@@ -264,7 +266,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
 <LoginView key="login" v-if="page === 'login'" v-model:language="language" :loading="signingIn" :checking="checking" :error="loginError ? a[loginError] : ''" :notice="loginNotice ? a[loginNotice] : ''" @clear-error="loginError='';loginNotice=''" @submit="login" @signup="signup" />
 <HomeView key="home" v-else-if="page === 'home'" v-model:language="language" @open="open" @logout="logout" />
 <main v-else key="chat" class="clear-chat-main" :class="{'has-guide':guideUrl && guideOpen}">
-  <button v-if="guideUrl" class="guide-toggle" type="button" :aria-label="guideOpen ? c.close : c.view" :aria-expanded="guideOpen" aria-controls="chat-guide" @click="guideOpen=!guideOpen"><Icon name="back" :size="20" :style="{transform:guideOpen?'none':'rotate(180deg)'}" /></button>
+  <button v-if="guideUrl" class="guide-toggle" type="button" :aria-label="guideOpen ? c.guideHide : c.guideShow" :aria-expanded="guideOpen" aria-controls="chat-guide" @click="guideOpen=!guideOpen"><Icon name="back" :size="20" :style="{transform:guideOpen?'none':'rotate(180deg)'}" /></button>
   <GuideViewer id="chat-guide" v-if="guideUrl && guideOpen" :src="guideUrl" :title="guide.title" :source="guide.source" :language="language" />
   <div class="chat-pane">
   <div class="chat-controls">
@@ -317,7 +319,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
           <p v-if="message.response.handoff&&message.response.diagnostic?.requestId&&['providerError','providerLimited','generationError'].includes(failureKey(message.response))" class="clear-review-note">{{a.errorReference}}: {{message.response.diagnostic.requestId}}</p>
           <!-- 소제목은 굵게, 출처 번호 [n] 은 작고 흐리게 (줄바꿈은 pre-wrap 이 살리므로 한 줄로 쓴다).
                보류 이유를 위에서 보여 줬으면 서버의 일반 보류 문구는 같은 말이라 숨긴다. 오류 번호는 연결·생성 오류일 때만. -->
-          <p v-if="!(message.response.handoff&&!isEmergency(message.response)&&failureKey(message.response))" class="clear-answer-text"><template v-for="(line,li) in answerLines(message.response.answer)" :key="li"><template v-if="li">{{'\n'}}</template><span :class="{'clear-answer-subhead':line.heading}"><template v-for="(part,pi) in line.parts" :key="pi"><sup v-if="part.mark" class="clear-mark">{{part.mark}}</sup><template v-else>{{part.text}}</template></template></span></template></p>
+          <p v-if="!(message.response.handoff&&!isEmergency(message.response)&&failureKey(message.response))" class="clear-answer-text"><template v-for="view in [answerView(message)]" :key="'view'"><template v-for="(line,li) in view.lines" :key="li"><template v-if="li">{{'\n'}}</template><span :class="{'clear-answer-subhead':line.heading,'clear-original':line.original}"><template v-for="(part,pi) in line.parts" :key="pi"><sup v-if="part.mark" class="clear-mark">{{part.mark}}</sup><template v-else>{{part.text}}</template></template></span><template v-if="line.more&&!message.expanded">{{'\n'}}<button type="button" class="clear-more" @click="message.expanded=true">{{c.more.replace('{n}',line.more)}}</button></template></template><template v-if="view.folds&&message.expanded">{{'\n'}}<button type="button" class="clear-more" @click="message.expanded=false">{{c.less}}</button></template></template></p>
           <div class="clear-answer-tools">
             <SourceLinks :sources="message.response.sources" :language="language" @open="sourceSelection=$event" />
             <button v-if="api.VOICE_LANGUAGES.includes(message.language)" v-spring class="clear-listen" :disabled="busy" :aria-pressed="playing===message.id" @click="play(message)"><Icon :name="playing===message.id?'stop':'sound'" :size="19" />{{playing===message.id?t.stop:a.listenAnswer}}</button>

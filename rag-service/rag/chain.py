@@ -9,6 +9,7 @@ import time
 from rag import equipment
 from rag.generator import generate, preflight_result
 from rag.products import resolve_product_id
+from rag.query import question_language
 from rag.retriever import retrieve
 from rag.schema import RagRequest, RagResponse
 
@@ -17,6 +18,8 @@ def answer(req: RagRequest) -> RagResponse:
     """흐름: preflight(비상·범위 밖) → 제품 자동 지정 → retriever.retrieve(제품·장비 범위) → generator.generate
     → 미등록 장비 → latency_ms."""
     t0 = time.perf_counter()
+    # 화면 언어와 다른 말로 물으면 질문한 말로 답한다 (예: 한국어 화면에서 영어 질문)
+    req = req.model_copy(update={"language": question_language(req.question, req.language)})
 
     early = preflight_result(req.question, req.language)
     if early is not None:   # 검색·LLM 을 기다리지 않고 비상 안내 / 범위 밖 안내
