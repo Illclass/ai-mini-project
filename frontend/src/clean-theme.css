@@ -456,3 +456,13 @@ body .scope-menu button { font-size:14px; min-height:40px; }
  #app .chat-input-dock .clear-composer-controls { gap:4px; }
  #app .chat-input-dock .clear-mic, #app .chat-input-dock .clear-send { width:36px; }
 }
+
+#app .guide-zoom-controls { flex:none; display:flex; justify-content:center; align-items:center; gap:6px; }
+#app .guide-zoom-controls button { display:grid; place-items:center; height:34px; min-width:34px; padding:0 8px; color:var(--c-teal); background:var(--c-teal-soft); border:1px solid #B6CEC9; border-radius:8px; }
+#app .guide-zoom-controls button:disabled { opacity:.4; }
+#app .guide-zoom-controls .guide-zoom-fit { min-width:64px; font-size:13px; font-variant-numeric:tabular-nums; }
+#app .guide-zoom-controls button:focus-visible { outline:2px solid var(--c-teal); outline-offset:2px; }
+#app .guide-book.is-zoomed { visibility:hidden; pointer-events:none; }
+#app .guide-zoom-viewport { position:absolute; inset:0; overflow:auto; overscroll-behavior:contain; background:#EDF2F0; }
+#app .guide-zoom-sheet { width:100%; height:100%; }
+#app .guide-zoom-sheet img { display:block; max-width:none; margin:0 auto; user-select:none; }

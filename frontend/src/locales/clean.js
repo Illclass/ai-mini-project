@@ -22,10 +22,10 @@ clean.km = {
 }
 
 const extra = {
- ko: { showSuggestions: '추천 질문 보기', hideSuggestions: '추천 질문 접기', retry: '다시 시도', originalKo: '한국어 원문 · 대표 참고자료', regeneration: '언어를 바꾸면 같은 질문과 선택값으로 답변을 다시 생성합니다.', shareFailed: '공유하지 못했습니다. 다시 시도해주세요.' },
- zh: { showSuggestions: '查看推荐问题', hideSuggestions: '收起推荐问题', retry: '重试', originalKo: '韩文原文 · 参考资料', regeneration: '切换语言会保留问题与选择条件，重新生成回答。', shareFailed: '分享失败，请重试。' },
- vi: { showSuggestions: 'Xem câu hỏi gợi ý', hideSuggestions: 'Ẩn câu hỏi gợi ý', retry: 'Thử lại', originalKo: 'Bản gốc tiếng Hàn · tài liệu tham khảo', regeneration: 'Đổi ngôn ngữ sẽ tạo lại câu trả lời với cùng câu hỏi và lựa chọn.', shareFailed: 'Không thể chia sẻ. Hãy thử lại.' },
- en: { showSuggestions: 'Show suggested questions', hideSuggestions: 'Hide suggested questions', retry: 'Retry', originalKo: 'Korean original · reference guide', regeneration: 'Changing language generates a new answer using the same question and selections.', shareFailed: 'Could not share. Please try again.' },
- km: { showSuggestions: 'បង្ហាញសំណួរណែនាំ', hideSuggestions: 'លាក់សំណួរណែនាំ', retry: 'ព្យាយាមម្តងទៀត', originalKo: 'ឯកសារដើមភាសាកូរ៉េ · ឯកសារយោង', regeneration: 'ការប្តូរភាសានឹងបង្កើតចម្លើយថ្មី ដោយប្រើសំណួរ និងជម្រើសដដែល។', shareFailed: 'មិនអាចចែករំលែកបានទេ។ សូមព្យាយាមម្តងទៀត។' },
+ ko: { zoomIn: '확대', zoomOut: '축소', fitPage: '페이지 전체 보기', showSuggestions: '추천 질문 보기', hideSuggestions: '추천 질문 접기', retry: '다시 시도', originalKo: '한국어 원문 · 대표 참고자료', regeneration: '언어를 바꾸면 같은 질문과 선택값으로 답변을 다시 생성합니다.', shareFailed: '공유하지 못했습니다. 다시 시도해주세요.' },
+ zh: { zoomIn: '放大', zoomOut: '缩小', fitPage: '适合页面', showSuggestions: '查看推荐问题', hideSuggestions: '收起推荐问题', retry: '重试', originalKo: '韩文原文 · 参考资料', regeneration: '切换语言会保留问题与选择条件，重新生成回答。', shareFailed: '分享失败，请重试。' },
+ vi: { zoomIn: 'Phóng to', zoomOut: 'Thu nhỏ', fitPage: 'Vừa trang', showSuggestions: 'Xem câu hỏi gợi ý', hideSuggestions: 'Ẩn câu hỏi gợi ý', retry: 'Thử lại', originalKo: 'Bản gốc tiếng Hàn · tài liệu tham khảo', regeneration: 'Đổi ngôn ngữ sẽ tạo lại câu trả lời với cùng câu hỏi và lựa chọn.', shareFailed: 'Không thể chia sẻ. Hãy thử lại.' },
+ en: { zoomIn: 'Zoom in', zoomOut: 'Zoom out', fitPage: 'Fit page', showSuggestions: 'Show suggested questions', hideSuggestions: 'Hide suggested questions', retry: 'Retry', originalKo: 'Korean original · reference guide', regeneration: 'Changing language generates a new answer using the same question and selections.', shareFailed: 'Could not share. Please try again.' },
+ km: { zoomIn: 'ពង្រីក', zoomOut: 'បង្រួម', fitPage: 'បង្ហាញទំព័រទាំងមូល', showSuggestions: 'បង្ហាញសំណួរណែនាំ', hideSuggestions: 'លាក់សំណួរណែនាំ', retry: 'ព្យាយាមម្តងទៀត', originalKo: 'ឯកសារដើមភាសាកូរ៉េ · ឯកសារយោង', regeneration: 'ការប្តូរភាសានឹងបង្កើតចម្លើយថ្មី ដោយប្រើសំណួរ និងជម្រើសដដែល។', shareFailed: 'មិនអាចចែករំលែកបានទេ។ សូមព្យាយាមម្តងទៀត។' },
 }
 for (const code of Object.keys(extra)) Object.assign(clean[code], extra[code])

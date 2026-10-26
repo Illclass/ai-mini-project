@@ -8,7 +8,12 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 const props = defineProps({ src: String, title: String, source: { type: String, default: 'KOSHA GUIDE' }, language: { type: String, default: 'ko' } })
 const c = computed(() => clean[props.language] || clean.ko)
 const wrap = ref(null), state = ref('loading'), current = ref(0), total = ref(0), shown = ref(0)
+const stage=ref(null), zoom=ref(1), pageImages=ref([]), stageSize=ref({width:460,height:651})
 const W = 460, H = 651
+const zoomSize=computed(()=>{const scale=Math.min(stageSize.value.width/W,stageSize.value.height/H)*zoom.value;return {width:`${W*scale}px`,height:`${H*scale}px`}})
+let resizeObserver
+function changeZoom(value){zoom.value=Math.max(1,Math.min(3,Math.round(value*100)/100))}
+function turn(direction){if(zoom.value>1)flip?.turnToPage(current.value+direction);else if(direction>0)flip?.flipNext();else flip?.flipPrev()}
 // Remove only blank outer margins; preserve all visible document content.
 function trimPage(canvas) {
   const ctx=canvas.getContext('2d'), {width,height}=canvas
@@ -35,7 +40,7 @@ function destroy() { try { flip?.destroy() } catch {} flip = null; wrap.value?.r
 function cancelPdf() { renderTask?.cancel(); renderTask = null; loadingTask?.destroy().catch(() => {}); loadingTask = null }
 async function load() {
   const id = ++token
-  state.value = 'loading'; current.value = 0; destroy(); cancelPdf()
+  state.value = 'loading'; current.value = 0; zoom.value=1; pageImages.value=[]; destroy(); cancelPdf()
   let task
   try {
     task = loadingTask = pdfjs.getDocument(props.src)
@@ -63,6 +68,7 @@ async function load() {
       canvas.width = canvas.height = 0; page.cleanup()
     }
     if (id !== token) return
+    pageImages.value=urls
     shown.value = urls.length
     state.value = 'ready'
     await nextTick()
@@ -75,9 +81,13 @@ async function load() {
   } catch (e) { if (id === token) state.value = 'error' }
   finally { if (loadingTask === task) loadingTask = null; await task?.destroy().catch(() => {}) }
 }
-onMounted(load)
+onMounted(()=>{
+  resizeObserver=new ResizeObserver(entries=>{const {width,height}=entries[0].contentRect;stageSize.value={width,height}})
+  if(stage.value)resizeObserver.observe(stage.value)
+  load()
+})
 watch(() => props.src, load)
-onBeforeUnmount(() => { token++; cancelPdf(); destroy() })
+onBeforeUnmount(() => { resizeObserver?.disconnect(); token++; cancelPdf(); destroy() })
 const label = computed(() => state.value === 'ready' ? `${Math.min(current.value + 1, shown.value)} / ${total.value}` : '')
 const progress = computed(() => shown.value > 1 ? Math.round(current.value / (shown.value - 1) * 100) : 0)
 </script>
@@ -85,15 +95,21 @@ const progress = computed(() => shown.value > 1 ? Math.round(current.value / (sh
 <template>
   <section class="guide-viewer" :aria-label="c.guide">
     <header class="guide-head"><div><span class="guide-eyebrow">{{ c.guide }} · {{ source }}</span><b>{{ title }}</b><small>{{ c.originalKo }}</small></div><span class="guide-page">{{ label }}</span></header>
-    <div class="guide-stage">
-      <div ref="wrap" class="guide-book" :class="{ hidden: state !== 'ready' }"></div>
+    <div ref="stage" class="guide-stage">
+      <div v-if="state==='ready' && zoom>1" class="guide-zoom-viewport" tabindex="0" :aria-label="c.zoomIn"><div class="guide-zoom-sheet" :style="{minWidth:zoomSize.width,minHeight:zoomSize.height}"><img :src="pageImages[current]" :alt="`${title} · ${current+1} / ${total}`" :style="zoomSize" draggable="false" /></div></div>
+      <div ref="wrap" class="guide-book" :class="{ hidden: state !== 'ready', 'is-zoomed':zoom>1 }"></div>
       <p v-if="state === 'loading'" class="guide-state" role="status">{{ c.loading }}</p>
       <p v-else-if="state === 'error'" class="guide-state" role="alert">{{ c.loadFail }} <button type="button" @click="load">{{ c.retry }}</button></p>
     </div>
+    <div class="guide-zoom-controls" role="group" :aria-label="c.zoomIn">
+      <button type="button" :disabled="state!=='ready'||zoom<=1" :aria-label="c.zoomOut" :title="c.zoomOut" @click="changeZoom(zoom-.25)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 6 6M7 10h6"/></svg></button>
+      <button type="button" class="guide-zoom-fit" :disabled="state!=='ready'" :aria-label="c.fitPage" :title="c.fitPage" @click="changeZoom(1)">{{Math.round(zoom*100)}}%</button>
+      <button type="button" :disabled="state!=='ready'||zoom>=3" :aria-label="c.zoomIn" :title="c.zoomIn" @click="changeZoom(zoom+.25)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 6 6M7 10h6M10 7v6"/></svg></button>
+    </div>
     <div class="guide-controls">
-      <button type="button" :aria-label="c.prev" :disabled="state !== 'ready' || current === 0" @click="flip?.flipPrev()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <button type="button" :aria-label="c.prev" :disabled="state !== 'ready' || current === 0" @click="turn(-1)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
       <div class="guide-bar" aria-hidden="true"><i :style="{ width: progress + '%' }"></i></div>
-      <button type="button" :aria-label="c.next" :disabled="state !== 'ready' || current >= shown - 1" @click="flip?.flipNext()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button type="button" :aria-label="c.next" :disabled="state !== 'ready' || current >= shown - 1" @click="turn(1)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
     </div>
   </section>
 </template>
