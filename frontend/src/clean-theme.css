@@ -437,7 +437,9 @@ body .scope-menu button { font-size:14px; min-height:40px; }
 #app .chat-controls .chat-scope-controls > label > span { flex:none; font-size:12px; }
 #app .chat-controls .scope-trigger { flex:1; min-width:0; height:36px; min-height:36px; padding:6px 10px; font-size:13px; border-radius:9px; }
 #app .chat-input-dock { gap:4px; }
-#app .suggestions-toggle { align-self:flex-end; display:flex; align-items:center; gap:6px; padding:4px 8px; min-height:28px; background:transparent; color:var(--c-teal); border:0; border-radius:6px; font-size:12px; }
+#app .suggestions-toggle { align-self:flex-end; display:flex; align-items:center; gap:8px; padding:7px 14px; min-height:36px; background:var(--c-teal-soft); color:var(--c-teal); border:1px solid #A9CBC5; border-radius:10px; font-size:14px; font-weight:600; transition:background .15s,border-color .15s; }
+#app .suggestions-toggle:hover { background:#D3E9E4; border-color:var(--c-teal); }
+#app .suggestions-toggle:focus-visible { outline:2px solid var(--c-teal); outline-offset:2px; }
 #app .chat-input-dock .clear-composer { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:6px 10px; padding:6px 8px; }
 #app .chat-input-dock .clear-composer textarea { grid-column:1; grid-row:1; height:40px; min-height:40px; max-height:112px; resize:none; padding:8px 4px; line-height:24px; overflow-y:auto; }
 #app .chat-input-dock .clear-composer-controls { grid-column:2; grid-row:1; margin:0; gap:6px; }
