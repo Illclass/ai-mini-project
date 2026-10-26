@@ -2,37 +2,48 @@
 
 실행 (rag-service/ 에서):  python -m uvicorn app.main:app --port 8001 --reload
 """
-from collections import deque
+from collections import Counter, deque
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
 import logging
 import os
+import httpx
 from pathlib import Path
 from threading import Lock
 from time import perf_counter
 from uuid import uuid4
+from typing import Literal
 
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # rag-service/.env
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response  # noqa: E402
+from fastapi import Depends, FastAPI, HTTPException, Query, Request  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+from fastapi.exception_handlers import request_validation_exception_handler  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.openapi.utils import get_openapi  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator  # noqa: E402
+from openai import APIError  # noqa: E402
 from starlette.types import ASGIApp, Message, Receive, Scope, Send  # noqa: E402
 
 from app.auth import get_current_user  # noqa: E402
 from rag import stores  # noqa: E402
-from rag.chain import answer  # noqa: E402
-from rag.diagnostics import capture_failures, exception_details, result_details, response_headers, HEADER_NAMES  # noqa: E402
+from rag.chain import RAGUnavailable, answer  # noqa: E402
+from rag.generator import GenerationUnavailable  # noqa: E402
 from rag.schema import LANGUAGES, TOPIC_CHEMICAL, TOPIC_LAW, RagRequest, RagResponse, Source  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 request_log = logging.getLogger("chembridge.requests")
 latency_log = logging.getLogger("chembridge.latency")
-diagnostic_log = logging.getLogger("chembridge.diagnostics")
+pipeline_log = logging.getLogger("chembridge.pipeline")
+trace_log = logging.getLogger("chembridge.trace")
+DIAGNOSTIC_PATH = "/rag-query/diagnostics"
+EVALUATION_PATH = "/rag-query/evaluations"
+_EVALUATION_ROOT = Path(__file__).resolve().parents[1] / "eval"
 # 기본 접근 로그에는 쿼리 문자열이 포함되므로 아래 미들웨어로 대체한다.
 logging.getLogger("uvicorn.access").disabled = True
 CORS_OPTIONS = {
@@ -40,7 +51,7 @@ CORS_OPTIONS = {
     "allow_credentials": True,
     "allow_methods": ["GET", "POST", "OPTIONS"],
     "allow_headers": ["Authorization", "Content-Type"],
-    "expose_headers": list(HEADER_NAMES),
+    "expose_headers": ["X-Request-ID"],
 }
 
 app = FastAPI(
@@ -76,6 +87,116 @@ app = FastAPI(
 )
 
 app.add_middleware(CORSMiddleware, **CORS_OPTIONS)
+
+
+class _RequestTrace:
+    """One request only; worker threads share this collector, never other requests."""
+
+    def __init__(self, started: float, *, parent_request_id: str | None = None) -> None:
+        self.request_id = uuid4().hex
+        self.started = started
+        self.parent_request_id = parent_request_id
+        self.events: deque = deque(maxlen=200)
+        self.event_count = 0
+        self.outcome = "answered"
+        self.dispatched = False
+        self._lock = Lock()
+
+    def add(self, event: dict, location: dict) -> None:
+        # Explicit fields prevent provider payloads, prompts, or credentials from
+        # accidentally entering the public diagnostic trace or server logs.
+        safe = {key: value for key, value in event.items() if key in {
+            "stage", "status", "duration_ms", "reason", "check", "attempt",
+            "parent_stage", "hit_count", "exception_type", "http_status", "completed",
+        }}
+        with self._lock:
+            self.event_count += 1
+            safe.update(sequence=self.event_count, elapsed_ms=round((perf_counter() - self.started) * 1000, 3),
+                        location=location)
+            if safe.get("stage") == "authentication":
+                safe.setdefault("parent_stage", "request_dispatch")
+            elif safe.get("stage") == "generation_attempt":
+                safe.setdefault("parent_stage", "generation")
+            elif safe.get("stage") in {"generation_draft", "evidence_validation", "semantic_verification", "review"}:
+                safe.setdefault("parent_stage", "generation_attempt" if safe.get("attempt") else "preflight")
+            elif safe.get("stage") == "response_mapping":
+                safe.setdefault("parent_stage", "generation")
+            self.events.append(safe)
+        correlation = {"request_id": self.request_id}
+        if self.parent_request_id is not None:
+            correlation["parent_request_id"] = self.parent_request_id
+        trace_log.info("pipeline_event %s", json.dumps({**correlation, **safe}, ensure_ascii=False))
+
+    def envelope(self, status: int, response: dict) -> dict:
+        with self._lock:
+            events = list(self.events)
+            count = self.event_count
+        outcome = "error" if status >= 400 else self.outcome
+        last_attempt = max((event.get("attempt", 0) for event in events), default=0)
+        failures = [event for event in events if event.get("status") in {"held", "error"}
+                    and (event.get("reason") or event.get("exception_type"))
+                    and event.get("attempt", last_attempt) == last_attempt]
+        # Preserve the original failing rule rather than the outer HTTP mapping.
+        causes = [event for event in failures if event.get("stage") not in {
+            "api_result", "request_dispatch", "generation", "generation_attempt", "evidence_validation",
+        }]
+        precise = [event for event in causes if event.get("check") or event.get("exception_type")]
+        reviews = [event for event in causes if event.get("stage") == "review"]
+        failure = dict((precise or reviews or causes or failures)[-1]) if outcome != "answered" and failures else None
+        if failure is not None and not failure.get("reason"):
+            failure["reason"] = next((event["reason"] for event in reversed(failures) if event.get("reason")), "internal_error")
+        return {
+            "request_id": self.request_id, "http_status": status, "outcome": outcome,
+            "response": response, "failure": failure,
+            "timing": {"scope": "response_ready", "total_ms": round((perf_counter() - self.started) * 1000, 3),
+                       "note": "부모 단계 시간에는 하위 단계가 포함됩니다. 실제 전송 완료 시간은 서버의 http_complete 로그에 기록됩니다."},
+            "trace": events, "trace_truncated": count > len(events),
+        }
+
+
+_active_trace: ContextVar[_RequestTrace | None] = ContextVar("chembridge_request_trace", default=None)
+
+
+def _source_location(filename: str, function: str, line: int) -> dict:
+    try:
+        filename = str(Path(filename).resolve().relative_to(Path(__file__).resolve().parents[1]))
+    except ValueError:
+        filename = "external"
+    return {"file": filename, "function": function, "line": line}
+
+
+class _PipelineHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        trace = _active_trace.get()
+        event = getattr(record, "pipeline_event", None)
+        if trace is not None and isinstance(event, dict):
+            location = getattr(record, "pipeline_location", None)
+            trace.add(event, location or _source_location(record.pathname, record.funcName, record.lineno))
+
+
+pipeline_log.addHandler(_PipelineHandler())
+pipeline_log.setLevel(logging.INFO)
+pipeline_log.propagate = False
+
+
+def _pipeline_event(stage: str, status: str, *, error: Exception | None = None, **details) -> None:
+    extra = {"pipeline_event": {"stage": stage, "status": status, **details}}
+    if error is not None:
+        extra["pipeline_event"]["exception_type"] = type(error).__name__
+        tb = error.__traceback__
+        while tb is not None:
+            location = _source_location(tb.tb_frame.f_code.co_filename, tb.tb_frame.f_code.co_name, tb.tb_lineno)
+            if location["file"] != "external":
+                extra["pipeline_location"] = location
+            tb = tb.tb_next
+    pipeline_log.info("pipeline_stage", extra=extra, stacklevel=2)
+
+
+@app.exception_handler(RequestValidationError)
+async def _request_validation_error(request: Request, exc: RequestValidationError):
+    reason = "malformed_json" if any(error["type"] == "json_invalid" for error in exc.errors()) else "invalid_request"
+    _pipeline_event("request_validation", "error", reason=reason, parent_stage="request_dispatch")
+    return await request_validation_exception_handler(request, exc)
 
 
 @dataclass
@@ -207,7 +328,7 @@ latency_stats = LatencyStatistics()
 
 
 class RequestLogMiddleware:
-    """본문·쿼리·쿠키·예외 원문 없이 경로·상태코드·처리시간만 기록한다."""
+    """HTTP 완료 기록과 요청별 파이프라인 수집. 진단 POST에만 로그 봉투를 붙인다."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -217,16 +338,48 @@ class RequestLogMiddleware:
             await self.app(scope, receive, send)
             return
         started = perf_counter()
+        trace = _RequestTrace(started) if scope["path"] in {"/rag-query", DIAGNOSTIC_PATH, EVALUATION_PATH} else None
+        trace_token = _active_trace.set(trace)
+        diagnostic = trace is not None and scope["path"] == DIAGNOSTIC_PATH and scope["method"] == "POST"
+        pending_start: Message | None = None
+        response_parts: list[bytes] = []
         status_code = 500
         response_started = False
         response_completed = False
         finished: float | None = None
 
         async def capture_status(message: Message) -> None:
-            nonlocal status_code, response_started, response_completed, finished
+            nonlocal status_code, response_started, response_completed, finished, pending_start
             if message["type"] == "http.response.start":
                 status_code = message["status"]
+                if trace is not None:
+                    message = {**message, "headers": [*message.get("headers", []),
+                                                       (b"x-request-id", trace.request_id.encode("ascii"))]}
+                if diagnostic:
+                    pending_start = message
+                    response_parts.clear()
+                    return
                 response_started = True
+            if diagnostic and message["type"] == "http.response.body":
+                response_parts.append(message.get("body", b""))
+                if message.get("more_body", False):
+                    return
+                payload = json.loads(b"".join(response_parts))
+                if not trace.dispatched:
+                    _pipeline_event("request_dispatch", "error", duration_ms=(perf_counter() - started) * 1000,
+                                    reason="request_rejected")
+                    trace.dispatched = True
+                _pipeline_event("response_ready", "ok")
+                wrapped = JSONResponse(trace.envelope(status_code, payload)).body
+                headers = [(key, value) for key, value in pending_start.get("headers", [])
+                           if key.lower() not in {b"content-length", b"cache-control"}]
+                await send({**pending_start, "headers": [*headers, (b"content-length", str(len(wrapped)).encode("ascii")),
+                                                         (b"cache-control", b"no-store")]})
+                response_started = True
+                await send({**message, "body": wrapped})
+                response_completed = True
+                finished = perf_counter()
+                return
             await send(message)
             if message["type"] == "http.response.body" and not message.get("more_body", False):
                 response_completed = True
@@ -234,7 +387,8 @@ class RequestLogMiddleware:
 
         try:
             await self.app(scope, receive, capture_status)
-        except Exception:
+        except Exception as exc:
+            _pipeline_event("api_result", "error", error=exc, reason="internal_error")
             # 예외 문자열·traceback에 질문이나 인증 정보가 포함될 수 있다.
             if response_started:
                 raise RuntimeError("응답 전송을 완료하지 못했습니다.") from None
@@ -245,19 +399,25 @@ class RequestLogMiddleware:
             # 예외로 만든 응답에도 일반 응답과 같은 CORS 정책을 적용한다.
             await CORSMiddleware(response, **CORS_OPTIONS)(scope, receive, capture_status)
         finally:
-            # 등록되지 않은 경로의 사용자 입력도 로그에 남기지 않는다.
-            path = getattr(scope.get("route"), "path", "/unmatched")
-            # CORS preflight는 라우터 전에 끝나므로 등록된 경로만 별도로 확인한다.
-            if path == "/unmatched" and scope["path"] in {route.path for route in app.routes}:
-                path = scope["path"]
-            elapsed_ms = ((finished if finished is not None else perf_counter()) - started) * 1000
-            request_log.info(
-                "path=%s status=%d latency_ms=%.2f",
-                path, status_code, elapsed_ms,
-            )
-            # 대시보드 조회 자체가 질의 통계·최근 로그를 밀어내지 않게 한다.
-            if not (path == "/raq-query-log" and scope["method"] == "GET"):
-                latency_stats.record(path, scope["method"], status_code, elapsed_ms, response_completed)
+            try:
+                # 등록되지 않은 경로의 사용자 입력도 로그에 남기지 않는다.
+                path = getattr(scope.get("route"), "path", "/unmatched")
+                # CORS preflight는 라우터 전에 끝나므로 등록된 경로만 별도로 확인한다.
+                if path == "/unmatched" and scope["path"] in {route.path for route in app.routes}:
+                    path = scope["path"]
+                elapsed_ms = ((finished if finished is not None else perf_counter()) - started) * 1000
+                request_log.info(
+                    "path=%s status=%d latency_ms=%.2f request_id=%s",
+                    path, status_code, elapsed_ms, trace.request_id if trace is not None else "-",
+                )
+                if trace is not None:
+                    _pipeline_event("http_complete", "ok" if response_completed else "error", duration_ms=elapsed_ms,
+                                    http_status=status_code, completed=response_completed)
+                # 대시보드 조회 자체는 집계에서 제외한다.
+                if not (path == "/raq-query-log" and scope["method"] == "GET"):
+                    latency_stats.record(path, scope["method"], status_code, elapsed_ms, response_completed)
+            finally:
+                _active_trace.reset(trace_token)
 
 
 app.add_middleware(RequestLogMiddleware)
@@ -279,14 +439,14 @@ def _load_indexes() -> None:
     summary="서비스·인덱스 준비 상태",
     responses={
         200: {
-            "description": "인덱스가 하나 이상 준비됨. 각 topic의 상태는 indexes에서 확인합니다.",
+            "description": "모든 필수 topic 인덱스가 준비됨. 각 topic의 상태는 indexes에서 확인합니다.",
             "content": {"application/json": {"example": {
                 "ready": True,
-                "indexes": {TOPIC_LAW: True, TOPIC_CHEMICAL: False},
+                "indexes": {TOPIC_LAW: True, TOPIC_CHEMICAL: True},
             }}},
         },
         503: {
-            "description": "사용 가능한 인덱스가 없음.",
+            "description": "필수 인덱스 중 하나 이상이 준비되지 않음.",
             "content": {"application/json": {"example": {
                 "ready": False,
                 "indexes": {TOPIC_LAW: False, TOPIC_CHEMICAL: False},
@@ -296,7 +456,8 @@ def _load_indexes() -> None:
 )
 def health():
     """인증 없이 호출합니다. 전체 준비 상태와 topic별 인덱스 상태를 반환합니다."""
-    body = {"ready": stores.is_ready(), "indexes": stores.status()}
+    indexes = stores.status()
+    body = {"ready": bool(indexes) and all(indexes.values()), "indexes": indexes}
     return JSONResponse(body, status_code=200 if body["ready"] else 503)
 
 
@@ -359,7 +520,7 @@ def rag_query_log(
         },
         422: {"description": "질문 길이(2~500자), topic, 지원 언어, product_id/equipment_id 타입, JSON 형식 오류."},
         503: {
-            "description": "인증 설정 미준비 또는 체인에서 예외로 전달한 검색·생성 실패. 검증 불가·근거 부족은 200 보류일 수 있습니다.",
+            "description": "인증 설정·요청 topic 인덱스 미준비 또는 검색·생성·검증 서비스 장애. 근거 부족·안전 검증 보류는 200입니다.",
             "content": {"application/json": {"example": {
                 "detail": "잠시 후 다시 시도해 주세요.",
             }}},
@@ -383,29 +544,280 @@ def rag_query(req: RagRequest, response: Response, user: dict = Depends(get_curr
     """JWT·요청 검증 후 chain.answer()만 호출합니다. 검색·LLM을 API에서 직접 호출하지 않습니다.
 
     질문별 독립 요청이며 대화 이력은 전달하지 않습니다. 출처·보류 플래그는 체인 결과를 그대로 반환합니다.
-    현재 특정 topic 인덱스 부재는 검색 0건과 같은 200 보류일 수 있습니다. 준비 장애 503 구분은 공동 계약 대기입니다.
+    정상 보류는 200, 알려진 서비스 장애는 503, 예상하지 못한 내부 오류는 500입니다.
     """
-    request_id = uuid4().hex
-    # Keep the JSON body/status contract. Only bounded diagnostics are exposed
-    # in headers; prompts, user identity, tokens and raw exceptions stay private.
-    with capture_failures() as failures:
-        try:
-            result = answer(req)
-        except Exception as error:
-            details = failures[-1] if failures else exception_details(error, stage="chain")
-            reason = getattr(error, "reason", None)
-            if reason in {"llm_timeout", "llm_error", "configuration_error"}:
-                details.setdefault("reason", reason)
-            diagnostic_log.warning(json.dumps({"request_id": request_id, "http_status": 503,
-                                               **details}, ensure_ascii=False, sort_keys=True))
-            raise HTTPException(status_code=503, detail="잠시 후 다시 시도해 주세요.",
-                                headers=response_headers(details, request_id)) from None
-        details = failures[-1] if failures else result_details(result)
-        response.headers.update(response_headers(details, request_id))
-        if details["category"] != "answer":
-            diagnostic_log.info(json.dumps({"request_id": request_id, "http_status": 200,
-                                            **details}, ensure_ascii=False, sort_keys=True))
+    trace = _active_trace.get()
+    if trace is not None:
+        _pipeline_event("request_dispatch", "ok", duration_ms=(perf_counter() - trace.started) * 1000)
+        trace.dispatched = True
+    try:
+        result = answer(req)
+        if trace is not None:
+            trace.outcome = "held" if result.handoff else "answered"
         return result
+    except (GenerationUnavailable, RAGUnavailable, TimeoutError, ConnectionError, OSError, httpx.HTTPError, APIError) as exc:
+        reason = exc.reason if isinstance(exc, (GenerationUnavailable, RAGUnavailable)) else "dependency_unavailable"
+        _pipeline_event("api_result", "error", error=exc, reason=reason)
+        raise HTTPException(status_code=503, detail="잠시 후 다시 시도해 주세요.") from None
+    except Exception as exc:
+        _pipeline_event("api_result", "error", error=exc, reason="internal_error")
+        raise HTTPException(status_code=500, detail="요청 처리 중 오류가 발생했습니다.") from None
+
+
+class _DiagnosticResponse(BaseModel):
+    request_id: str
+    http_status: int
+    outcome: str
+    response: RagResponse | dict
+    failure: dict | None
+    timing: dict
+    trace: list[dict]
+    trace_truncated: bool
+
+
+@app.post(
+    DIAGNOSTIC_PATH,
+    tags=["서비스 상태"],
+    response_model=None,
+    summary="한 요청의 RAG 응답과 파이프라인 진단",
+    description=(
+        "POST /rag-query와 같은 요청·인증으로 chain.answer를 정확히 한 번 실행합니다. "
+        "응답은 request_id, http_status, outcome, response(기존 응답), failure, timing, trace를 포함합니다. "
+        "인증·요청 검증 실패도 실제 401/422/503 상태와 진단 봉투로 반환합니다. "
+        "trace에는 단계·시도별 시간, 보류/오류 사유, 검사명, 코드 위치, 검색 건수가 포함됩니다. "
+        "request_dispatch는 JSON 파싱·인증·요청 검증을 포함한 전체 진입 구간이며, "
+        "generation은 생성 시도·원문 검증·의미 검증을 포함합니다. 부모·자식 시간을 합산하지 마세요. "
+        "본문 시간은 response_ready까지이며 전송 완료 시간은 같은 request_id의 서버 http_complete 로그에 남습니다. "
+        "trace에는 질문·답변·프롬프트·토큰·쿠키·예외 원문을 기록하지 않습니다. "
+        "실제 답변은 response에만 있으며 다른 사용자의 요청 기록은 조회하지 않습니다."
+    ),
+    responses={
+        code: {"model": _DiagnosticResponse, "description": description}
+        for code, description in {
+            200: "답변 완료 또는 안전상 보류. outcome과 failure를 확인하세요.",
+            401: "토큰 없음·만료·위조.", 422: "JSON 또는 요청 필드 검증 실패.",
+            503: "인증·인덱스 미준비 또는 검색·생성·검증 서비스 장애.",
+            500: "예상하지 못한 내부 오류.",
+        }.items()
+    },
+)
+def rag_query_diagnostics(req: RagRequest, user: dict = Depends(get_current_user)) -> RagResponse:
+    # The middleware also wraps failures that happen before this function runs.
+    return rag_query(req, user)
+
+
+class _EvaluationModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class _EvaluationRequest(_EvaluationModel):
+    dataset_path: str = Field(min_length=1, max_length=1024,
+                              description="서버의 rag-service/eval 안에 있는 JSON 경로. 예: eval/diagnostic_cases_40.json",
+                              examples=["eval/diagnostic_cases_40.json"])
+
+
+class _EvaluationExpected(_EvaluationModel):
+    http_status: int = Field(ge=100, le=599)
+    outcome: Literal["answered", "held", "error"]
+    handoff: bool | None = None
+    needs_review: bool | None = None
+    sources_min: int = Field(default=0, ge=0)
+    sources_max: int | None = Field(default=None, ge=0)
+    source_doc_ids_any: list[str] = Field(default_factory=list)
+    reason_any: list[str] = Field(default_factory=list)
+    answer_contains: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def source_bounds(self):
+        if self.sources_max is not None and self.sources_max < self.sources_min:
+            raise ValueError("sources_max must be at least sources_min")
+        return self
+
+
+class _EvaluationCase(_EvaluationModel):
+    id: str = Field(min_length=1, max_length=100)
+    split: Literal["test", "validation"]
+    category: str = ""
+    # Keep raw input so a dataset can deliberately test 422 responses too.
+    request: dict
+    expected: _EvaluationExpected
+    notes: str = ""
+
+
+class _EvaluationDataset(_EvaluationModel):
+    version: Literal[1]
+    name: str
+    description: str = ""
+    cases: list[_EvaluationCase] = Field(min_length=1, max_length=100)
+
+
+def _load_evaluation_dataset(dataset_path: str) -> tuple[_EvaluationDataset, str]:
+    try:
+        root = _EVALUATION_ROOT.resolve()
+        supplied = Path(dataset_path)
+        if supplied.is_absolute():
+            path = supplied.resolve()
+        elif supplied.parts[:2] == ("rag-service", "eval"):
+            path = root.joinpath(*supplied.parts[2:]).resolve()
+        elif supplied.parts[:1] == ("eval",):
+            path = root.joinpath(*supplied.parts[1:]).resolve()
+        else:
+            path = (root / supplied).resolve()
+    except (ValueError, RuntimeError):
+        raise HTTPException(422, "평가셋 경로 형식이 올바르지 않습니다.") from None
+    except OSError:
+        raise HTTPException(503, "평가셋 경로를 확인할 수 없습니다.") from None
+    if not path.is_relative_to(root) or path.suffix.lower() != ".json":
+        raise HTTPException(422, "rag-service/eval 안의 JSON 평가셋 경로를 입력하세요.")
+    try:
+        with path.open("rb") as source:
+            content = source.read(1_048_577)
+    except FileNotFoundError:
+        raise HTTPException(404, "평가셋 파일을 찾을 수 없습니다.") from None
+    except IsADirectoryError:
+        raise HTTPException(422, "JSON 파일 경로를 입력하세요.") from None
+    except OSError:
+        raise HTTPException(503, "평가셋 파일을 읽을 수 없습니다.") from None
+    if len(content) > 1_048_576:
+        raise HTTPException(422, "평가셋은 1 MiB 이하로 입력하세요.")
+    try:
+        decoded = json.loads(content.decode("utf-8"))
+        # Validate round-trip JSON before any model calls. Raw case inputs may
+        # deliberately be invalid RagRequests, but must still be valid UTF-8 JSON.
+        json.dumps(decoded, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        dataset = _EvaluationDataset.model_validate(decoded)
+    except (UnicodeError, ValueError, RecursionError):
+        raise HTTPException(422, "평가셋 JSON 형식 또는 케이스·기대값 구성이 올바르지 않습니다.") from None
+    if len({case.id for case in dataset.cases}) != len(dataset.cases):
+        raise HTTPException(422, "평가 케이스 ID는 중복될 수 없습니다.")
+    return dataset, "eval/" + path.relative_to(root).as_posix()
+
+
+def _run_evaluation_case(case: _EvaluationCase, user: dict, run_id: str) -> dict:
+    trace = _RequestTrace(perf_counter(), parent_request_id=run_id)
+    token = _active_trace.set(trace)
+    try:
+        _pipeline_event("authentication", "skipped", duration_ms=0.0, reason="batch_authentication_reused")
+        try:
+            request = RagRequest.model_validate(case.request)
+        except ValidationError as exc:
+            status = 422
+            payload = {"detail": exc.errors(include_url=False, include_context=False, include_input=False)}
+            _pipeline_event("request_validation", "error", reason="invalid_request", parent_stage="request_dispatch")
+            _pipeline_event("request_dispatch", "error", duration_ms=(perf_counter() - trace.started) * 1000,
+                            reason="request_rejected")
+        else:
+            try:
+                response = rag_query(request, user)
+                payload = response.model_dump(mode="json")
+                json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+                status = 200
+            except HTTPException as exc:
+                payload, status = {"detail": exc.detail}, exc.status_code
+            except Exception as exc:
+                _pipeline_event("api_result", "error", error=exc, reason="internal_error")
+                payload, status = {"detail": "요청 처리 중 오류가 발생했습니다."}, 500
+        _pipeline_event("response_ready", "ok")
+        diagnostic = trace.envelope(status, payload)
+        diagnostic["timing"]["note"] = (
+            "배치 내부 케이스의 response_ready까지 측정합니다. "
+            "실제 HTTP 전송 완료 시간은 상위 run_id의 http_complete 로그를 확인하세요."
+        )
+        # Cases are in-process executions, not individual HTTP exchanges.
+        _pipeline_event("case_complete", "ok", duration_ms=(perf_counter() - trace.started) * 1000,
+                        http_status=status, completed=True)
+        return diagnostic
+    finally:
+        _active_trace.reset(token)
+
+
+def _grade_evaluation(expected: _EvaluationExpected, diagnostic: dict) -> list[dict]:
+    checks = []
+
+    def check(name, wanted, actual, passed):
+        checks.append({"name": name, "expected": wanted, "actual": actual, "passed": bool(passed)})
+
+    check("http_status", expected.http_status, diagnostic["http_status"], expected.http_status == diagnostic["http_status"])
+    check("outcome", expected.outcome, diagnostic["outcome"], expected.outcome == diagnostic["outcome"])
+    response = RagResponse.model_validate(diagnostic["response"]) if diagnostic["http_status"] == 200 else None
+    for field_name in ("handoff", "needs_review"):
+        wanted = getattr(expected, field_name)
+        if wanted is not None:
+            actual = getattr(response, field_name) if response is not None else None
+            check(field_name, wanted, actual, wanted == actual)
+    sources = response.sources if response is not None else []
+    check("sources_min", expected.sources_min, len(sources), len(sources) >= expected.sources_min)
+    if expected.sources_max is not None:
+        check("sources_max", expected.sources_max, len(sources), len(sources) <= expected.sources_max)
+    if expected.source_doc_ids_any:
+        actual = sorted({source.doc_id for source in sources})
+        check("source_doc_ids_any", expected.source_doc_ids_any, actual, bool(set(actual) & set(expected.source_doc_ids_any)))
+    if expected.reason_any:
+        actual = (diagnostic["failure"] or {}).get("reason")
+        check("reason_any", expected.reason_any, actual, actual in expected.reason_any)
+    if expected.answer_contains:
+        missing = [fragment for fragment in expected.answer_contains if response is None or fragment not in response.answer]
+        check("answer_contains", expected.answer_contains, {"missing": missing}, not missing)
+    return checks
+
+
+class _EvaluationResponse(BaseModel):
+    run_id: str
+    dataset_path: str
+    total_cases: int
+    summary: dict
+    results: list[dict]
+
+
+@app.post(
+    EVALUATION_PATH,
+    tags=["서비스 상태"],
+    summary="JSON 평가셋 전체 실행 · 케이스별 진단 로그와 기대값 비교",
+    response_model=None,
+    description=(
+        "dataset_path만 입력하면 서버 rag-service/eval 안의 JSON을 읽어 최대 100개 케이스를 순서대로 실행합니다. "
+        "예: {\"dataset_path\":\"eval/diagnostic_cases_40.json\"}. "
+        "각 results 항목은 /rag-query/diagnostics와 같은 진단 필드 및 case_id, request, expected, checks, passed를 가집니다. "
+        "인증은 배치 요청에서 한 번 수행하고 케이스별 trace에 재사용을 표시합니다. "
+        "한 케이스의 422/500/503도 결과에 남기고 나머지를 계속 실행합니다. "
+        "배치 완료의 HTTP 200과 개별 케이스의 http_status·passed는 별개입니다. "
+        "summary.error_count는 예상된 422를 포함해 outcome=error인 케이스 수입니다. "
+        "실제 LLM을 호출하므로 전체 실행에는 수 분과 API 사용료가 발생할 수 있습니다. "
+        "평가는 기대 동작·출처·사유·지정 문구를 비교하며 답변 내용 전체의 사실성을 자동 판정하지 않습니다."
+    ),
+    responses={
+        200: {"model": _EvaluationResponse, "description": "배치 실행 완료. summary와 케이스별 passed·http_status를 확인하세요."},
+        401: {"description": "인증 실패."}, 404: {"description": "평가셋 파일 없음."},
+        422: {"description": "경로·파일 크기·JSON·평가셋 구성 오류. 실행 전에 검사합니다."},
+        503: {"description": "인증 설정 또는 평가셋 읽기 장애."},
+    },
+)
+def rag_evaluations(req: _EvaluationRequest, user: dict = Depends(get_current_user)) -> JSONResponse:
+    started = perf_counter()
+    dataset, path = _load_evaluation_dataset(req.dataset_path)
+    parent = _active_trace.get()
+    run_id = parent.request_id if parent is not None else uuid4().hex
+    results = []
+    for case in dataset.cases:
+        diagnostic = _run_evaluation_case(case, user, run_id)
+        checks = _grade_evaluation(case.expected, diagnostic)
+        results.append({"case_id": case.id, "split": case.split, "category": case.category,
+                        "request": case.request, "expected": case.expected.model_dump(exclude_none=True),
+                        "checks": checks, "passed": all(check["passed"] for check in checks), **diagnostic})
+    total = len(results)
+    passed = sum(row["passed"] for row in results)
+    by_split = {}
+    for split in ("test", "validation"):
+        rows = [row for row in results if row["split"] == split]
+        good = sum(row["passed"] for row in rows)
+        by_split[split] = {"total": len(rows), "passed": good, "failed": len(rows) - good,
+                           "pass_rate": round(good / len(rows), 6) if rows else 0.0}
+    summary = {"passed": passed, "failed": total - passed, "pass_rate": round(passed / total, 6),
+               "error_count": sum(row["outcome"] == "error" for row in results), "by_split": by_split,
+               "status_counts": dict(Counter(str(row["http_status"]) for row in results)),
+               "duration_ms": round((perf_counter() - started) * 1000, 3)}
+    return JSONResponse({"run_id": run_id, "dataset_path": path, "total_cases": total,
+                         "summary": summary, "results": results}, headers={"Cache-Control": "no-store"})
 
 
 def _java_auth_paths() -> dict:

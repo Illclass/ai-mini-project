@@ -7,7 +7,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from contextvars import ContextVar
+import logging
 import re
+from time import perf_counter
 from collections import Counter
 import unicodedata
 from typing import Any, Literal, Protocol, List
@@ -30,6 +33,24 @@ from rag.prompt import (
     translation_valid, resolve_mode,
 )
 from rag.schema import DocType, ENV_LLM_MODEL, DOC_TYPE_GUIDE, DOC_TYPE_LAW, DOC_TYPE_MSDS, TOPIC_LAW, Hit, Source, RagResponse
+
+_PIPELINE_LOG = logging.getLogger("chembridge.pipeline")
+_GENERATION_ATTEMPT: ContextVar[int | None] = ContextVar("generation_attempt", default=None)
+_UNAVAILABLE_REASONS = {"llm_timeout", "llm_error", "configuration_error", "verification_unavailable", "invalid_output"}
+
+
+def _pipeline_stage(stage: str, status: str, started: float, *, reason: str | None = None,
+                    check: str | None = None, exception_type: str | None = None,
+                    duration_ms: float | None = None, stacklevel: int = 2) -> None:
+    """Emit fixed diagnostics only; request/source/provider contents stay private."""
+    event = {"stage": stage, "status": status,
+             "duration_ms": max(0.0, (perf_counter() - started) * 1000 if duration_ms is None else duration_ms)}
+    for key, value in (("reason", reason), ("check", check), ("exception_type", exception_type),
+                       ("attempt", _GENERATION_ATTEMPT.get())):
+        if value is not None:
+            event[key] = value
+    _PIPELINE_LOG.info("pipeline_stage", extra={"pipeline_event": event}, stacklevel=stacklevel)
+
 
 # 요청 범위 검사
 
@@ -319,7 +340,9 @@ _REVIEW_MESSAGES = {
 }
 
 
-def _review_result(reason: str, answer: str | None = None, *, language: str = "ko") -> GenerationOutput:
+def _review_result(reason: str, answer: str | None = None, *, language: str = "ko",
+                   check: str | None = None, stacklevel: int = 2) -> GenerationOutput:
+    _pipeline_stage("review", "held", perf_counter(), reason=reason, check=check, stacklevel=stacklevel + 1)
     result = GenerationOutput(
         answer=answer or TEXT[language].get(reason, TEXT[language]["fallback"]), sources=[],
         needs_review=True, handoff=True,
@@ -467,6 +490,7 @@ def _verify_draft_support(question, draft, originals, required, translated, *,
     Returns a private review reason, or None on complete supported verdicts.
     This probabilistic gate is not a guarantee of factual or workplace safety.
     """
+    started = perf_counter()
     claims = []
     for index, statement in enumerate(draft.statements):
         claims.append({"claim_id": f"s{index}", "kind": statement.kind,
@@ -489,16 +513,22 @@ def _verify_draft_support(question, draft, originals, required, translated, *,
         ))
         result = EvidenceVerification.model_validate(raw)
     except Exception as exc:
-        record_failure(exc, stage="verification")
         # Timeouts, configuration/provider errors and malformed verdicts must
         # never release the original answer or expose raw exception contents.
+        _pipeline_stage("semantic_verification", "error", started,
+                        reason="verification_unavailable", exception_type=type(exc).__name__)
         return "verification_unavailable"
     expected = {claim["claim_id"] for claim in claims}
     ids = [item.claim_id for item in result.assessments]
     if len(ids) != len(expected) or set(ids) != expected:
+        _pipeline_stage("semantic_verification", "error", started,
+                        reason="verification_unavailable", check="assessment_ids")
         return "verification_unavailable"
     if any(item.verdict != "supported" for item in result.assessments):
+        _pipeline_stage("semantic_verification", "held", started,
+                        reason="claim_mismatch", check="claim_verdict")
         return "claim_mismatch"
+    _pipeline_stage("semantic_verification", "ok", started)
     return None
 
 
@@ -886,6 +916,9 @@ def generate_answer(
     Invalid programmer inputs raise ValueError/TypeError. No credentials or raw
     provider exception messages enter the result. The existing HTTP response schema is untouched.
     """
+    validation_started = perf_counter()
+    draft_duration = 0.0
+    validation_recorded = False
     early = preflight_result(question, language)
     if mode not in MODES:
         raise ValueError("mode must be qa, learn, or precheck")
@@ -893,6 +926,8 @@ def generate_answer(
     if product_id is not None and (not isinstance(product_id, str) or not product_id.strip()):
         raise ValueError("product_id must be a nonblank string or None")
     if early is not None:
+        _pipeline_stage("evidence_validation", "skipped", validation_started,
+                        reason=early.review_reasons[0])
         return early
     if not isinstance(documents, list) or any(not isinstance(doc, Document) for doc in documents):
         raise TypeError("documents must be a list[Document]")
@@ -900,8 +935,16 @@ def generate_answer(
     if as_of is not None and type(as_of) is not date:
         raise TypeError("as_of must be a date")
     reference_date = as_of or datetime.now(ZoneInfo("Asia/Seoul")).date()
-    def review(reason):
-        return _review_result(reason, language=language)
+    def finish_validation(status, reason=None):
+        nonlocal validation_recorded
+        if not validation_recorded:
+            _pipeline_stage("evidence_validation", status, validation_started, reason=reason,
+                            duration_ms=(perf_counter() - validation_started - draft_duration) * 1000)
+            validation_recorded = True
+
+    def review(reason, *, check=None):
+        finish_validation("error" if reason in _UNAVAILABLE_REASONS else "held", reason)
+        return _review_result(reason, language=language, check=check, stacklevel=3)
 
     text = TEXT[language]
     usable = [doc for doc in documents if doc.page_content.strip()]
@@ -911,6 +954,7 @@ def generate_answer(
         if product_id is None:
             # A selected equipment or retrieved MSDS is not a selected product.
             # Keep existing response fields/reason; the UI owns product selection.
+            finish_validation("held", "product_unverified")
             return _review_result("product_unverified", answer=text["product_selection_required"], language=language)
         if not msds or any(doc.metadata.get("product_id") != product_id for doc in msds):
             return review("product_unverified")
@@ -939,19 +983,28 @@ def generate_answer(
     if prompt.incomplete_critical_chunks(msds):
         return review("incomplete_warning_context")
 
+    draft_started = perf_counter()
     try:
         llm = structured_llm if structured_llm is not None else build_document_llm(model or os.getenv(ENV_LLM_MODEL, DEFAULT_LLM_MODEL), timeout_seconds=timeout_seconds)
         raw = llm.invoke(build_document_messages(question, usable, as_of=reference_date, language=language, mode=mode, product_id=product_id))
     except (APITimeoutError, httpx.TimeoutException, TimeoutError) as exc:
-        record_failure(exc, stage="generation")
+        draft_duration = perf_counter() - draft_started
+        _pipeline_stage("generation_draft", "error", draft_started, reason="llm_timeout", exception_type=type(exc).__name__)
         return review("llm_timeout")
-    except RAGConfigurationError:
+    except RAGConfigurationError as exc:
+        draft_duration = perf_counter() - draft_started
+        _pipeline_stage("generation_draft", "error", draft_started, reason="configuration_error", exception_type=type(exc).__name__)
         return review("configuration_error")
-    except (ValidationError, OutputParserException):
+    except (ValidationError, OutputParserException) as exc:
+        draft_duration = perf_counter() - draft_started
+        _pipeline_stage("generation_draft", "error", draft_started, reason="invalid_output", exception_type=type(exc).__name__)
         return review("invalid_output")
     except Exception as exc:
-        record_failure(exc, stage="generation")
+        draft_duration = perf_counter() - draft_started
+        _pipeline_stage("generation_draft", "error", draft_started, reason="llm_error", exception_type=type(exc).__name__)
         return review("llm_error")
+    draft_duration = perf_counter() - draft_started
+    _pipeline_stage("generation_draft", "ok", draft_started)
     try:
         draft = EvidenceDraft.model_validate(raw)
     except (ValidationError, TypeError):
@@ -1022,7 +1075,7 @@ def generate_answer(
             return review("invalid_translation")
         if (statement.kind == "recommendation" and _has_duty_assertion(statement.text)
                 and not any(_has_duty_assertion(c.quote) for c in statement.citations)):
-            return review("invalid_evidence")
+            return review("invalid_evidence", check="recommendation_force")
         if statement.kind != "legal_obligation" and _invalid_nonlaw_duty(statement.text, statement.citations, metadata_by_id):
             return review("invalid_evidence")
         if statement.kind == "legal_obligation" and not _supports_legal_duty(statement.citations, metadata_by_id):
@@ -1090,6 +1143,7 @@ def generate_answer(
         translated[item.passage_id] = item.text
     if language != "ko" and not set(required).issubset(translated):
         return review("invalid_translation")
+    finish_validation("ok")
     verification_failure = _verify_draft_support(
         question, draft, originals, required, translated, language=language,
         as_of=reference_date, model=model or os.getenv(ENV_LLM_MODEL, DEFAULT_LLM_MODEL),
@@ -1264,40 +1318,46 @@ def build_api_response(
     ValidationError); malformed caller types raise TypeError. No HTTP policy is
     imposed here. A failed conversion must not be sent as a successful response.
     """
-    if not isinstance(result, GenerationOutput):
-        raise TypeError("result must be a GenerationOutput")
-    if not isinstance(doc_id_by_chunk_id, Mapping):
-        raise TypeError("doc_id_by_chunk_id must be a mapping")
-    if type(latency_ms) is not int or latency_ms < 0:
-        raise ValueError("latency_ms must be a nonnegative integer")
+    started = perf_counter()
+    try:
+        if not isinstance(result, GenerationOutput):
+            raise TypeError("result must be a GenerationOutput")
+        if not isinstance(doc_id_by_chunk_id, Mapping):
+            raise TypeError("doc_id_by_chunk_id must be a mapping")
+        if type(latency_ms) is not int or latency_ms < 0:
+            raise ValueError("latency_ms must be a nonnegative integer")
 
-    sources = []
-    for source in result.sources:
-        if source.chunk_id not in doc_id_by_chunk_id:
-            raise ValueError("doc_id mapping is missing for a cited chunk")
-        sources.append(APISource(
-            doc_id=doc_id_by_chunk_id[source.chunk_id],
-            section=_section(source),
-            # Prefer the original law/document name. A guide may only have an
-            # article title; keep empty if neither exists rather than invent one.
-            title=source.title or source.law_name or source.article_title or "",
-            url=source.source_url,
-        ))
-    response = GenerationAPIResponse(
-        answer=result.answer,
-        sources=sources,
-        needs_review=result.needs_review,
-        handoff=result.handoff,
-        latency_ms=latency_ms,
-    )
-    response._review_reasons = result.review_reasons
-    return response
+        sources = []
+        for source in result.sources:
+            if source.chunk_id not in doc_id_by_chunk_id:
+                raise ValueError("doc_id mapping is missing for a cited chunk")
+            sources.append(APISource(
+                doc_id=doc_id_by_chunk_id[source.chunk_id],
+                section=_section(source),
+                # Prefer original source metadata; never invent a source name.
+                title=source.title or source.law_name or source.article_title or "",
+                url=source.source_url,
+            ))
+        payload = GenerationAPIResponse(
+            answer=result.answer, sources=sources,
+            needs_review=result.needs_review, handoff=result.handoff, latency_ms=latency_ms,
+        )
+    except Exception as exc:
+        _pipeline_stage("response_mapping", "error", started, reason="invalid_output",
+                        exception_type=type(exc).__name__)
+        raise
+    _pipeline_stage("response_mapping", "ok", started)
+    return payload
 
 
 # 기존 팀 Hit 입력 연결
 
 class GenerationUnavailable(RuntimeError):
     """Sanitized provider failure for the existing API's HTTP 503 handler."""
+
+    def __init__(self, reason: str = "llm_error"):
+        self.reason = reason
+        super().__init__("Generation provider is temporarily unavailable")
 
 
 def needs_review(hits: List[Hit], answer_text: str) -> bool:
@@ -1376,27 +1436,37 @@ def generate(question: str, hits: List[Hit], language: str, *,
     for hit in hits:
         metadata = hit.get("metadata", {})
         if not isinstance(hit.get("text"), str) or not isinstance(metadata, dict):
-            return RagResponse(answer=TEXT[language]["fallback"], needs_review=True, handoff=True)
+            result = _review_result("invalid_metadata", language=language, check="hit_shape")
+            return RagResponse(**result.model_dump())
         # Current shared API requires a real document ID. Legacy metadata must
         # be enriched by the data owner; do not fabricate a doc_id from chunk_id.
         if not isinstance(metadata.get("doc_id"), str) or not metadata["doc_id"].strip():
-            return RagResponse(answer=TEXT[language]["fallback"], needs_review=True, handoff=True)
+            result = _review_result("invalid_metadata", language=language, check="document_id")
+            return RagResponse(**result.model_dump())
         documents.append(Document(page_content=hit["text"], metadata=dict(metadata)))
-    result = generate_answer(question, documents, language=language, mode=mode,
-                             product_id=product_id, topic=topic, structured_llm=structured_llm)
     # LLM 초안은 실행마다 달라서, 같은 질문이 한 번은 검증을 통과하고 한 번은 보류된다 (화면 추천 질문 14개 중 3~5개).
     # 검증 실패로 보류됐으면 한 번 더 생성한다. 다시 만든 초안도 같은 검증을 모두 거치므로 기준은 낮아지지 않는다.
     # "근거 없음"(no_evidence)은 LLM 이 답할 수 없다고 판단한 것이라 다시 묻지 않는다.
-    for _ in range(GENERATION_RETRIES):
-        if result.sources or not RETRYABLE_REASONS.intersection(result.review_reasons):
+    for attempt in range(1, max(0, GENERATION_RETRIES) + 2):
+        attempt_token = _GENERATION_ATTEMPT.set(attempt)
+        started = perf_counter()
+        try:
+            result = generate_answer(question, documents, language=language, mode=mode,
+                                     product_id=product_id, topic=topic, structured_llm=structured_llm)
+            reasons = result.review_reasons
+            unavailable = next((reason for reason in reasons if reason in _UNAVAILABLE_REASONS), None)
+            _pipeline_stage("generation_attempt", "error" if unavailable else "held" if result.handoff else "ok",
+                            started, reason=unavailable or (reasons[0] if reasons else None))
+        except Exception as exc:
+            _pipeline_stage("generation_attempt", "error", started, exception_type=type(exc).__name__)
+            raise
+        finally:
+            _GENERATION_ATTEMPT.reset(attempt_token)
+        if result.sources or not RETRYABLE_REASONS.intersection(reasons):
             break
-        result = generate_answer(question, documents, language=language, mode=mode,
-                                 product_id=product_id, topic=topic, structured_llm=structured_llm)
-    if {"llm_timeout", "llm_error", "configuration_error"}.intersection(result.review_reasons):
+    if unavailable:
         # Preserve app.main's existing 503 policy without exposing raw errors.
-        error = GenerationUnavailable("Generation provider is temporarily unavailable")
-        error.reason = result.review_reasons[0]
-        raise error
+        raise GenerationUnavailable(unavailable)
     ids = {doc.metadata.get("chunk_id"): doc.metadata["doc_id"] for doc in documents}
     payload = build_api_response(result, latency_ms=0, doc_id_by_chunk_id=ids)
     if not hits:

@@ -23,6 +23,7 @@ def api_case(monkeypatch):
     secret = "generation-integration-test-only"
     monkeypatch.setenv("JWT_SECRET", secret)
     monkeypatch.setattr(stores, "load_all", lambda: None)
+    monkeypatch.setattr(stores, "get_store", lambda topic: object())
     quote = "가상 안내표의 색상은 청록색입니다."
     condition = "가상 교육 화면에 한정됩니다."
     metadata = {
@@ -65,7 +66,7 @@ def test_pulled_api_preserves_generation_contract(monkeypatch, api_case, case):
     assert retrieval.call_count == 1
     assert len(provider.calls) == (1 + generator.GENERATION_RETRIES if case == "contradicted" else 1)
     assert "private" not in response.text
-    if case == "generation_timeout":
+    if case in {"generation_timeout", "verification_timeout"}:
         assert response.status_code == 503
         assert response.json() == {"detail": "잠시 후 다시 시도해 주세요."}
         return

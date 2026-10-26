@@ -68,6 +68,7 @@ def fake_search(monkeypatch):
     """검색 결과를 정해 두는 도우미: fake_search([]) 또는 fake_search([FAKE_HIT])."""
     def _set(hits):
         monkeypatch.setattr(rag.chain, "retrieve", lambda *a, **k: hits)
+    monkeypatch.setattr(rag.chain.stores, "get_store", lambda topic: object())
     monkeypatch.setattr(generator, "build_document_llm", lambda *a, **k: FakeLLM(FAKE_DRAFT))
     monkeypatch.setattr(generator, "build_verification_llm", lambda *a, **k: FakeLLM(_all_supported))
     return _set

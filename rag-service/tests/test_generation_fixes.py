@@ -105,8 +105,89 @@ def test_generate_retries_once_only_for_verification_failures(monkeypatch):
         calls = []
         monkeypatch.setattr(g, "generate_answer", lambda *a, **k: calls.append(1) or result(first))
         monkeypatch.setattr(g, "build_api_response", lambda r, **k: g.RagResponse(answer=r.answer, sources=[], needs_review=True, handoff=True, latency_ms=0))
-        g.generate("보호구는?", hits, "ko")
+        if first == "verification_unavailable":
+            with pytest.raises(g.GenerationUnavailable) as error:
+                g.generate("보호구는?", hits, "ko")
+            assert error.value.reason == first
+        else:
+            g.generate("보호구는?", hits, "ko")
         assert len(calls) == expected_calls, first
+
+
+def _pipeline_document():
+    return Document(page_content="공급라인 상태를 확인한다.", metadata={
+        "doc_id": "TEST", "doc_type": "guide", "chunk_id": "TEST-1", "title": "테스트 자료",
+        "section": "작업 전 확인", "source_url": "https://example.invalid/pipeline",
+    })
+
+
+def test_pipeline_reports_recommendation_failure_at_its_check(monkeypatch, caplog):
+    import linecache
+
+    monkeypatch.setattr(g._PIPELINE_LOG, "propagate", True)
+    doc = _pipeline_document()
+    draft = {"supported": True, "statements": [{
+        "kind": "recommendation", "text": "공급라인 상태를 반드시 확인해야 합니다.",
+        "citations": [{"chunk_id": "TEST-1", "quote": doc.page_content}], "conditions": [],
+    }]}
+    provider = type("Provider", (), {"invoke": lambda self, messages: draft})()
+    monkeypatch.setattr(g, "build_verification_llm", lambda *a, **k: pytest.fail("local failure must stop verifier"))
+    with caplog.at_level("INFO", logger="chembridge.pipeline"):
+        result = g.generate_answer("공급라인 점검 자료", [doc], structured_llm=provider)
+    assert result.review_reasons == ["invalid_evidence"]
+    records = [record for record in caplog.records if getattr(record, "pipeline_event", {}).get("check") == "recommendation_force"]
+    assert len(records) == 1
+    record = records[0]
+    assert record.funcName == "generate_answer"
+    assert 'check="recommendation_force"' in linecache.getline(record.pathname, record.lineno)
+    assert record.pipeline_event["reason"] == "invalid_evidence"
+    assert record.pipeline_event["status"] == "held"
+    assert all(record.getMessage() == "pipeline_stage" for record in caplog.records)
+    assert doc.page_content not in str([record.pipeline_event for record in caplog.records])
+
+
+def test_pipeline_measures_provider_and_local_validation_separately(monkeypatch, caplog):
+    monkeypatch.setattr(g._PIPELINE_LOG, "propagate", True)
+    doc = _pipeline_document()
+    clock = [100.0]
+    monkeypatch.setattr(g, "perf_counter", lambda: clock[0])
+
+    class Provider:
+        def invoke(self, messages):
+            clock[0] += 5.0
+            return {"supported": True, "statements": [{
+                "kind": "information", "text": doc.page_content,
+                "citations": [{"chunk_id": "TEST-1", "quote": doc.page_content}], "conditions": [],
+            }]}
+
+    class Verifier:
+        def invoke(self, messages):
+            clock[0] += 7.0
+            return {"assessments": [{"claim_id": "s0", "verdict": "supported"}]}
+
+    monkeypatch.setattr(g, "build_verification_llm", lambda *a, **k: Verifier())
+    hits = [{"text": doc.page_content, "score": 0.1, "metadata": doc.metadata}]
+    with caplog.at_level("INFO", logger="chembridge.pipeline"):
+        result = g.generate("공급라인 점검 자료", hits, "ko", structured_llm=Provider())
+    events = {record.pipeline_event["stage"]: record.pipeline_event for record in caplog.records}
+    assert result.sources and not result.handoff
+    assert events["generation_draft"]["duration_ms"] == 5000.0
+    assert events["evidence_validation"]["duration_ms"] == 0.0
+    assert events["semantic_verification"]["duration_ms"] == 7000.0
+    assert events["generation_attempt"]["duration_ms"] == 12000.0
+    assert events["response_mapping"]["status"] == "ok"
+    assert events["generation_attempt"]["attempt"] == 1
+
+
+@pytest.mark.parametrize("reason", ["llm_timeout", "llm_error", "configuration_error", "verification_unavailable", "invalid_output"])
+def test_generate_raises_typed_unavailability_for_operational_failures(monkeypatch, reason):
+    result = g.GenerationOutput(answer="보류", sources=[], needs_review=True, handoff=True)
+    result._review_reasons = [reason]
+    monkeypatch.setattr(g, "generate_answer", lambda *a, **k: result)
+    with pytest.raises(g.GenerationUnavailable) as error:
+        g.generate("자료 확인", [], "ko")
+    assert error.value.reason == reason
+    assert str(error.value) == "Generation provider is temporarily unavailable"
 
 
 def test_document_and_clause_numbers_may_come_from_chunk_header():

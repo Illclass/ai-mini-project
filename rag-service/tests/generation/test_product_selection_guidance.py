@@ -30,6 +30,7 @@ def test_unspecified_product_requests_selection_without_model_calls(monkeypatch,
 def test_wet_bench_request_reaches_guidance_through_unchanged_chain(monkeypatch):
     retrieve = Mock(return_value=[hit(synthetic_msds())])
     monkeypatch.setattr(chain, 'retrieve', retrieve)
+    monkeypatch.setattr(chain.stores, 'get_store', lambda topic: object())
     response = chain.answer(RagRequest(question='보호구는?', topic=TOPIC_CHEMICAL,
                                        equipment_id='DEMO-WET-01'))
     assert retrieve.call_args.kwargs['equipment_id'] == 'DEMO-WET-01'

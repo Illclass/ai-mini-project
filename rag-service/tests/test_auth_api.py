@@ -449,15 +449,15 @@ def test_rejected_request_never_calls_chain(api, monkeypatch, case, expected):
     assert response.status_code == expected
 
 
-@pytest.mark.parametrize("failure", [TimeoutError, ConnectionError, RuntimeError])
-def test_chain_errors_are_sanitized_503(api, monkeypatch, failure):
+@pytest.mark.parametrize("failure, expected", [(TimeoutError, 503), (ConnectionError, 503), (RuntimeError, 500)])
+def test_chain_errors_are_sanitized(api, monkeypatch, failure, expected):
     client, secret = api
     def fail(req):
         raise failure("PRIVATE_UPSTREAM_DETAILS_" + req.question + secret)
     monkeypatch.setattr(main, "answer", fail)
     response = client.post("/rag-query", json=body(), headers={"Authorization": "Bearer " + token(secret)})
-    assert response.status_code == 503
-    assert response.json() == {"detail": "잠시 후 다시 시도해 주세요."}
+    assert response.status_code == expected
+    assert response.json() == {"detail": "잠시 후 다시 시도해 주세요." if expected == 503 else "요청 처리 중 오류가 발생했습니다."}
 
 
 @pytest.mark.parametrize("ready, expected", [(True, 200), (False, 503)])
@@ -518,6 +518,7 @@ def test_api_preserves_sources_and_exposes_generation_metadata_hold(api, monkeyp
         )
 
     monkeypatch.setattr(main, "answer", chain.answer)
+    monkeypatch.setattr(chain.stores, "get_store", lambda topic: object())
     monkeypatch.setattr(chain, "retrieve", lambda *args, **kwargs: hits)
     monkeypatch.setattr(generator, "generate_answer", generated_result)
     response = client.post("/rag-query", json=RagRequest(
