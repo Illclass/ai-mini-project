@@ -432,6 +432,26 @@ def _cited_headers(citations, originals) -> str:
     return "\n".join(heads)
 
 
+_KO_NATIVE = ("한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열")
+# 외국어 답변에 원문 단위 "480 분"이 한국어 그대로 남으면 문자 검사에서 보류됐다. 시간 단위만 그 언어로 바꿔 쓴다.
+_TIME_UNITS = {"분": {"zh": "分钟", "vi": "phút", "en": "min", "km": "នាទី"},
+               "시간": {"zh": "小时", "vi": "giờ", "en": "hours", "km": "ម៉ោង"},
+               "초": {"zh": "秒", "vi": "giây", "en": "s", "km": "វិនាទី"}}
+
+
+def _localize_units(text: str, language: str) -> str:
+    return re.sub(r"(\d+(?:[.,]\d+)?)\s*(분|시간|초)(?![가-힣])",
+                  lambda m: f"{m[1]} {_TIME_UNITS[m[2]][language]}", text)
+
+
+def _localize_draft_units(draft, language):
+    loc = lambda t: _localize_units(t, language)
+    statements = [st.model_copy(update={"text": loc(st.text), "conditions": [
+        c.model_copy(update={"text": loc(c.text)}) for c in st.conditions]}) for st in draft.statements]
+    translations = [t.model_copy(update={"text": loc(t.text)}) for t in draft.critical_translations]
+    return draft.model_copy(update={"statements": statements, "critical_translations": translations})
+
+
 def _quantities_supported(text: str, citations: list[Citation], *, source_identifiers=(), source_headers: str = "") -> bool:
     """Reject new numeric facts/units/dates using ONLY this claim's quotes.
 
@@ -441,8 +461,12 @@ def _quantities_supported(text: str, citations: list[Citation], *, source_identi
     def canonical(value):
         return unicodedata.normalize("NFKC", value).lower().replace("−", "-").translate(prompt.KHMER_DIGITS)
 
-    claim = prompt.calendar_text_with_identifiers(canonical(text), source_identifiers)
-    evidence = prompt.calendar_text_with_identifiers(canonical("\n".join(c.quote for c in citations)), source_identifiers)
+    # 금액은 값으로 맞춘다 ("1억원" = "100 million won"), 원문의 고유어 수("한 시간")는 숫자로도 읽는다 (김규빈 2026-10-26)
+    claim = prompt.calendar_text_with_identifiers(prompt._amount_text(canonical(text)), source_identifiers)
+    quotes = prompt._amount_text(canonical("\n".join(c.quote for c in citations)))
+    quotes += " " + " ".join(str(_KO_NATIVE.index(w) + 1) for w in re.findall(
+        rf"(?<![가-힣])({'|'.join(_KO_NATIVE)})\s*(?=시간|번(?!호)|개(?!인|정|선|요|발)|명(?!령|칭)|곳|가지|차례)", quotes))
+    evidence = prompt.calendar_text_with_identifiers(quotes, source_identifiers)
     if claim is None or evidence is None:
         return False
     # 문서·조항 번호(K-1-2023, 7.2)는 인용 청크 머리글에서도 찾는다. 수치·단위·날짜 비교에는 쓰지 않는다
@@ -965,6 +989,8 @@ def generate_answer(
     partial = bool(kept) and len(kept) < len(draft.statements)
     if partial:
         draft = draft.model_copy(update={"statements": kept})
+    if language != "ko":
+        draft = _localize_draft_units(draft, language)
 
     if msds and not _verified_product(draft, originals, metadata_by_id, reference_date, question):
         # LLM 이 식별 항목을 빠뜨리거나 잘못 뽑았으면 서버가 원문에서 뽑은 값으로 같은 검증을 한 번 더 한다

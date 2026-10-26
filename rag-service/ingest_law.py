@@ -74,8 +74,16 @@ def read_input(path: Path, layout: bool = False) -> str:
     return path.read_text(encoding="utf-8")
 
 
+# pdftotext 가 쪽 머리글을 "법제처 / 1 / 국가법령정보센터 / 법령명" 네 줄(사이 빈 줄)로 내놓는 PDF 도 있다.
+# 한 줄짜리만 지우던 때는 법령 청크 262개 중 54개에 머리글이 남아, 번역 경고에 한국어 머리글이 섞여 보류됐다 (김규빈 2026-10-26)
+MULTILINE_HEADER_RE = re.compile(
+    r"^[ \t]*법제처[ \t]*\n(?:[ \t]*\n)*[ \t]*\d+[ \t]*\n(?:[ \t]*\n)*[ \t]*국가법령정보센터[ \t]*\n(?:[ \t]*\n)*[^\n]*(?:\n|$)",
+    re.M)
+
+
 def clean_noise(text: str) -> str:
     """국가법령정보센터 PDF 쪽 머리글, 장·절 제목, 시행예정 표시 줄을 제거한다."""
+    text = MULTILINE_HEADER_RE.sub("", text)
     out, skip_next = [], False
     for ln in text.splitlines():
         if skip_next:           # 머리글 바로 다음 줄 = 반복되는 법령명
