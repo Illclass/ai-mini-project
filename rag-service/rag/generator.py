@@ -515,6 +515,7 @@ def _verify_draft_support(question, draft, originals, required, translated, *,
     except Exception as exc:
         # Timeouts, configuration/provider errors and malformed verdicts must
         # never release the original answer or expose raw exception contents.
+        record_failure(exc, stage="verification")
         _pipeline_stage("semantic_verification", "error", started,
                         reason="verification_unavailable", exception_type=type(exc).__name__)
         return "verification_unavailable"
@@ -988,18 +989,22 @@ def generate_answer(
         llm = structured_llm if structured_llm is not None else build_document_llm(model or os.getenv(ENV_LLM_MODEL, DEFAULT_LLM_MODEL), timeout_seconds=timeout_seconds)
         raw = llm.invoke(build_document_messages(question, usable, as_of=reference_date, language=language, mode=mode, product_id=product_id))
     except (APITimeoutError, httpx.TimeoutException, TimeoutError) as exc:
+        record_failure(exc, stage="generation")
         draft_duration = perf_counter() - draft_started
         _pipeline_stage("generation_draft", "error", draft_started, reason="llm_timeout", exception_type=type(exc).__name__)
         return review("llm_timeout")
     except RAGConfigurationError as exc:
+        record_failure(exc, stage="generation")
         draft_duration = perf_counter() - draft_started
         _pipeline_stage("generation_draft", "error", draft_started, reason="configuration_error", exception_type=type(exc).__name__)
         return review("configuration_error")
     except (ValidationError, OutputParserException) as exc:
+        record_failure(exc, stage="generation")
         draft_duration = perf_counter() - draft_started
         _pipeline_stage("generation_draft", "error", draft_started, reason="invalid_output", exception_type=type(exc).__name__)
         return review("invalid_output")
     except Exception as exc:
+        record_failure(exc, stage="generation")
         draft_duration = perf_counter() - draft_started
         _pipeline_stage("generation_draft", "error", draft_started, reason="llm_error", exception_type=type(exc).__name__)
         return review("llm_error")
@@ -1342,6 +1347,7 @@ def build_api_response(
             answer=result.answer, sources=sources,
             needs_review=result.needs_review, handoff=result.handoff, latency_ms=latency_ms,
         )
+        payload._review_reasons = result.review_reasons
     except Exception as exc:
         _pipeline_stage("response_mapping", "error", started, reason="invalid_output",
                         exception_type=type(exc).__name__)

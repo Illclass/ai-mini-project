@@ -162,9 +162,9 @@ def test_verifier_provider_error_is_not_misreported_as_missing_evidence(client, 
     monkeypatch.setattr(main, 'answer', lambda req: generator.generate(req.question, [hit], 'ko', structured_llm=fake))
     with caplog.at_level(logging.INFO):
         response = request(client)
-    assert response.status_code == 200  # Preserve existing verification-outage policy.
+    assert response.status_code == 503  # Verification service outages are unavailable, not normal deferrals.
     assert response.headers['X-ChemBridge-Outcome'] == 'provider_error'
     assert response.headers['X-ChemBridge-Provider-Code'] == 'project_spend_limit_exceeded'
-    assert response.json()['sources'] == [] and response.json()['handoff'] is True
+    assert response.json() == {'detail': '잠시 후 다시 시도해 주세요.'}
     assert fake.invoke.call_count == verifier.invoke.call_count == 1
     assert '"stage": "verification"' in caplog.text

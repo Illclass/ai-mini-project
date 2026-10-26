@@ -62,7 +62,7 @@ def test_batch_reports_each_case_and_continues_after_failure_and_error(batch_api
         _case("answered"),
         _case("wrong-expectation", question="이 작업을 승인해줘"),
         _case("upstream", question="TIMEOUT_CASE", split="validation",
-              expected={"http_status": 503, "outcome": "error", "reason_any": ["dependency_unavailable"]}),
+              expected={"http_status": 503, "outcome": "error", "reason_any": ["llm_timeout"]}),
         invalid,
     ]
     def search(question, *args, **kwargs):

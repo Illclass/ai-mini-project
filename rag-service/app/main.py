@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # rag-service/.env
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request  # noqa: E402
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.exception_handlers import request_validation_exception_handler  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
@@ -31,7 +31,7 @@ from openai import APIError  # noqa: E402
 from starlette.types import ASGIApp, Message, Receive, Scope, Send  # noqa: E402
 
 from app.auth import get_current_user  # noqa: E402
-from rag import stores  # noqa: E402
+from rag import diagnostics, stores  # noqa: E402
 from rag.chain import RAGUnavailable, answer  # noqa: E402
 from rag.generator import GenerationUnavailable  # noqa: E402
 from rag.schema import LANGUAGES, TOPIC_CHEMICAL, TOPIC_LAW, RagRequest, RagResponse, Source  # noqa: E402
@@ -44,6 +44,21 @@ trace_log = logging.getLogger("chembridge.trace")
 DIAGNOSTIC_PATH = "/rag-query/diagnostics"
 EVALUATION_PATH = "/rag-query/evaluations"
 _EVALUATION_ROOT = Path(__file__).resolve().parents[1] / "eval"
+_SAFE_PIPELINE_REASONS = diagnostics._PUBLIC_REASONS | frozenset({
+    "authenticated", "authentication_required", "invalid_token", "authentication_error",
+    "auth_configuration_unavailable", "batch_authentication_reused", "malformed_json",
+    "invalid_request", "request_rejected", "internal_error", "dependency_unavailable",
+    "index_unavailable", "preflight_short_circuit", "equipment_unregistered",
+    "emergency", "out_of_scope", "conditions_unverified", "law_currentness_unverified",
+    "effective_date_missing", "effective_date_invalid", "effective_date_future",
+    "law_version_conflict", "msds_applicability_unverified", "precheck_requires_review",
+})
+
+
+def _safe_pipeline_reason(value, fallback: str = "internal_error") -> str:
+    return value if isinstance(value, str) and value in _SAFE_PIPELINE_REASONS else fallback
+
+
 # 기본 접근 로그에는 쿼리 문자열이 포함되므로 아래 미들웨어로 대체한다.
 logging.getLogger("uvicorn.access").disabled = True
 CORS_OPTIONS = {
@@ -51,7 +66,7 @@ CORS_OPTIONS = {
     "allow_credentials": True,
     "allow_methods": ["GET", "POST", "OPTIONS"],
     "allow_headers": ["Authorization", "Content-Type"],
-    "expose_headers": ["X-Request-ID"],
+    "expose_headers": ["X-Request-ID", *diagnostics.HEADER_NAMES],
 }
 
 app = FastAPI(
@@ -108,7 +123,11 @@ class _RequestTrace:
         safe = {key: value for key, value in event.items() if key in {
             "stage", "status", "duration_ms", "reason", "check", "attempt",
             "parent_stage", "hit_count", "exception_type", "http_status", "completed",
+            "category", "provider_status", "provider_code", "provider_type",
+            "provider_request_id", "retry_after_seconds", "remaining_requests", "remaining_tokens",
         }}
+        if "reason" in safe:
+            safe["reason"] = _safe_pipeline_reason(safe["reason"])
         with self._lock:
             self.event_count += 1
             safe.update(sequence=self.event_count, elapsed_ms=round((perf_counter() - self.started) * 1000, 3),
@@ -180,6 +199,8 @@ pipeline_log.propagate = False
 
 
 def _pipeline_event(stage: str, status: str, *, error: Exception | None = None, **details) -> None:
+    if "reason" in details:
+        details["reason"] = _safe_pipeline_reason(details["reason"])
     extra = {"pipeline_event": {"stage": stage, "status": status, **details}}
     if error is not None:
         extra["pipeline_event"]["exception_type"] = type(error).__name__
@@ -190,6 +211,22 @@ def _pipeline_event(stage: str, status: str, *, error: Exception | None = None, 
                 extra["pipeline_location"] = location
             tb = tb.tb_next
     pipeline_log.info("pipeline_stage", extra=extra, stacklevel=2)
+
+
+def _publish_response_diagnostics(details: dict, response: Response, request_id: str) -> dict:
+    """Publish only fields produced by rag.diagnostics, never raw exceptions."""
+    details = dict(details)
+    if "reason" in details:
+        details["reason"] = _safe_pipeline_reason(details["reason"])
+    headers = diagnostics.response_headers(details, request_id)
+    response.headers.update(headers)
+    category = details.get("category")
+    status = "ok" if category == "answer" else "error" if category in {
+        "provider_error", "experiment_stopped", "generation_error", "verifier_unavailable",
+    } else "held"
+    stage = details.pop("stage", "api_result")
+    _pipeline_event(stage, status, **details)
+    return headers
 
 
 @app.exception_handler(RequestValidationError)
@@ -550,18 +587,28 @@ def rag_query(req: RagRequest, response: Response, user: dict = Depends(get_curr
     if trace is not None:
         _pipeline_event("request_dispatch", "ok", duration_ms=(perf_counter() - trace.started) * 1000)
         trace.dispatched = True
-    try:
-        result = answer(req)
-        if trace is not None:
-            trace.outcome = "held" if result.handoff else "answered"
-        return result
-    except (GenerationUnavailable, RAGUnavailable, TimeoutError, ConnectionError, OSError, httpx.HTTPError, APIError) as exc:
-        reason = exc.reason if isinstance(exc, (GenerationUnavailable, RAGUnavailable)) else "dependency_unavailable"
-        _pipeline_event("api_result", "error", error=exc, reason=reason)
-        raise HTTPException(status_code=503, detail="잠시 후 다시 시도해 주세요.") from None
-    except Exception as exc:
-        _pipeline_event("api_result", "error", error=exc, reason="internal_error")
-        raise HTTPException(status_code=500, detail="요청 처리 중 오류가 발생했습니다.") from None
+    request_id = trace.request_id if trace is not None else uuid4().hex
+    with diagnostics.capture_failures() as failures:
+        try:
+            result = answer(req)
+            if trace is not None:
+                trace.outcome = "held" if result.handoff else "answered"
+            details = diagnostics.result_details(result)
+            if result.handoff and failures and failures[-1].get("category") in {"provider_error", "experiment_stopped"}:
+                details = failures[-1]
+            _publish_response_diagnostics(details, response, request_id)
+            return result
+        except (GenerationUnavailable, RAGUnavailable, diagnostics.ExperimentStopped,
+                TimeoutError, ConnectionError, OSError, httpx.HTTPError, APIError) as exc:
+            reason = _safe_pipeline_reason(getattr(exc, "reason", None), "dependency_unavailable")
+            _pipeline_event("api_result", "error", error=exc, reason=reason)
+            details = failures[-1] if failures else diagnostics.exception_details(exc, stage="chain")
+            headers = _publish_response_diagnostics(details, response, request_id)
+            raise HTTPException(status_code=503, detail="잠시 후 다시 시도해 주세요.", headers=headers) from None
+        except Exception as exc:
+            _pipeline_event("api_result", "error", error=exc, reason="internal_error")
+            headers = _publish_response_diagnostics(diagnostics.exception_details(exc, stage="chain"), response, request_id)
+            raise HTTPException(status_code=500, detail="요청 처리 중 오류가 발생했습니다.", headers=headers) from None
 
 
 class _DiagnosticResponse(BaseModel):
@@ -601,9 +648,9 @@ class _DiagnosticResponse(BaseModel):
         }.items()
     },
 )
-def rag_query_diagnostics(req: RagRequest, user: dict = Depends(get_current_user)) -> RagResponse:
+def rag_query_diagnostics(req: RagRequest, response: Response, user: dict = Depends(get_current_user)) -> RagResponse:
     # The middleware also wraps failures that happen before this function runs.
-    return rag_query(req, user)
+    return rag_query(req, response=response, user=user)
 
 
 class _EvaluationModel(BaseModel):
@@ -708,7 +755,7 @@ def _run_evaluation_case(case: _EvaluationCase, user: dict, run_id: str) -> dict
                             reason="request_rejected")
         else:
             try:
-                response = rag_query(request, user)
+                response = rag_query(request, response=Response(), user=user)
                 payload = response.model_dump(mode="json")
                 json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
                 status = 200

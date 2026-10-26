@@ -34,7 +34,7 @@ def pipeline(monkeypatch):
     encoded = jwt.encode({"sub": "diagnostic-user", "iss": auth.ISSUER, "exp": int(time.time()) + 600},
                          secret, algorithm=auth.ALGORITHM)
     headers = {"Authorization": "Bearer " + encoded, "Origin": "http://localhost:5174"}
-    payload = RagRequest(question="PRIVATE_QUESTION_MARKER", topic=TOPIC_LAW).model_dump()
+    payload = RagRequest(question="PRIVATE_QUESTION_MARKER 가상 안내표 자료를 설명해 주세요", topic=TOPIC_LAW).model_dump()
     yield TestClient(main.app), headers, payload, retrieve, secret
 
 
@@ -165,7 +165,7 @@ def test_trace_redacts_private_contents_and_isolates_concurrent_requests(pipelin
     caplog.set_level(logging.INFO, logger="chembridge.trace")
     def ask(index):
         return client.post(main.DIAGNOSTIC_PATH + "?token=PRIVATE_QUERY_MARKER", headers=headers,
-                           json={**payload, "question": "PRIVATE_QUESTION_MARKER" + str(index)}).json()
+                           json={**payload, "question": "PRIVATE_QUESTION_MARKER 가상 안내표 자료를 설명해 주세요 " + str(index)}).json()
     with ThreadPoolExecutor(max_workers=4) as pool:
         responses = list(pool.map(ask, range(8)))
     ids = {response["request_id"] for response in responses}
@@ -201,7 +201,7 @@ def test_retrieval_provider_errors_are_503_with_original_stage(pipeline, monkeyp
     data = response.json()
     assert response.status_code == 503
     assert data["failure"]["stage"] == "retrieval"
-    assert data["failure"]["reason"] == "dependency_unavailable"
+    assert data["failure"]["reason"] == ("llm_timeout" if isinstance(fault, httpx.TimeoutException) else "dependency_unavailable")
     assert data["failure"]["exception_type"] == type(fault).__name__
     assert "private" not in response.text
 
