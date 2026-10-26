@@ -69,6 +69,7 @@ const index=computed(()=>keys.indexOf(situation.value)),title=computed(()=>topic
 const isLaw=computed(()=>topic.value===api.contract.topics.law)
 const guide=computed(()=>guideFor(situation.value,topic.value,productId.value))
 const guideUrl=computed(()=>guide.value?.url)
+const guideOpen=ref(false)
 const faq=computed(()=>{
  const list=(candidates[language.value]||candidates.ko)[isLaw.value?'law':'chemical']||[]
  const groups=[]
@@ -101,7 +102,7 @@ document.title=`ChemBridge · ${copy[language.value].service}`
 function stop(){audio?.pause();audio=null;if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}playing.value=null;audioDone?.();audioDone=null}
 function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;sourceSelection.value=null;endConvo();stop()}
 function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
-function open(key,selectedTopic=api.contract.topics.chemical){productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
+function open(key,selectedTopic=api.contract.topics.chemical){guideOpen.value=false;productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
 function changeTopic(value){if(busy.value)return;open(situation.value,value)}
 async function logout(){
  if(signingOut.value)return
@@ -131,7 +132,7 @@ async function signup(credentials){
 }
 function fillFaq(item){if(busy.value)return;if(item.product_id){equipmentId.value=item.equipment_id||'';productId.value=item.product_id}fill(item.q)}
 function fill(text){if(busy.value)return;voice.value='idle';voiceDraft=false;question.value=text;nextTick(()=>input.value?.focus())}
-async function scroll(){await nextTick();thread.value?.lastElementChild?.scrollIntoView({behavior:'smooth',block:'nearest'})}
+async function scroll(){await nextTick();const pane=thread.value,last=pane?.lastElementChild;if(last)pane.scrollTo({top:last.offsetTop,behavior:'smooth'})}
 async function send(retryMessage){
  const retry=retryMessage?.error?retryMessage:null
  const text=retry?retry.question:question.value.trim()
@@ -261,9 +262,11 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
 <Transition name="scene" mode="out-in">
 <LoginView key="login" v-if="page === 'login'" v-model:language="language" :loading="signingIn" :checking="checking" :error="loginError ? a[loginError] : ''" :notice="loginNotice ? a[loginNotice] : ''" @clear-error="loginError='';loginNotice=''" @submit="login" @signup="signup" />
 <HomeView key="home" v-else-if="page === 'home'" v-model:language="language" @open="open" @logout="logout" />
-<main v-else key="chat" class="clear-chat-main" :class="{'has-guide':guideUrl}">
-  <GuideViewer v-if="guideUrl" :src="guideUrl" :title="guide.title" :source="guide.source" :language="language" />
+<main v-else key="chat" class="clear-chat-main" :class="{'has-guide':guideUrl && guideOpen}">
+  <button v-if="guideUrl" class="guide-toggle" type="button" :aria-label="guideOpen ? c.close : c.view" :aria-expanded="guideOpen" aria-controls="chat-guide" @click="guideOpen=!guideOpen"><Icon name="back" :size="20" :style="{transform:guideOpen?'none':'rotate(180deg)'}" /></button>
+  <GuideViewer id="chat-guide" v-if="guideUrl && guideOpen" :src="guideUrl" :title="guide.title" :source="guide.source" :language="language" />
   <div class="chat-pane">
+  <div class="chat-controls">
   <div class="clear-chat-heading">
     <div class="clear-chat-title"><button v-spring class="chat-back" :aria-label="t.back" @click="navigate('home')"><Icon name="back" :size="22" /></button><h1>{{title}}</h1></div>
     <div class="chat-heading-actions"><button v-if="situation==='emergency' && !isLaw" type="button" class="emergency-btn" @click="contacts=true"><Icon name="alert" :size="18" />{{c.emergency}}</button><a v-if="guideUrl" class="guide-btn" :href="guideUrl" target="_blank" rel="noopener noreferrer">{{c.view}}</a><a v-if="guideUrl" class="guide-btn filled" :href="guideUrl" :download="`${title}.pdf`">{{c.download}}</a><button v-spring class="chat-new" :aria-label="t.newChat" @click="open(situation,topic)"><Icon name="plus" :size="18" /><span>{{t.newChat}}</span></button></div>
@@ -278,7 +281,8 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
     <div v-if="productRequired" class="chat-product-required" role="alert"><span>{{feedback.selectProduct}}</span><button type="button" @click="chooseProduct">{{feedback.chooseProduct}}</button></div>
     <p v-if="selectedEquipment && selectedEquipment.coverage!=='full'" class="chat-scope-warning" role="status"><Icon name="alert" :size="18" />{{s[selectedEquipment.coverage]}}</p>
   </div>
-  <section ref="thread" class="clear-conversation" :aria-label="t.assistant" aria-live="polite" :aria-busy="pending">
+  </div>
+  <section ref="thread" class="clear-conversation" tabindex="0" :aria-label="t.assistant" aria-live="polite" :aria-busy="pending">
     <div v-if="!messages.length" class="clear-chat-empty">
       <span class="clear-empty-icon"><Icon name="chat" :size="36" /></span>
       <h2>{{t.emptyTitle}}</h2>
@@ -286,7 +290,6 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
         <p class="faq-sub">{{c.faqTitle}} · {{c.faqSub}}</p>
         <section v-for="group in faq" :key="group.key" class="faq-group"><h3>{{c.g[group.key]}}</h3><div class="faq-items"><button v-for="item in group.items" :key="item.q" type="button" class="faq-item" @click="fillFaq(item)"><span>{{item.q}}</span><Icon name="arrow" :size="16" /></button></div></section>
       </div>
-      <div v-else class="clear-suggestions" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
     </div>
     <article v-for="message in messages" :key="message.id" class="clear-exchange">
       <div class="clear-question"><span v-if="scopeLabel(message)" class="chat-scope-context">{{scopeLabel(message)}}</span><p>{{message.question}}</p></div>
@@ -324,10 +327,11 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
     </article>
   </section>
 
-  <div v-if="messages.length&&!busy" class="clear-suggestions chat-followup" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
+  <div class="chat-input-dock">
+  <div v-if="!busy && !(situation==='free'&&!messages.length&&!equipmentId&&!productId)" class="clear-suggestions chat-followup" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
   <form class="clear-composer" @submit.prevent="send">
     <label class="sr-only" for="question">{{t.send}}</label>
-    <textarea id="question" ref="input" v-model="question" :disabled="busy" :maxlength="api.contract.question.maxLength" :placeholder="t.placeholder" rows="3" @keydown="onKey"></textarea>
+    <textarea id="question" ref="input" v-model="question" :disabled="busy" :maxlength="api.contract.question.maxLength" :placeholder="t.placeholder" rows="2" @keydown="onKey"></textarea>
     <div v-if="voice!=='idle'" class="clear-voice-state" role="status">
       <template v-if="voice==='recording'"><span class="clear-record-dot"></span><b>{{t.recording}}</b><span class="clear-wave" aria-hidden="true"><i v-for="n in 14" :key="n" :style="{animationDelay:`${n*.09}s`}"></i></span><button type="button" v-spring @click="finish">{{t.finish}}</button><button type="button" @click="cancel">{{t.cancel}}</button></template>
       <template v-else-if="voice==='processing'"><span class="clear-loading-dots"><i></i><i></i><i></i></span>{{t.converting}}</template>
@@ -336,6 +340,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
     <p v-if="voiceError" class="chat-voice-error" role="alert"><Icon name="alert" :size="18" />{{a[voiceError]}}</p>
     <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy||!voiceReady" :title="voiceReady?'':a.voiceLanguage" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voiceInput}}</span></button><button v-spring type="button" class="clear-mic convo-start" :disabled="busy||!voiceReady" :title="voiceReady?a.convoHint:a.voiceLanguage" @click="startConvo"><Icon name="sound" :size="21" /><span>{{a.convoStart}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
   </form>
+  </div>
   </div>
 </main>
 </Transition>

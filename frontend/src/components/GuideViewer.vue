@@ -9,6 +9,27 @@ const props = defineProps({ src: String, title: String, source: { type: String, 
 const c = computed(() => clean[props.language] || clean.ko)
 const wrap = ref(null), state = ref('loading'), current = ref(0), total = ref(0), shown = ref(0)
 const W = 460, H = 651
+// Remove only blank outer margins; preserve all visible document content.
+function trimPage(canvas) {
+  const ctx=canvas.getContext('2d'), {width,height}=canvas
+  const pixels=ctx.getImageData(0,0,width,height).data
+  let left=width,top=height,right=-1,bottom=-1
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const i=(y*width+x)*4
+    if(Math.min(pixels[i],pixels[i+1],pixels[i+2])<230){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y)}
+  }
+  if(right<left)return canvas
+  const margin=18
+  left=Math.max(0,left-margin);top=Math.max(0,top-margin)
+  right=Math.min(width-1,right+margin);bottom=Math.min(height-1,bottom+margin)
+  const cropped=document.createElement('canvas')
+  cropped.width=W*2;cropped.height=H*2
+  const out=cropped.getContext('2d'),cw=right-left+1,ch=bottom-top+1
+  const scale=Math.min(cropped.width/cw,cropped.height/ch)
+  out.fillStyle='#fff';out.fillRect(0,0,cropped.width,cropped.height)
+  out.drawImage(canvas,left,top,cw,ch,(cropped.width-cw*scale)/2,(cropped.height-ch*scale)/2,cw*scale,ch*scale)
+  return cropped
+}
 let flip = null, token = 0, loadingTask = null, renderTask = null
 function destroy() { try { flip?.destroy() } catch {} flip = null; wrap.value?.replaceChildren() }
 function cancelPdf() { renderTask?.cancel(); renderTask = null; loadingTask?.destroy().catch(() => {}); loadingTask = null }
@@ -25,10 +46,10 @@ async function load() {
     for (let i = 1; i <= count; i++) {
       const page = await pdf.getPage(i)
       const base = page.getViewport({ scale: 1 })
-      const scale = Math.min((W * 1.5) / base.width, (H * 1.5) / base.height)
+      const scale = Math.min((W * 2) / base.width, (H * 2) / base.height)
       const viewport = page.getViewport({ scale })
       const canvas = document.createElement('canvas')
-      canvas.width = W * 1.5; canvas.height = H * 1.5
+      canvas.width = W * 2; canvas.height = H * 2
       const ctx = canvas.getContext('2d')
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height)
       const dx = (canvas.width - viewport.width) / 2, dy = (canvas.height - viewport.height) / 2
@@ -36,7 +57,9 @@ async function load() {
       await renderTask.promise
       renderTask = null
       if (id !== token) return
-      urls.push(canvas.toDataURL('image/jpeg', 0.85))
+      const cropped=trimPage(canvas)
+      urls.push(cropped.toDataURL('image/jpeg', 0.95))
+      if(cropped!==canvas)cropped.width=cropped.height=0
       canvas.width = canvas.height = 0; page.cleanup()
     }
     if (id !== token) return
@@ -46,7 +69,7 @@ async function load() {
     if (id !== token || !wrap.value) return
     const el = document.createElement('div')
     wrap.value.replaceChildren(el)
-    flip = new PageFlip(el, { width: W, height: H, size: 'stretch', minWidth: 240, maxWidth: 560, minHeight: 340, maxHeight: 792, showCover: true, usePortrait: true, maxShadowOpacity: 0.35, mobileScrollSupport: false, flippingTime: 700 })
+    flip = new PageFlip(el, { width: W, height: H, size: 'stretch', minWidth: W, maxWidth: 560, minHeight: 1, maxHeight: 792, autoSize: false, showCover: true, usePortrait: true, maxShadowOpacity: 0.35, mobileScrollSupport: false, flippingTime: 700 })
     flip.loadFromImages(urls)
     flip.on('flip', e => { current.value = e.data })
   } catch (e) { if (id === token) state.value = 'error' }
