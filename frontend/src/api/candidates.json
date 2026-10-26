@@ -2,270 +2,1545 @@
  "ko": {
   "chemical": [
    {
-    "g": "substance",
-    "q": "불산 취급 시 주의할 점과 필요한 보호구는?"
+    "q": "황산을 다룰 때 눈을 보호하려면 어떤 보안경을 써야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D1",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-339741",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "황산을 개봉하거나 옮겨 담을 때 주의할 점은?"
+    "q": "불산을 취급할 때 어떤 보호복을 입어야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D2",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-695068",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "과산화수소를 보관할 때 피해야 할 조건은?"
+    "q": "과산화수소를 보관할 때 어떤 점을 주의해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D3",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-8.22287",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "암모니아수 작업 시 환기와 보호구 확인사항은?"
+    "q": "암모니아수를 다룰 때 어떤 호흡기 보호구가 필요한가요?",
+    "targets": [
+     {
+      "doc_id": "D4",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221228",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "염산이 눈에 들어가면 어떻게 해야 하나요?"
+    "q": "염산을 다룰 때 어떤 재질의 장갑을 껴야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D5",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-258148",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "질산과 함께 두면 안 되는 물질은?"
+    "q": "질산 화재에 사용할 수 있는 소화제는 무엇인가요?",
+    "targets": [
+     {
+      "doc_id": "D6",
+      "section": "5"
+     }
+    ],
+    "product_id": "sigma-438073",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "TMAH가 피부에 묻었어요. 어떻게 해야 하나요?"
+    "q": "인산은 어떤 용기에 보관하고 뚜껑은 어떻게 관리해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D7",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-1.00573",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "아세톤에 불이 붙으면 어떻게 꺼야 하나요?"
+    "q": "TMAH를 취급할 때 어떤 보호복을 입어야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D8",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-328251",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "메탄올을 마시면 어떤 증상이 나타나나요?"
+    "q": "아세톤을 다룰 때 화재를 막으려면 무엇을 주의해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D9",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-179124",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "IPA의 인화점은 얼마인가요?"
+    "q": "메탄올을 담았던 빈 용기는 어떻게 처리해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D10",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-34860",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "남은 PGMEA는 어떻게 폐기하나요?"
+    "q": "IPA를 보관할 때 어떤 점을 주의해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D11",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-563935",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "수산화나트륨이 바닥에 쏟아지면 어떻게 처리하나요?"
+    "q": "PGMEA를 쓰고 남았을 때는 어떻게 버려야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D12",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-484431",
+    "g": "substance"
    },
    {
-    "g": "substance",
-    "q": "인산을 다룰 때 어떤 보호구를 써야 하나요?"
+    "q": "수산화나트륨을 다룰 때 눈을 보호하려면 어떤 보안경을 써야 하나요?",
+    "targets": [
+     {
+      "doc_id": "D13",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221465",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "유해화학물질은 어떻게 저장해야 하나요?"
+    "q": "화학물질 용기를 교체하기 전에 제품명과 라벨은 어떻게 대조해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.4"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "common",
-    "q": "개인보호구는 어떻게 관리하고 유지해야 하나요?"
+    "q": "화학물질을 다루는 작업을 시작하기 전에 작업허가서에 무엇을 적어야 하나요?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.1"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "common",
-    "q": "용기 경고표지에는 어떤 내용이 들어가나요?"
+    "q": "작업용 보호장갑에는 어떤 종류가 있고 용도가 어떻게 다른가요?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.3"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "common",
-    "q": "사용기한이나 개봉 후 사용기한은 어떻게 확인하나요?"
+    "q": "보안경에는 어떤 종류가 있고 작업에 맞게 어떻게 골라야 하나요?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.10"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "common",
-    "q": "노출기준만큼은 오래 작업해도 되나요?"
+    "q": "화학물질을 실외에 보관할 때 용기 주변에 어떤 유출 방지 시설이 필요한가요?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.1"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "common",
-    "q": "남은 약품과 오염된 장갑은 어떻게 처리하나요?"
+    "q": "화학물질을 실내에 보관할 때 용기를 어떻게 관리하고 나눠 둬야 하나요?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.2"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "incident",
-    "q": "Wet Bench에서 불산 공급 용기를 교체하기 전에 무엇을 확인해야 하나요?"
+    "q": "화학물질을 취급하는 동안 지켜야 할 기본 수칙은 무엇인가요?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.7"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "incident",
-    "q": "Dry Etcher 챔버를 열어 부품을 교체하려고 합니다. 어떤 유해물질을 확인해야 하나요?"
+    "q": "약품 작업을 준비할 때 제품의 어떤 안전 정보를 미리 확인해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "K7",
+      "section": "5.3"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "incident",
-    "q": "CVD 장비에서 가스 누출 경보가 울렸습니다. 어떻게 해야 하나요?"
+    "q": "화학물질을 사용한 작업을 마친 뒤 남은 약품과 오염된 도구는 어떻게 정리해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.5"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "incident",
-    "q": "설비에서 이상한 냄새가 나는데 어떤 가스인가요?"
+    "q": "쓰고 난 보호구는 어떻게 보관하고 관리해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "9"
+     }
+    ],
+    "g": "common"
    },
    {
-    "g": "incident",
-    "q": "불산에 노출됐을 때 응급대응은 어떻게 하나요?"
+    "q": "약품을 담는 용기나 포장에는 어떤 표시와 상태를 확인해야 하나요?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "5.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "작업장에서 사용하는 약품의 안전 정보는 어디서 확인할 수 있어야 하나요?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.5"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "화학물질을 다루다 위험을 발견하면 작업을 멈추고 어떻게 알려야 하나요?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "15.1"
+     }
+    ],
+    "g": "incident"
+   },
+   {
+    "q": "불산 취급 작업을 맡기 전에 어떤 교육을 받아야 하나요?",
+    "targets": [
+     {
+      "doc_id": "K8",
+      "section": "8.1"
+     }
+    ],
+    "g": "incident"
    }
   ],
   "law": [
    {
-    "g": "law",
-    "q": "중대재해법의 기준은?"
+    "q": "어떤 사고가 중대산업재해에 해당하나요?",
+    "targets": [
+     {
+      "doc_id": "L2",
+      "section": "제2조"
+     }
+    ],
+    "g": "law"
    },
    {
-    "g": "law",
-    "q": "경영책임자는 어떤 안전 의무가 있나요?"
-   },
-   {
-    "g": "law",
-    "q": "협력사(하청) 근로자도 이 법으로 보호받나요?"
-   },
-   {
-    "g": "law",
-    "q": "직원이 5명보다 적은 회사도 적용되나요?"
-   },
-   {
-    "g": "law",
-    "q": "우리 공장에서 사망사고가 났는데 대표이사가 처벌받나요?"
-   },
-   {
-    "g": "law",
-    "q": "중처법 위반으로 사람이 죽으면 벌금 얼마야?"
-   },
-   {
-    "g": "law",
-    "q": "회사(법인)도 따로 벌금을 내나요?"
-   },
-   {
-    "g": "law",
-    "q": "위험하면 작업을 멈추고 대피해도 되나요?"
-   },
-   {
-    "g": "law",
-    "q": "MSDS를 작업장에 게시하고 교육해야 하나요?"
-   },
-   {
-    "g": "law",
-    "q": "화학사고가 나면 신고해야 하나요?"
-   },
-   {
-    "g": "law",
-    "q": "회사가 보호구를 지급해야 하나요?"
-   },
-   {
-    "g": "law",
-    "q": "협력업체 근로자도 보호 대상인가요?"
+    "q": "작업 중 위험을 발견하면 작업을 멈추고 대피할 수 있나요?",
+    "targets": [
+     {
+      "doc_id": "L1",
+      "section": "제52조"
+     }
+    ],
+    "g": "law"
    }
   ]
  },
  "zh": {
   "chemical": [
    {
-    "g": "common",
-    "q": "处理氢氟酸时需要注意什么？需要哪些防护用品？"
+    "q": "操作硫酸时应戴什么护目镜？",
+    "targets": [
+     {
+      "doc_id": "D1",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-339741",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "盐酸溅入眼睛怎么办？"
+    "q": "操作氢氟酸时应穿什么防护服？",
+    "targets": [
+     {
+      "doc_id": "D2",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-695068",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "TMAH沾到皮肤上了，该怎么办？"
+    "q": "储存过氧化氢时应注意什么？",
+    "targets": [
+     {
+      "doc_id": "D3",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-8.22287",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "在Wet Bench更换氢氟酸供应容器之前，需要确认什么？"
+    "q": "操作氨水时需要什么呼吸防护用品？",
+    "targets": [
+     {
+      "doc_id": "D4",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221228",
+    "g": "substance"
+   },
+   {
+    "q": "操作盐酸时应选用什么材质的手套？",
+    "targets": [
+     {
+      "doc_id": "D5",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-258148",
+    "g": "substance"
+   },
+   {
+    "q": "硝酸着火时适用什么灭火剂？",
+    "targets": [
+     {
+      "doc_id": "D6",
+      "section": "5"
+     }
+    ],
+    "product_id": "sigma-438073",
+    "g": "substance"
+   },
+   {
+    "q": "磷酸应使用什么容器储存，容器盖应如何管理？",
+    "targets": [
+     {
+      "doc_id": "D7",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-1.00573",
+    "g": "substance"
+   },
+   {
+    "q": "操作TMAH时应穿什么防护服？",
+    "targets": [
+     {
+      "doc_id": "D8",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-328251",
+    "g": "substance"
+   },
+   {
+    "q": "操作丙酮时应注意什么以防起火？",
+    "targets": [
+     {
+      "doc_id": "D9",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-179124",
+    "g": "substance"
+   },
+   {
+    "q": "装过甲醇的空容器应如何处理？",
+    "targets": [
+     {
+      "doc_id": "D10",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-34860",
+    "g": "substance"
+   },
+   {
+    "q": "储存IPA时应注意什么？",
+    "targets": [
+     {
+      "doc_id": "D11",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-563935",
+    "g": "substance"
+   },
+   {
+    "q": "用剩的PGMEA应如何处理？",
+    "targets": [
+     {
+      "doc_id": "D12",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-484431",
+    "g": "substance"
+   },
+   {
+    "q": "操作氢氧化钠时应戴什么护目镜？",
+    "targets": [
+     {
+      "doc_id": "D13",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221465",
+    "g": "substance"
+   },
+   {
+    "q": "更换化学品容器前，应如何核对产品名称和标签？",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.4"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "开始涉及化学品的作业前，作业许可证应填写什么？",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "作业防护手套有哪些种类，用途有什么不同？",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.3"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "护目镜有哪些种类，应如何按作业选择？",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.10"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "在室外储存化学品时，容器周围需要哪些防外溢设施？",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "在室内储存化学品时，容器应如何管理和分类摆放？",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.2"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "操作化学品时需要遵守哪些基本要求？",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.7"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "准备化学品作业时，应提前核对产品的哪些安全信息？",
+    "targets": [
+     {
+      "doc_id": "K7",
+      "section": "5.3"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "使用化学品结束后，剩余化学品和污染工具应如何整理？",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.5"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "使用后的防护用品应如何存放和保养？",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "9"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "化学品容器或包装应检查哪些标识和状态？",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "5.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "工作场所使用的化学品安全信息应在哪里可以查到？",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.5"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "操作化学品时发现危险，应如何停止作业并报告？",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "15.1"
+     }
+    ],
+    "g": "incident"
+   },
+   {
+    "q": "从事氢氟酸操作前需要接受哪些培训？",
+    "targets": [
+     {
+      "doc_id": "K8",
+      "section": "8.1"
+     }
+    ],
+    "g": "incident"
    }
   ],
   "law": [
    {
-    "g": "law",
-    "q": "重大产业灾害的标准是什么？"
+    "q": "哪些事故属于重大工业事故？",
+    "targets": [
+     {
+      "doc_id": "L2",
+      "section": "제2조"
+     }
+    ],
+    "g": "law"
    },
    {
-    "g": "law",
-    "q": "如果有危险，可以停止作业并撤离吗？"
+    "q": "作业中发现危险时，可以停止工作并撤离吗？",
+    "targets": [
+     {
+      "doc_id": "L1",
+      "section": "제52조"
+     }
+    ],
+    "g": "law"
    }
   ]
  },
  "vi": {
   "chemical": [
    {
-    "g": "common",
-    "q": "Khi xử lý axit flohydric cần chú ý gì và cần đồ bảo hộ nào?"
+    "q": "Khi dùng Axit sulfuric, cần đeo kính bảo hộ mắt loại nào?",
+    "targets": [
+     {
+      "doc_id": "D1",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-339741",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "Nếu axit clohydric bắn vào mắt thì phải làm gì?"
+    "q": "Khi dùng Axit hydrofluoric, cần mặc quần áo bảo hộ nào?",
+    "targets": [
+     {
+      "doc_id": "D2",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-695068",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "TMAH dính vào da, tôi phải làm gì?"
+    "q": "Cần lưu ý gì khi bảo quản Hydro peroxit?",
+    "targets": [
+     {
+      "doc_id": "D3",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-8.22287",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "Trước khi thay bình cấp axit flohydric ở Wet Bench, cần kiểm tra những gì?"
+    "q": "Khi dùng Dung dịch amoniac, cần thiết bị bảo vệ hô hấp nào?",
+    "targets": [
+     {
+      "doc_id": "D4",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221228",
+    "g": "substance"
+   },
+   {
+    "q": "Khi dùng Axit hydrochloric, cần chọn găng tay bằng vật liệu gì?",
+    "targets": [
+     {
+      "doc_id": "D5",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-258148",
+    "g": "substance"
+   },
+   {
+    "q": "Có thể dùng chất chữa cháy nào cho Axit nitric?",
+    "targets": [
+     {
+      "doc_id": "D6",
+      "section": "5"
+     }
+    ],
+    "product_id": "sigma-438073",
+    "g": "substance"
+   },
+   {
+    "q": "Nên chứa Axit phosphoric trong loại bình nào và quản lý nắp bình ra sao?",
+    "targets": [
+     {
+      "doc_id": "D7",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-1.00573",
+    "g": "substance"
+   },
+   {
+    "q": "Khi dùng TMAH, cần mặc quần áo bảo hộ nào?",
+    "targets": [
+     {
+      "doc_id": "D8",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-328251",
+    "g": "substance"
+   },
+   {
+    "q": "Cần chú ý gì để phòng cháy khi dùng Axeton?",
+    "targets": [
+     {
+      "doc_id": "D9",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-179124",
+    "g": "substance"
+   },
+   {
+    "q": "Bình rỗng từng chứa Metanol cần được xử lý thế nào?",
+    "targets": [
+     {
+      "doc_id": "D10",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-34860",
+    "g": "substance"
+   },
+   {
+    "q": "Cần lưu ý gì khi bảo quản IPA?",
+    "targets": [
+     {
+      "doc_id": "D11",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-563935",
+    "g": "substance"
+   },
+   {
+    "q": "Phải thải bỏ PGMEA còn dư như thế nào?",
+    "targets": [
+     {
+      "doc_id": "D12",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-484431",
+    "g": "substance"
+   },
+   {
+    "q": "Khi dùng Natri hydroxit, cần đeo kính bảo hộ mắt loại nào?",
+    "targets": [
+     {
+      "doc_id": "D13",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221465",
+    "g": "substance"
+   },
+   {
+    "q": "Trước khi thay bình hóa chất, cần đối chiếu tên sản phẩm và nhãn thế nào?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.4"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Trước khi làm việc với hóa chất, cần ghi gì trong giấy phép làm việc?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Găng tay bảo hộ có những loại nào và công dụng khác nhau ra sao?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.3"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Kính bảo hộ có những loại nào và chọn theo công việc ra sao?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.10"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Khi để hóa chất ngoài trời, cần bố trí gì quanh bình để ngăn tràn?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Khi để hóa chất trong nhà, cần quản lý và phân loại bình thế nào?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.2"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Khi thao tác hóa chất cần tuân thủ những quy tắc cơ bản nào?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.7"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Trước khi làm việc với hóa chất, cần kiểm tra những thông tin an toàn nào của sản phẩm?",
+    "targets": [
+     {
+      "doc_id": "K7",
+      "section": "5.3"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Sau khi dùng hóa chất, cần dọn hóa chất dư và dụng cụ nhiễm bẩn thế nào?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.5"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Đồ bảo hộ dùng xong cần bảo quản và bảo dưỡng thế nào?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "9"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Cần kiểm tra nhãn và tình trạng gì của bình hoặc bao bì hóa chất?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "5.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Ở nơi làm việc, cần có thể tra cứu thông tin an toàn hóa chất ở đâu?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.5"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Nếu phát hiện nguy hiểm khi dùng hóa chất, cần dừng việc và báo cáo thế nào?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "15.1"
+     }
+    ],
+    "g": "incident"
+   },
+   {
+    "q": "Trước khi được giao làm việc với axit hydrofluoric, cần được đào tạo những gì?",
+    "targets": [
+     {
+      "doc_id": "K8",
+      "section": "8.1"
+     }
+    ],
+    "g": "incident"
    }
   ],
   "law": [
    {
-    "g": "law",
-    "q": "Tiêu chuẩn của tai nạn lao động nghiêm trọng là gì?"
+    "q": "Những tai nạn nào được coi là tai nạn công nghiệp nghiêm trọng?",
+    "targets": [
+     {
+      "doc_id": "L2",
+      "section": "제2조"
+     }
+    ],
+    "g": "law"
    },
    {
-    "g": "law",
-    "q": "Nếu nguy hiểm, tôi có thể dừng công việc và sơ tán không?"
+    "q": "Nếu phát hiện nguy hiểm trong khi làm việc, tôi có thể dừng việc và rời đi không?",
+    "targets": [
+     {
+      "doc_id": "L1",
+      "section": "제52조"
+     }
+    ],
+    "g": "law"
    }
   ]
  },
  "en": {
   "chemical": [
    {
-    "g": "common",
-    "q": "What precautions and protective equipment are needed when handling hydrofluoric acid?"
+    "q": "What safety goggles should I wear when handling Sulfuric acid?",
+    "targets": [
+     {
+      "doc_id": "D1",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-339741",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "What should I do if hydrochloric acid gets in my eyes?"
+    "q": "What protective clothing should I wear when handling Hydrofluoric acid?",
+    "targets": [
+     {
+      "doc_id": "D2",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-695068",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "TMAH got on my skin. What should I do?"
+    "q": "What precautions should I take when storing Hydrogen peroxide?",
+    "targets": [
+     {
+      "doc_id": "D3",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-8.22287",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "What should I check before replacing the hydrofluoric acid supply container on the Wet Bench?"
+    "q": "What respiratory protection do I need when handling Ammonium hydroxide?",
+    "targets": [
+     {
+      "doc_id": "D4",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221228",
+    "g": "substance"
+   },
+   {
+    "q": "What glove material should I use when handling Hydrochloric acid?",
+    "targets": [
+     {
+      "doc_id": "D5",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-258148",
+    "g": "substance"
+   },
+   {
+    "q": "What extinguishing media are suitable for a fire involving Nitric acid?",
+    "targets": [
+     {
+      "doc_id": "D6",
+      "section": "5"
+     }
+    ],
+    "product_id": "sigma-438073",
+    "g": "substance"
+   },
+   {
+    "q": "What containers should I use for Phosphoric acid, and how should I keep them closed?",
+    "targets": [
+     {
+      "doc_id": "D7",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-1.00573",
+    "g": "substance"
+   },
+   {
+    "q": "What protective clothing should I wear when handling TMAH?",
+    "targets": [
+     {
+      "doc_id": "D8",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-328251",
+    "g": "substance"
+   },
+   {
+    "q": "What should I watch out for to prevent fires when handling Acetone?",
+    "targets": [
+     {
+      "doc_id": "D9",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-179124",
+    "g": "substance"
+   },
+   {
+    "q": "How should I handle empty containers that held Methanol?",
+    "targets": [
+     {
+      "doc_id": "D10",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-34860",
+    "g": "substance"
+   },
+   {
+    "q": "What precautions should I take when storing IPA?",
+    "targets": [
+     {
+      "doc_id": "D11",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-563935",
+    "g": "substance"
+   },
+   {
+    "q": "How should I dispose of leftover PGMEA?",
+    "targets": [
+     {
+      "doc_id": "D12",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-484431",
+    "g": "substance"
+   },
+   {
+    "q": "What safety goggles should I wear when handling Sodium hydroxide?",
+    "targets": [
+     {
+      "doc_id": "D13",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221465",
+    "g": "substance"
+   },
+   {
+    "q": "How should I cross-check the product name and label before replacing a container of chemicals?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.4"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "What should go on the work permit before starting work with chemicals?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "What types of protective gloves are there, and how do their uses differ?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.3"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "What types of safety eyewear are there, and how should I choose one for the job?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.10"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "What containment should be provided around containers when storing chemicals outdoors?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "How should I close and segregate containers of chemicals stored indoors?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.2"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "What basic rules should I follow while handling chemicals?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.7"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "What product safety information should I check when planning chemical work?",
+    "targets": [
+     {
+      "doc_id": "K7",
+      "section": "5.3"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "After working with chemicals, how should I deal with remaining chemicals and contaminated tools?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.5"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "How should I store and maintain PPE after use?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "9"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "What markings and condition should I check on chemical containers and packaging?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "5.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "Where should safety information for workplace chemicals be available?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.5"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "If I notice a hazard while working with chemicals, how should I stop work and report it?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "15.1"
+     }
+    ],
+    "g": "incident"
+   },
+   {
+    "q": "What training do I need before being assigned to work with hydrofluoric acid?",
+    "targets": [
+     {
+      "doc_id": "K8",
+      "section": "8.1"
+     }
+    ],
+    "g": "incident"
    }
   ],
   "law": [
    {
-    "g": "law",
-    "q": "What are the criteria for a serious industrial accident?"
+    "q": "What accidents count as serious industrial accidents?",
+    "targets": [
+     {
+      "doc_id": "L2",
+      "section": "제2조"
+     }
+    ],
+    "g": "law"
    },
    {
-    "g": "law",
-    "q": "If there is danger, can I stop work and evacuate?"
+    "q": "Can I stop work and leave the area if I notice a danger on the job?",
+    "targets": [
+     {
+      "doc_id": "L1",
+      "section": "제52조"
+     }
+    ],
+    "g": "law"
    }
   ]
  },
  "km": {
   "chemical": [
    {
-    "g": "common",
-    "q": "តើត្រូវប្រុងប្រយ័ត្នអ្វីខ្លះ និងត្រូវការឧបករណ៍ការពារអ្វីខ្លះ នៅពេលប្រើអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិក?"
+    "q": "ពេលប្រើ អាស៊ីតស៊ុលហ្វួរិក តើត្រូវពាក់វ៉ែនតាការពារប្រភេទណា?",
+    "targets": [
+     {
+      "doc_id": "D1",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-339741",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "ប្រសិនបើអាស៊ីតអ៊ីដ្រូក្លរិចចូលភ្នែក តើត្រូវធ្វើដូចម្តេច?"
+    "q": "ពេលប្រើ អាស៊ីតអ៊ីដ្រូហ្វ្លុយអរីក តើត្រូវពាក់សម្លៀកបំពាក់ការពារអ្វី?",
+    "targets": [
+     {
+      "doc_id": "D2",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-695068",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "TMAH ប្រឡាក់ស្បែករបស់ខ្ញុំ។ តើខ្ញុំត្រូវធ្វើដូចម្តេច?"
+    "q": "តើត្រូវប្រុងប្រយ័ត្នអ្វីពេលផ្ទុក អ៊ីដ្រូសែនពែរអុកស៊ីត?",
+    "targets": [
+     {
+      "doc_id": "D3",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-8.22287",
+    "g": "substance"
    },
    {
-    "g": "common",
-    "q": "មុនពេលប្តូរធុងផ្គត់ផ្គង់អាស៊ីតអ៊ីដ្រូហ្វ្លុយអរិកនៅ Wet Bench តើត្រូវពិនិត្យអ្វីខ្លះ?"
+    "q": "ពេលប្រើ ទឹកអាម៉ូញាក់ តើត្រូវការឧបករណ៍ការពារផ្លូវដង្ហើមអ្វី?",
+    "targets": [
+     {
+      "doc_id": "D4",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221228",
+    "g": "substance"
+   },
+   {
+    "q": "ពេលប្រើ អាស៊ីតអ៊ីដ្រូក្លរីក តើត្រូវប្រើស្រោមដៃធ្វើពីសម្ភារៈអ្វី?",
+    "targets": [
+     {
+      "doc_id": "D5",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-258148",
+    "g": "substance"
+   },
+   {
+    "q": "តើសារធាតុពន្លត់អគ្គិភ័យអ្វីសមស្របសម្រាប់ អាស៊ីតនីទ្រីក?",
+    "targets": [
+     {
+      "doc_id": "D6",
+      "section": "5"
+     }
+    ],
+    "product_id": "sigma-438073",
+    "g": "substance"
+   },
+   {
+    "q": "តើត្រូវផ្ទុក អាស៊ីតផូស្វ័រិក ក្នុងធុងប្រភេទណា និងគ្រប់គ្រងគម្របយ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "D7",
+      "section": "7"
+     }
+    ],
+    "product_id": "merck-1.00573",
+    "g": "substance"
+   },
+   {
+    "q": "ពេលប្រើ TMAH តើត្រូវពាក់សម្លៀកបំពាក់ការពារអ្វី?",
+    "targets": [
+     {
+      "doc_id": "D8",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-328251",
+    "g": "substance"
+   },
+   {
+    "q": "ពេលប្រើ អាសេតូន តើត្រូវប្រុងប្រយ័ត្នអ្វីដើម្បីបង្ការអគ្គិភ័យ?",
+    "targets": [
+     {
+      "doc_id": "D9",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-179124",
+    "g": "substance"
+   },
+   {
+    "q": "តើត្រូវគ្រប់គ្រងធុងទទេដែលធ្លាប់ផ្ទុក មេតាណុល យ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "D10",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-34860",
+    "g": "substance"
+   },
+   {
+    "q": "តើត្រូវប្រុងប្រយ័ត្នអ្វីពេលផ្ទុក IPA?",
+    "targets": [
+     {
+      "doc_id": "D11",
+      "section": "7"
+     }
+    ],
+    "product_id": "sigma-563935",
+    "g": "substance"
+   },
+   {
+    "q": "តើត្រូវបោះចោល PGMEA ដែលនៅសល់យ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "D12",
+      "section": "13"
+     }
+    ],
+    "product_id": "sigma-484431",
+    "g": "substance"
+   },
+   {
+    "q": "ពេលប្រើ សូដ្យូមអ៊ីដ្រូស៊ីត តើត្រូវពាក់វ៉ែនតាការពារប្រភេទណា?",
+    "targets": [
+     {
+      "doc_id": "D13",
+      "section": "8"
+     }
+    ],
+    "product_id": "sigma-221465",
+    "g": "substance"
+   },
+   {
+    "q": "មុនប្តូរធុង សារធាតុគីមី តើត្រូវផ្ទៀងផ្ទាត់ឈ្មោះផលិតផល និងស្លាកយ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.4"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "មុនធ្វើការជាមួយ សារធាតុគីមី តើត្រូវកត់ត្រាអ្វីក្នុងលិខិតអនុញ្ញាតការងារ?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "តើស្រោមដៃការពារមានប្រភេទអ្វីខ្លះ និងប្រើខុសគ្នាយ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.3"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "តើវ៉ែនតាការពារមានប្រភេទអ្វីខ្លះ និងត្រូវជ្រើសតាមការងារយ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "6.10"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "ពេលផ្ទុក សារធាតុគីមី ក្រៅអគារ តើត្រូវរៀបចំអ្វីជុំវិញធុងសម្រាប់ទប់ស្កាត់?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "ពេលផ្ទុក សារធាតុគីមី ក្នុងអគារ តើត្រូវគ្រប់គ្រង និងបែងចែកធុងយ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "4.2"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "ពេលប្រើសារធាតុគីមី តើត្រូវគោរពវិធានមូលដ្ឋានអ្វីខ្លះ?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.7"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "មុនរៀបចំការងារគីមី តើត្រូវពិនិត្យព័ត៌មានសុវត្ថិភាពផលិតផលអ្វីខ្លះ?",
+    "targets": [
+     {
+      "doc_id": "K7",
+      "section": "5.3"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "ក្រោយប្រើ សារធាតុគីមី តើត្រូវរៀបចំសារធាតុគីមីនៅសល់ និងឧបករណ៍កខ្វក់យ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "2.5"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "ក្រោយប្រើឧបករណ៍ការពារ តើត្រូវរក្សាទុក និងថែទាំយ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "K3",
+      "section": "9"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "តើត្រូវពិនិត្យស្លាក និងស្ថានភាពអ្វីលើធុង ឬវេចខ្ចប់សារធាតុគីមី?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "5.1"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "នៅកន្លែងធ្វើការ តើត្រូវអាចរកព័ត៌មានសុវត្ថិភាពសារធាតុគីមីនៅឯណា?",
+    "targets": [
+     {
+      "doc_id": "K1",
+      "section": "6.5"
+     }
+    ],
+    "g": "common"
+   },
+   {
+    "q": "បើឃើញគ្រោះថ្នាក់ពេលធ្វើការជាមួយ សារធាតុគីមី តើត្រូវបញ្ឈប់ការងារ និងរាយការណ៍យ៉ាងដូចម្តេច?",
+    "targets": [
+     {
+      "doc_id": "S1",
+      "section": "15.1"
+     }
+    ],
+    "g": "incident"
+   },
+   {
+    "q": "មុនទទួលការងារប្រើអាស៊ីតអ៊ីដ្រូហ្វ្លុយអរីក តើត្រូវទទួលការបណ្តុះបណ្តាលអ្វីខ្លះ?",
+    "targets": [
+     {
+      "doc_id": "K8",
+      "section": "8.1"
+     }
+    ],
+    "g": "incident"
    }
   ],
   "law": [
    {
-    "g": "law",
-    "q": "តើលក្ខណៈវិនិច្ឆ័យនៃគ្រោះថ្នាក់ការងារធ្ងន់ធ្ងរមានអ្វីខ្លះ?"
+    "q": "តើគ្រោះថ្នាក់ប្រភេទណាដែលរាប់ជាគ្រោះថ្នាក់ឧស្សាហកម្មធ្ងន់ធ្ងរ?",
+    "targets": [
+     {
+      "doc_id": "L2",
+      "section": "제2조"
+     }
+    ],
+    "g": "law"
    },
    {
-    "g": "law",
-    "q": "ប្រសិនបើមានគ្រោះថ្នាក់ តើខ្ញុំអាចឈប់ការងារ ហើយជម្លៀសខ្លួនបានទេ?"
+    "q": "បើឃើញគ្រោះថ្នាក់ពេលធ្វើការ តើខ្ញុំអាចបញ្ឈប់ការងារ និងចាកចេញបានទេ?",
+    "targets": [
+     {
+      "doc_id": "L1",
+      "section": "제52조"
+     }
+    ],
+    "g": "law"
    }
   ]
  }

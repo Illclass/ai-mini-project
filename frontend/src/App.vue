@@ -15,6 +15,7 @@ import ReportModal from './components/ReportModal.vue'
 import EmergencyContacts from './components/EmergencyContacts.vue'
 import { clean } from './locales/clean'
 import candidates from './api/candidates.json'
+import { lawRecommendations } from './api/recommendations.js'
 import { guideFor } from './api/guides'
 import { spring as vSpring } from './directives/spring'
 import './chat-glass.css'
@@ -71,11 +72,11 @@ const guideUrl=computed(()=>guide.value?.url)
 const faq=computed(()=>{
  const list=(candidates[language.value]||candidates.ko)[isLaw.value?'law':'chemical']||[]
  const groups=[]
- for(const item of list){let g=groups.find(x=>x.key===item.g);if(!g){g={key:item.g,items:[]};groups.push(g)}g.items.push(item.q)}
+ for(const item of list){let g=groups.find(x=>x.key===item.g);if(!g){g={key:item.g,items:[]};groups.push(g)}g.items.push(item)}
  return groups
 })
 function onKey(event){if(event.key!=='Enter'||event.shiftKey||event.isComposing||event.keyCode===229)return;event.preventDefault();send()}
-const suggestions=computed(()=>topic.value===api.contract.topics.law?[a.value.lawQuestion]:suggestedQuestions({situation:situation.value,language:language.value,equipmentId:equipmentId.value,productId:productId.value}))
+const suggestions=computed(()=>topic.value===api.contract.topics.law?lawRecommendations(language.value).map(x=>x.q):suggestedQuestions({situation:situation.value,language:language.value,equipmentId:equipmentId.value,productId:productId.value}))
 const feedback=computed(()=>feedbackCopy[language.value]), slowResponse=ref(false)
 let slowTimer
 watch(pending,value=>{clearTimeout(slowTimer);slowResponse.value=false;if(value)slowTimer=setTimeout(()=>{slowResponse.value=true},12000)})
@@ -128,6 +129,7 @@ async function signup(credentials){
  catch(error){loginError.value=error.status===400?'signupDuplicate':errorKey(error)}
  finally{signingIn.value=false}
 }
+function fillFaq(item){if(busy.value)return;if(item.product_id){equipmentId.value=item.equipment_id||'';productId.value=item.product_id}fill(item.q)}
 function fill(text){if(busy.value)return;voice.value='idle';voiceDraft=false;question.value=text;nextTick(()=>input.value?.focus())}
 async function scroll(){await nextTick();thread.value?.lastElementChild?.scrollIntoView({behavior:'smooth',block:'nearest'})}
 async function send(retryMessage){
@@ -282,7 +284,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
       <h2>{{t.emptyTitle}}</h2>
       <div v-if="situation==='free'&&!equipmentId&&!productId" class="faq-board" :aria-label="c.faqTitle">
         <p class="faq-sub">{{c.faqTitle}} · {{c.faqSub}}</p>
-        <section v-for="group in faq" :key="group.key" class="faq-group"><h3>{{c.g[group.key]}}</h3><div class="faq-items"><button v-for="q in group.items" :key="q" type="button" class="faq-item" @click="fill(q)"><span>{{q}}</span><Icon name="arrow" :size="16" /></button></div></section>
+        <section v-for="group in faq" :key="group.key" class="faq-group"><h3>{{c.g[group.key]}}</h3><div class="faq-items"><button v-for="item in group.items" :key="item.q" type="button" class="faq-item" @click="fillFaq(item)"><span>{{item.q}}</span><Icon name="arrow" :size="16" /></button></div></section>
       </div>
       <div v-else class="clear-suggestions" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
     </div>
