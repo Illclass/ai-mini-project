@@ -336,15 +336,6 @@ def test_non_document_input_is_caller_error():
         generate_answer("자료 설명", [{"page_content": "dict is not Document"}], structured_llm=FakeLLM())
 
 
-def test_existing_api_response_fields_are_unchanged():
-    # Read the original API statically; importing it would require its key/DB startup.
-    api_file = Path(__file__).resolve().parents[2] / "rag_external-web_pdf_closed_llm.py"
-    tree = ast.parse(api_file.read_text())
-    response_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "AnswerResponse")
-    fields = {node.target.id for node in response_class.body if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)}
-    assert fields == {"prompt", "response"}
-
-
 @pytest.mark.parametrize("timeout_seconds", [30.0, 2.5])
 def test_provider_factory_configures_timeout_and_disables_retries(guide, monkeypatch, timeout_seconds):
     observed = {}

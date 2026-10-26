@@ -6,7 +6,7 @@
 #   Ctrl + C           이 스크립트가 띄운 서버를 모두 종료 (DB 컨테이너는 계속 실행)
 #
 #   RAG 앱 선택 (기본: 새 구조 app.main)
-#     RAG_APP=rag_external-web_pdf_closed_llm:app ./dev.sh   # 기존 템플릿 (/upload-paper 등)
+#     RAG_APP=<모듈:앱> ./dev.sh   # 다른 RAG 앱으로 실행 (기본 app.main:app)
 #
 # 로그: logs/auth.log · logs/rag.log · logs/voice.log
 

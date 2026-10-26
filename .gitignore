@@ -23,7 +23,7 @@ out/
 *.class
 !gradle/wrapper/gradle-wrapper.jar
 
-# ===== Node / Vue.js (프론트 추가 시) =====
+# ===== Node / Vue.js =====
 node_modules/
 dist/
 .vite/
@@ -52,12 +52,19 @@ faiss_db/
 # 발표·비교에 쓸 결과만 rag-service/eval/reports/ 에 이름을 붙여 복사해 올린다.
 rag-service/eval/results/
 
-# ===== OS / IDE =====
+# ===== OS / IDE · AI 코딩 도구 로컬 설정 =====
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
 *.iml
+.claude/
+.cursor/
+
+# ===== 각자 만드는 임시 결과물 =====
+# 평가·추적용 임시 스크립트와 결과는 저장소 밖(또는 eval/results/)에 둔다
+*.tmp
+scratch/
 
 # 백업 · 병합 충돌 잔여 파일
 *.bak

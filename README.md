@@ -184,6 +184,7 @@ cd frontend && npm run dev       # 터미널 2: 화면(:5174)
 전체 목록(제품번호 · CAS · 개정일): [docs/데이터_출처표.xlsx](docs/데이터_출처표.xlsx) · `rag-service/ingest_all.sh`
 
 - 법령 원문은 안내용이며 공식 해석이 아닙니다. 답변에는 시행일과 "현행 여부 확인 필요"를 함께 표시합니다.
+- 원문 PDF 는 데모 · 학습용으로 함께 두었습니다. 다시 배포할 때는 각 원 출처의 이용 조건을 확인합니다.
 - MSDS 는 데모 제품 기준입니다. 실제 작업 제품 · 농도 · 개정본과 같다고 보지 말고 현장 공급자 MSDS 를 따릅니다.
 - 가상 장비 · 현장지침(S1)은 시연용으로 만든 자료입니다.
 
@@ -199,7 +200,7 @@ cd frontend && npm run dev       # 터미널 2: 화면(:5174)
 | 정지우 | 인증 · API | Java 로그인 · JWT 발급/검증 · 401 처리 · 요청/응답 규격 · 로그 / API 명세서 · Swagger | `auth-server/` · `rag-service/app/` · `output/pdf/ChemBridge_API_명세서.pdf` |
 | 강지훈 | 화면 · 배포 | 5개 언어 화면 · 추천 질문 · 제품/장비 선택 · 출처 원문 보기 · 음성 모드 / 전체 Docker Compose | `frontend/` · `docker-compose.yml` · `frontend/deploy/` |
 
-`rag/chain.py`(검색 → 생성 연결)와 `rag/schema.py`(공통 이름)는 함께 관리합니다. 작업 카드: [docs/tasks/](docs/tasks)
+`rag/chain.py`(검색 → 생성 연결)와 `rag/schema.py`(공통 이름)는 함께 관리합니다. 초기 작업 카드와 병합 · 검증 기록: [docs/archive/](docs/archive)
 
 ---
 
@@ -219,7 +220,7 @@ ai-mini-project/
 ├── voice-service/        음성 서비스 (Whisper 음성 인식 · TTS) — 확장 트랙
 ├── docker-compose.yml    전체 서비스 한 번에 실행
 ├── dev.sh                개발용 DB · 인증 · RAG (· 음성) 실행
-├── docs/                 작업 카드 · 데이터 출처표
+├── docs/                 데이터 출처표 · archive/(초기 작업 카드 · 병합 · 검증 기록)
 └── .github/workflows/    자동 시험 (contract-test)
 ```
 
@@ -255,8 +256,6 @@ cd frontend && npm test                                       # 화면 80여 개
 
 ## 작업 규칙
 
-자세한 규칙은 [`AGENTS.md`](AGENTS.md) 를 보세요.
-
 1. 자기 브랜치(`feat/이름-작업`)에서 작업하고 **dev** 에 합칩니다. 제출 전에 dev 를 main 으로 PR 합니다.
 2. `rag/schema.py` 의 이름은 바꾸지 않고 import 해서 씁니다. 바꿔야 하면 팀에 먼저 공유합니다.
 3. 비밀값은 `.env` 에만 둡니다. `git add .` 대신 고친 파일만 add 합니다.
@@ -277,7 +276,7 @@ cd frontend && npm test                                       # 화면 80여 개
 
 ## 참고: 원본 골격(`ai-practice.zip`)에서 바뀐 점
 
-- 폴더 이름: `workplace` → `auth-server`, `rag-code-template_ext` → `rag-service`, `voice-ai_code` → `voice-service`, HTML → `consoles/`
+- 폴더 이름: `workplace` → `auth-server`, `rag-code-template_ext` → `rag-service`, `voice-ai_code` → `voice-service`
 - 실습 빈칸(TODO) 채움: 인증서버 ①~⑤, RAG Q01~Q05, 음성 Q01~Q05
 - `voice-service/requirements.txt`: UTF-16 → UTF-8, `requests` 를 `>=2.32.5,<3.0` 으로 (langchain-community 호환)
-- 새 구조: `rag-service/app`, `rag/`, `ingest/`, `eval/`, `tests/` (기존 템플릿 `rag_external-web_pdf_closed_llm.py` 는 그대로 둠, `RAG_APP=rag_external-web_pdf_closed_llm:app ./dev.sh`)
+- 새 구조: `rag-service/app`, `rag/`, `ingest/`, `eval/`, `tests/`. 실습용 템플릿 서버(`rag_external-web_pdf_closed_llm.py`)와 HTML 콘솔은 새 구조로 대체해 제외했습니다

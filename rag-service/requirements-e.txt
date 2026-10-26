@@ -1,4 +1,4 @@
-# 외부 "rag_external-web_pdf_closed_llm" 노드/컨테이너 패키지 설치
+# RAG 서비스 패키지 (루트 requirements.txt · Docker 이미지가 불러옴)
 
 # pip install -U pip setuptools wheel
 # pip install -r requirements-e.txt
