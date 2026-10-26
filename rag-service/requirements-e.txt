@@ -1,4 +1,4 @@
-# 외부 "rag_external-web_pdf_closed_llm" 노드/컨테이너 패키지 설치
+# RAG 서비스 패키지 (루트 requirements.txt · Docker 이미지가 불러옴)
 
 # pip install -U pip setuptools wheel
 # pip install -r requirements-e.txt
@@ -42,3 +42,6 @@ langchain-text-splitters>=1.1.0
 langchain-openai==1.1.7
 openai==1.109.1
 tiktoken>=0.7,<1.0
+
+# 로컬 임베딩 bge-m3 (rag/embeddings.py). 첫 실행 때 모델 약 2.3GB 다운로드
+sentence-transformers>=3,<6

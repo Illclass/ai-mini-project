@@ -10,27 +10,20 @@ if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY is not set. Please check your .env file or environment variables.")
 
 
-def text_to_speech(text: str, output_path: str = "output.mp3"):
-    url = "https://api.openai.com/v1/audio/speech"
-    
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "model": "tts-1",
-        "input": text,
-        "voice": "nova"
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-    print(f"TTS response status code: {response.status_code}")
-
+def synthesize(text: str, voice: str = "nova", timeout: float = 30.0) -> bytes:
+    """텍스트 → MP3 바이트 (OpenAI tts-1). 실패하면 예외."""
+    response = requests.post(
+        "https://api.openai.com/v1/audio/speech",
+        headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
+        json={"model": "tts-1", "input": text, "voice": voice},
+        timeout=timeout,
+    )
     if response.status_code != 200:
-        raise Exception(f"TTS request failed: {response.status_code} - {response.text}")
+        raise RuntimeError(f"TTS request failed: {response.status_code}")
+    return response.content
 
+
+def text_to_speech(text: str, output_path: str = "output.mp3"):
     with open(output_path, "wb") as f:
-        f.write(response.content)
-
+        f.write(synthesize(text))
     return output_path

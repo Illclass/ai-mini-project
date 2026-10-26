@@ -21,8 +21,8 @@ TOPIC_LAW = "serious_accident_law"        # 중대재해·산업안전 법령
 TOPICS = (TOPIC_CHEMICAL, TOPIC_LAW)
 Topic = Literal["chemical_safety", "serious_accident_law"]
 
-LANGUAGES = ("ko", "zh", "vi")            # 한국어 · 중국어 · 베트남어
-Language = Literal["ko", "zh", "vi"]
+LANGUAGES = ("ko", "zh", "vi", "en", "km")   # 한국어 · 중국어 · 베트남어 · 영어 · 크메르어(캄보디아)
+Language = Literal["ko", "zh", "vi", "en", "km"]
 
 DOC_TYPE_LAW = "law"                      # 법령 원문 (조문 단위 청크)
 DOC_TYPE_MSDS = "msds"                    # 제품 MSDS (16개 항목 단위 청크)
@@ -41,11 +41,12 @@ INDEX_DIRS: Dict[str, str] = {
 # ---------------------------------------------------------------------------
 ENV_OPENAI_API_KEY = "OPENAI_API_KEY"
 ENV_JWT_SECRET = "JWT_SECRET"             # Java 인증서버와 같은 값
-ENV_LLM_MODEL = "LLM_MODEL"               # 예: gpt-4o
-ENV_EMBEDDING_MODEL = "EMBEDDING_MODEL"   # 비우면 OpenAIEmbeddings 기본값
+ENV_LLM_MODEL = "LLM_MODEL"               # 비우면 gpt-6-luna (rag/llm.py DEFAULT_MODEL)
+ENV_EMBEDDING_MODEL = "EMBEDDING_MODEL"   # 비우면 DEFAULT_EMBEDDING_MODEL (rag/embeddings.py 참고)
 ENV_TOP_K = "RAG_TOP_K"                   # 기본 5
 
 DEFAULT_TOP_K = 5
+DEFAULT_EMBEDDING_MODEL = "bge-m3"   # 로컬 다국어 모델. 근거: eval/results/20261023_1139_retrieval.md (hit@5 98%)
 
 # ---------------------------------------------------------------------------
 # 3. 청크 메타데이터 (적재 → 검색 → 출처 표시)
@@ -93,6 +94,7 @@ class Hit(TypedDict):
 #          k: int = DEFAULT_TOP_K) -> List[Hit]
 #   - question 은 검색용 한국어 (다국어 → 한국어 변환은 검색 쪽에서 처리)
 #   - topic 의 인덱스만 검색, product_id 가 있으면 그 제품 MSDS 만
+#   - equipment_id 는 장비에 연결된 제품 목록으로 바꿔 검색 범위를 정한다 (rag/equipment.py)
 #   - 결과 없으면 [] → 생성 쪽은 LLM 을 부르지 않는다
 #
 # generate(question: str, hits: List[Hit], language: Language) -> RagResponse
@@ -105,6 +107,7 @@ class RagRequest(BaseModel):
     question: str = Field(..., min_length=2, max_length=500)
     topic: Topic
     product_id: Optional[str] = None      # 법령 질문은 null
+    equipment_id: Optional[str] = None    # 가상 장비 ID 예) "DEMO-WET-01" (data/equipment_map.json)
     language: Language = "ko"
 
 

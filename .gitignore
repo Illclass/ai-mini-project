@@ -12,6 +12,8 @@ env/
 *.egg-info/
 .pytest_cache/
 .ipynb_checkpoints/
+.mypy_cache/
+.ruff_cache/
 
 # ===== Java / Gradle =====
 .gradle/
@@ -21,10 +23,11 @@ out/
 *.class
 !gradle/wrapper/gradle-wrapper.jar
 
-# ===== Node / Vue.js (프론트 추가 시) =====
+# ===== Node / Vue.js =====
 node_modules/
 dist/
 .vite/
+coverage/
 npm-debug.log*
 yarn-error.log*
 
@@ -44,12 +47,27 @@ logs/
 # 적재 스크립트로 재생성 가능하면 제외. 인덱스를 공유하려면 아래 줄을 주석 처리
 faiss_db/
 
-# ===== OS / IDE =====
+# ===== 평가 결과 =====
+# run_eval 이 실행할 때마다 만드는 결과(시각_retrieval.md/json)는 올리지 않는다.
+# 발표·비교에 쓸 결과만 rag-service/eval/reports/ 에 이름을 붙여 복사해 올린다.
+rag-service/eval/results/
+
+# ===== OS / IDE · AI 코딩 도구 로컬 설정 =====
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
 *.iml
+.claude/
+.cursor/
 
-# 백업 파일
+# ===== 각자 만드는 임시 결과물 =====
+# 평가·추적용 임시 스크립트와 결과는 저장소 밖(또는 eval/results/)에 둔다
+*.tmp
+scratch/
+
+# 백업 · 병합 충돌 잔여 파일
 *.bak
+*.orig
+*.rej
+*.swp

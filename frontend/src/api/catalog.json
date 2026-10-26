@@ -1,0 +1,270 @@
+{
+  "version": "demo-2026-10-23",
+  "notice": "모든 장비는 시연용 가상 장비입니다. 실제 도입 시 고객사가 자기 장비와 공정 지침을 등록합니다. hazards 는 화면 요약용이며 답변 근거는 MSDS · KOSHA · S1 원문입니다.",
+  "equipment": [
+    {
+      "equipment_id": "DEMO-WET-01",
+      "name": "Wet Bench (가상)",
+      "process": "cleaning",
+      "process_ko": "세정",
+      "product_ids": [
+        "sigma-339741",
+        "sigma-695068",
+        "merck-8.22287",
+        "sigma-221228",
+        "sigma-258148"
+      ],
+      "hazards": [
+        "배관 누출",
+        "탱크 개방 시 화학 증기",
+        "약액 교체 중 비산"
+      ],
+      "missing": [],
+      "coverage": "full",
+      "basis": "S1 3장, K7 (확인 필요)",
+      "is_demo": true
+    },
+    {
+      "equipment_id": "DEMO-PHOTO-01",
+      "name": "Coater/Developer Track (가상)",
+      "process": "photo",
+      "process_ko": "포토",
+      "product_ids": [
+        "sigma-328251",
+        "sigma-484431",
+        "sigma-563935",
+        "sigma-179124"
+      ],
+      "hazards": [
+        "PR·현상액 공급라인 누출",
+        "TMAH 접촉",
+        "용제 증기 축적·화재"
+      ],
+      "missing": [],
+      "coverage": "full",
+      "basis": "S1 4장, K7 (확인 필요)",
+      "is_demo": true
+    },
+    {
+      "equipment_id": "DEMO-WETETCH-01",
+      "name": "Wet Etcher (가상)",
+      "process": "etch_wet",
+      "process_ko": "습식 식각",
+      "product_ids": [
+        "sigma-695068",
+        "merck-1.00573",
+        "sigma-438073"
+      ],
+      "hazards": [
+        "습식 약액 접촉"
+      ],
+      "missing": [],
+      "coverage": "full",
+      "basis": "S1 5장, K7 (확인 필요)",
+      "is_demo": true
+    },
+    {
+      "equipment_id": "DEMO-DRYETCH-01",
+      "name": "Dry Etcher (가상)",
+      "process": "etch_dry",
+      "process_ko": "건식 식각",
+      "product_ids": [],
+      "hazards": [
+        "챔버 개방 시 유해 부산물",
+        "Cl₂ 등 공정가스 누출"
+      ],
+      "missing": [
+        "염소(Cl₂) 등 공정가스 MSDS"
+      ],
+      "coverage": "none",
+      "basis": "S1 6장",
+      "is_demo": true
+    },
+    {
+      "equipment_id": "DEMO-CMP-01",
+      "name": "CMP Polisher (가상)",
+      "process": "cmp",
+      "process_ko": "CMP",
+      "product_ids": [
+        "merck-8.22287"
+      ],
+      "hazards": [
+        "슬러리 공급라인 누출",
+        "산화제 접촉",
+        "폐슬러리 처리 중 노출"
+      ],
+      "missing": [
+        "슬러리 MSDS"
+      ],
+      "coverage": "partial",
+      "basis": "S1 7장, K7 (확인 필요)",
+      "is_demo": true
+    },
+    {
+      "equipment_id": "DEMO-CVD-01",
+      "name": "CVD/ALD/Furnace (가상)",
+      "process": "deposition",
+      "process_ko": "증착",
+      "product_ids": [],
+      "hazards": [
+        "실란 등 가연성·자연발화성 가스 누출",
+        "챔버·배기라인 잔류물"
+      ],
+      "missing": [
+        "실란 등 공정가스 MSDS"
+      ],
+      "coverage": "none",
+      "basis": "S1 8장",
+      "is_demo": true
+    },
+    {
+      "equipment_id": "DEMO-IMP-01",
+      "name": "Ion Implanter (가상)",
+      "process": "implant",
+      "process_ko": "이온주입",
+      "product_ids": [],
+      "hazards": [
+        "아르신·포스핀 등 고독성 가스",
+        "진공펌프 내부 독성 잔류물"
+      ],
+      "missing": [
+        "아르신·포스핀 MSDS"
+      ],
+      "coverage": "none",
+      "basis": "S1 9장",
+      "is_demo": true
+    },
+    {
+      "equipment_id": "DEMO-METAL-01",
+      "name": "PVD/도금 장비 (가상)",
+      "process": "metal",
+      "process_ko": "금속배선",
+      "product_ids": [],
+      "hazards": [
+        "공정가스·도금액 노출",
+        "배기계통 정비"
+      ],
+      "missing": [
+        "도금액·공정가스 MSDS"
+      ],
+      "coverage": "none",
+      "basis": "S1 10장",
+      "is_demo": true
+    },
+    {
+      "equipment_id": "DEMO-SOLV-01",
+      "name": "용제 세척·유지보수 (가상)",
+      "process": "solvent",
+      "process_ko": "용제 세척",
+      "product_ids": [
+        "sigma-563935",
+        "sigma-179124",
+        "sigma-34860"
+      ],
+      "hazards": [
+        "용제 증기 흡입",
+        "인화·화재"
+      ],
+      "missing": [],
+      "coverage": "full",
+      "basis": "S1 11장, K7 (확인 필요)",
+      "is_demo": true
+    },
+    {
+      "equipment_id": "DEMO-UTIL-01",
+      "name": "폐수 중화·스크러버 (가상)",
+      "process": "utility",
+      "process_ko": "중화·배기처리",
+      "product_ids": [
+        "sigma-221465"
+      ],
+      "hazards": [
+        "강알칼리 접촉"
+      ],
+      "missing": [],
+      "coverage": "full",
+      "basis": "S1 12장, K7 (확인 필요)",
+      "is_demo": true
+    }
+  ],
+  "products": [
+    {
+      "product_id": "sigma-339741",
+      "name": "황산",
+      "title": "황산 MSDS (Sulfuric acid)",
+      "doc_id": "D1"
+    },
+    {
+      "product_id": "sigma-695068",
+      "name": "불산",
+      "title": "불산 MSDS (Hydrofluoric acid)",
+      "doc_id": "D2"
+    },
+    {
+      "product_id": "merck-8.22287",
+      "name": "과산화수소",
+      "title": "과산화수소 MSDS (Hydrogen peroxide 30%)",
+      "doc_id": "D3"
+    },
+    {
+      "product_id": "sigma-221228",
+      "name": "암모니아수",
+      "title": "암모니아수 MSDS (Ammonium hydroxide solution)",
+      "doc_id": "D4"
+    },
+    {
+      "product_id": "sigma-258148",
+      "name": "염산",
+      "title": "염산 MSDS (Hydrochloric acid)",
+      "doc_id": "D5"
+    },
+    {
+      "product_id": "sigma-438073",
+      "name": "질산",
+      "title": "질산 MSDS (Nitric acid)",
+      "doc_id": "D6"
+    },
+    {
+      "product_id": "merck-1.00573",
+      "name": "인산",
+      "title": "인산 MSDS (ortho-Phosphoric acid 85%)",
+      "doc_id": "D7"
+    },
+    {
+      "product_id": "sigma-328251",
+      "name": "TMAH",
+      "title": "TMAH MSDS (Tetramethylammonium hydroxide solution)",
+      "doc_id": "D8"
+    },
+    {
+      "product_id": "sigma-179124",
+      "name": "아세톤",
+      "title": "아세톤 MSDS (Acetone)",
+      "doc_id": "D9"
+    },
+    {
+      "product_id": "sigma-34860",
+      "name": "메탄올",
+      "title": "메탄올 MSDS (Methanol)",
+      "doc_id": "D10"
+    },
+    {
+      "product_id": "sigma-563935",
+      "name": "IPA",
+      "title": "IPA MSDS (Isopropanol 70~75%)",
+      "doc_id": "D11"
+    },
+    {
+      "product_id": "sigma-484431",
+      "name": "PGMEA",
+      "title": "PGMEA MSDS (Propylene glycol monomethyl ether acetate)",
+      "doc_id": "D12"
+    },
+    {
+      "product_id": "sigma-221465",
+      "name": "수산화나트륨",
+      "title": "수산화나트륨 MSDS (Sodium hydroxide)",
+      "doc_id": "D13"
+    }
+  ]
+}

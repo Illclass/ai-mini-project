@@ -1,0 +1,40 @@
+{
+  "_설명": [
+    "외국어 비상 표현 사전. 질문에 '몸 부위 + 묻음·튐' 이 가까이 있거나(앞뒤 순서 상관없음) phrases 가 있으면 비상 안내로 처리한다.",
+    "hypothetical(가정 표현: 만약·~하면)이 있으면 이 사전 규칙은 쓰지 않는다. '피부에 묻으면 어떻게 하나요?'는 일반 질문이다.",
+    "베트남어는 성조를 뺀 글자로 적는다 (dính → dinh). 중국어·크메르어는 원래 글자 그대로.",
+    "코드 속 기존 규칙(rag/generator.py is_emergency)은 그대로 두고, 이 사전은 거기에 더해진다. 표현을 추가하면 tests/test_lexicon.py 에 예문도 추가한다.",
+    "작성: 김규빈 2026-10-26 (Claude 초안, 원어민 검수 전)"
+  ],
+  "window": 6,
+  "zh": {
+    "contact": ["沾到", "沾上", "溅到", "溅进", "溅入", "溅上", "弄到", "碰到", "洒到", "泼到", "喷到", "滴到", "进了", "进到"],
+    "body": ["皮肤", "眼睛", "眼里", "手上", "手背", "手指", "脸上", "身上", "胳膊", "腿上", "嘴里", "头发"],
+    "phrases": ["喝了", "喝下去", "吞了", "吞下去", "误食了", "吸进去了", "晕倒了", "昏迷了", "喘不过气"],
+    "hypothetical": ["如果", "万一", "假如", "要是", "的话", "时应", "时该", "时怎么", "时如何"]
+  },
+  "vi": {
+    "contact": ["dinh vao", "dinh len", "dinh phai", "bi dinh", "ban vao", "bi ban", "vang vao", "bi vang", "do vao", "roi vao"],
+    "body": ["da", "mat", "tay", "mat toi", "nguoi", "chan", "mieng", "toc"],
+    "phrases": ["uong phai", "nuot phai", "lo uong", "hit phai khi", "bi ngat", "ngat xiu", "kho tho qua"],
+    "hypothetical": ["neu ", "khi bi", "truong hop", "lo nhu"]
+  },
+  "en": {
+    "contact": ["got on", "got in", "got into", "splashed on", "splashed in", "splashed into", "spilled on", "spilt on", "spilled onto", "dripped on", "sprayed on", "sprayed in"],
+    "body": ["my skin", "my eye", "my eyes", "my hand", "my hands", "my face", "my arm", "my arms", "my leg", "my legs", "my mouth", "skin", "eyes"],
+    "phrases": ["i swallowed", "i inhaled", "i drank", "someone swallowed", "passed out", "is unconscious", "can't breathe", "cannot breathe"],
+    "hypothetical": ["if ", "what if", "in case", "when it", "should it"]
+  },
+  "km": {
+    "contact": ["ប្រឡាក់", "ខ្ទាត", "ប៉ះ", "ធ្លាក់លើ", "ចូល"],
+    "body": ["ស្បែក", "ភ្នែក", "ដៃ", "មុខ", "ខ្លួន", "មាត់"],
+    "phrases": ["បានលេប", "លេបចូលហើយ", "សន្លប់ហើយ"],
+    "hypothetical": ["ប្រសិនបើ", "បើ", "ពេល"]
+  },
+  "ko": {
+    "contact": [],
+    "body": [],
+    "phrases": [],
+    "hypothetical": []
+  }
+}

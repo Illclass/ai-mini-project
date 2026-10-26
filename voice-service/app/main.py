@@ -5,11 +5,11 @@ from fastapi import FastAPI, Depends, HTTPException, status, Cookie, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from starlette.staticfiles import StaticFiles
-from jose import jwt, JWTError
 
 from app.routers.stt_router import router as stt_router
 from app.routers.tts_router import router as tts_router
 from app.routers.stt_tts_router import router as stt_tts_router
+from app.routers.voice_router import router as voice_router
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -47,52 +47,8 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
 
-# Configuration that must match the Java server
-SECRET_KEY = "RANDOM_SECRET_KEY"   # Must be identical to Java JwtUtil.SECRET
-ALGORITHM = "HS256"
-ISSUER = "simple-auth-server"      # Must be identical to Java JwtUtil.ISSUER
-
-# 3) JWT decoding dependency
-
-def get_current_user(
-    access_token: str | None = Cookie(default=None, alias="ACCESS_TOKEN")
-):
-    """
-    Reads the ACCESS_TOKEN(JWT) cookie issued by the 8080 server
-    and returns the current logged-in user information as a dependency.
-    """
-    if access_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated (no ACCESS_TOKEN cookie)",
-        )
-
-    try:
-        # [Q01] Java 인증 서버와의 JWT 신뢰 연결
-        # 힌트: 쿠키의 토큰을 Java 서버와 동일한 비밀키, 알고리즘, 발급자로 검증하세요.
-        # TODO Q01: 아래 None을 JWT 검증 호출로 바꾸세요.
-        payload = jwt.decode(
-            access_token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-            issuer=ISSUER,
-        )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-
-    user_id = payload.get("sub")
-    username = payload.get("username")
-
-    if user_id is None or username is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-
-    return {"id": user_id, "username": username}
+# JWT 검증은 app/auth.py 하나로 통일 (비밀키는 환경변수 JWT_SECRET, Bearer·쿠키 모두 허용)
+from app.auth import get_current_user
 
 # 4) (Key) HTML is served only as a "route" + protected with Depends
 #    - Direct access to /index.html is also blocked (= JWT required to open)
@@ -167,6 +123,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:8008",
         "http://127.0.0.1:8008",
+        "http://localhost:5174",   # ChemBridge 프론트 (Vite). 보통은 Vite 프록시로 같은 출처라 필요 없다
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -193,6 +150,7 @@ def favicon(current_user: dict = Depends(get_current_user)):
 app.include_router(stt_router, prefix="/stt")
 app.include_router(tts_router, prefix="/tts")
 app.include_router(stt_tts_router, prefix="/stt-tts")
+app.include_router(voice_router, prefix="/voice")   # ChemBridge 프론트 음성 모드
 
 # 9) Local execution
 

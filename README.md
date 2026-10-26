@@ -1,99 +1,97 @@
 # ChemBridge
 
-반도체 공정(소부장 포함) **외국인 근로자**를 위한 **화학물질 안전 · 중대재해 법령 다국어(ko · zh · vi) RAG 안내 서비스**
+반도체 공정(소부장 포함) **외국인 작업자**를 위한 **화학물질 안전 · 산업안전 법령 다국어 RAG 안내 서비스**
 — SKALA AI 서비스 개발 Mini-project
 
+작업자가 자기 언어(한국어 · 중국어 · 베트남어 · 영어 · 크메르어)로 물으면, 공급자 MSDS · KOSHA 지침 · 법령 원문에서 근거를 찾아
+출처와 함께 답합니다. **근거가 없거나 검증에 실패하면 답하지 않고 담당자 확인으로 넘기며**, 몸에 묻음 · 흡입 같은 비상 상황은
+검색 · LLM 을 거치지 않고 비상 안내를 먼저 보여 줍니다. 현장 안전교육 · 작업 승인 · 법률 판단을 대신하지 않습니다.
+
 ```
-Vue(:5174) ─로그인─▶ Java 인증서버(:8080) ─▶ MariaDB(:53301)
-    │                 (ACCESS_TOKEN 쿠키 발급)
-    └─/rag-query─▶ RAG FastAPI(:8001) ─▶ FAISS(law · msds) + OpenAI
+Vue 화면(:5174)
+ ├─ 로그인 ──▶ Java 인증서버(:8080) ─▶ MariaDB
+ │             JWT 쿠키 발급, 만료·위조 401
+ ├─ /rag-query ─▶ RAG FastAPI(:8001)
+ │     ① 비상·범위 밖 질문은 바로 안내
+ │     ② 제품·장비 범위 지정 + FAISS 검색
+ │        (bge-m3, 외국어 질문은 한국어로 번역)
+ │     ③ LLM 답변 (gpt-6-luna, 문장마다 원문 인용)
+ │     ④ 인용·수치·번역·검증 LLM 통과 시에만 응답
+ └─ /voice ─▶ 음성 서버(:8008)
+       Whisper 음성 인식 · TTS 답변 읽기
+
+적재: MSDS 13종 · 법령 5종 · KOSHA 지침 8종 · 현장지침
+      → 항목/조문 단위 청크 → bge-m3 → FAISS (law · msds)
 ```
+
+## 주요 기능
+
+| 기능 | 내용 |
+|---|---|
+| 5개 언어 | ko · zh · vi · en · km. 화면 언어와 다른 말로 물으면 질문한 말로 답한다 |
+| 작업 단계별 추천 질문 | 작업 전 · 취급 · 보관 · 작업 중 · 작업 후 · 비상 6단계, 단계별 안내 PDF |
+| 제품 · 장비 범위 | 가상 장비 10대 · MSDS 13종 중 고르면 그 범위에서만 답한다. 물질명만 말해도 제품 자동 지정 |
+| 근거 답변 | 소제목(알아둘 내용 · 권고사항 · 법령 문구 · ⚠ 주의사항) + 목록, 문장마다 출처 번호, 같은 문서 출처는 한 줄로 |
+| 번역 경고 원문 대조 | 외국어 답변의 중요 경고 아래 한국어 원문을 작게 함께 표시 |
+| 보류 이유 안내 | "근거와 맞지 않아 보류", "제품을 확인하지 못함" 등 이유와 다음 행동 |
+| 출처 원문 보기 | 인용한 MSDS 항목 · 조문의 PDF 쪽으로 바로 이동 |
+| 음성 (확장) | 말로 묻기 · 답변 듣기 · 손 없이 쓰는 음성 대화 모드 (크메르어 제외) |
+| 외국어 자료집 | 비상 표현 사전 · 안전 용어집 69개 (`rag-service/data/lexicon/`) |
 
 ---
 
-## 👋 팀원은 여기부터 — 순서대로 따라 하면 됩니다
+## 실행 방법
 
-### 1단계. 내 작업 카드 열기 (1분)
+### 처음 한 번 준비 (10~15분)
 
-| 이름 | 파트 | 작업 카드 |
-|---|---|---|
-| 윤서진 | 데이터 파이프라인 | [docs/tasks/윤서진_데이터.md](docs/tasks/윤서진_데이터.md) |
-| 박진근 | LLM(생성) | [docs/tasks/박진근_생성.md](docs/tasks/박진근_생성.md) |
-| 정지우 | 인증 연동 · API | [docs/tasks/정지우_API.md](docs/tasks/정지우_API.md) |
-| 강지훈 | 프론트엔드 · 배포 | [docs/tasks/강지훈_프론트배포.md](docs/tasks/강지훈_프론트배포.md) |
-| 김규빈 | Retriever(검색) · 평가 | (본인) |
-
-카드에 **할 일 · 고칠 파일 · 완료 기준 · AI 에게 붙여 넣을 프롬프트**가 있습니다.
-
-### 2단계. 내 컴퓨터에 준비하기 (처음 한 번, 10~15분)
-
-1. 설치되어 있어야 하는 것: **Git, Docker Desktop(실행 중), Java 17 이상, Python 3.11**
-2. 저장소 받기
-   ```bash
-   cd ~/workspace
-   git clone https://github.com/Illclass/ai-mini-project.git
-   cd ai-mini-project
-   ```
-3. 파이썬 가상환경 + 패키지 설치 (torch 때문에 몇 분 걸림)
-   ```bash
-   python3.11 -m venv .venv
-   source .venv/bin/activate
-   pip install -U pip setuptools wheel
-   pip install -r requirements.txt
-   ```
-4. **`.env` 파일 3개 만들기** — 값은 **김규빈에게 DM 으로 받으세요** (Git·단톡방에 올리지 않기)
-   - `auth-server/.env` → `DB_PASSWORD=...`, `JWT_SECRET=...`
-   - `rag-service/.env` → `OPENAI_API_KEY=...`
-   - `voice-service/app/.env` → `OPENAI_API_KEY=...` (음성 담당만)
-5. 법령 인덱스 만들기 (`faiss_db/` 는 Git 에 없어서 각자 한 번 만들어야 함)
-   ```bash
-   cd rag-service
-   ../.venv/bin/python ingest_law.py --input laws/sapa.pdf --law-name "중대재해 처벌 등에 관한 법률" \
-     --abbr sapa --effective-date 2022-01-27 --source-url "https://www.law.go.kr/" --out faiss_db/law
-   cd ..
-   ```
-
-### 3단계. 전체 실행해 보기 (2분)
+필요한 것: **Git, Docker Desktop(실행 중), Java 17 이상, Python 3.11, Node 22, ffmpeg(음성)**
 
 ```bash
-./dev.sh
+git clone https://github.com/Illclass/ai-mini-project.git && cd ai-mini-project
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -U pip setuptools wheel && pip install -r requirements.txt     # torch 때문에 몇 분 걸림
+(cd frontend && npm ci)
 ```
 
-- `✔ 모두 실행 중` 이 나오면 성공. 끌 때는 `Ctrl + C`
-- 브라우저에서 확인:
-  1. http://localhost:8080/signup → 가입 → 로그인 (로그인 후 "연결 거부" 화면이 떠도 **정상**)
-  2. http://localhost:8001/docs → `POST /rag-query` → **Try it out** → 아래를 붙여 넣고 **Execute**
-     ```json
-     {"question": "중대재해법의 기준은?", "topic": "serious_accident_law", "language": "ko"}
-     ```
-  3. 아래 Response 에 `answer` 와 `sources` 가 나오면 끝
+**`.env` 파일 3개** — 값은 팀 내부에서만 전달합니다 (Git · 단톡방에 올리지 않기)
 
-### 4단계. 내 브랜치에서 작업하기
+| 파일 | 내용 |
+|---|---|
+| `auth-server/.env` | `DB_PASSWORD`, `JWT_SECRET` |
+| `rag-service/.env` | `OPENAI_API_KEY`, 선택 `LLM_MODEL`(기본 gpt-6-luna) · `EMBEDDING_MODEL`(기본 bge-m3) |
+| `voice-service/app/.env` | `OPENAI_API_KEY`, 선택 `WHISPER_MODEL` |
+
+**인덱스 만들기** — `faiss_db/` 는 Git 에 없어서 각자 한 번 만듭니다 (로컬 임베딩, 약 6분, 비용 없음)
 
 ```bash
-git switch main
-git pull origin main
-git switch -c feat/내이름-작업내용        # 예: feat/jinkeun-prompt
+cd rag-service && ./ingest_all.sh && cd ..
 ```
 
-**AI(ChatGPT 등)로 작업할 때**
-1. 작업 카드 맨 아래 **"AI 에게 붙여 넣을 프롬프트"** 를 복사
-2. `(여기에 ... 붙여 넣기)` 자리에 해당 파일 내용을 붙여 넣기
-3. AI 가 준 코드로 **내 담당 파일만** 바꾸기
-4. Cursor · Copilot 을 쓰면 [`AGENTS.md`](AGENTS.md) 규칙을 AI 가 자동으로 읽습니다
+적재 코드나 `data/` 가 바뀐 dev 를 받았을 때도 다시 실행합니다.
 
-### 5단계. 확인하고 올리기
+### A. Docker 로 한 번에 실행 (시연용)
 
 ```bash
-cd rag-service && ../.venv/bin/python -m pytest -q tests && cd ..   # "10 passed" 가 나와야 함
-git add 내가-고친-파일
-git commit -m "무엇을 했는지 한 줄"
-git push -u origin feat/내이름-작업내용
+docker compose up -d --build
 ```
 
-- GitHub → **Pull requests → New pull request** → `main` ← 내 브랜치 → **Create**
-- PR 화면에 ✅ 가 뜨면 병합, ❌ 면 고친 뒤 다시 push (❌ 인 PR 은 병합하지 않기)
-- `git add .` 대신 **고친 파일만** add 하세요 (`.env` 실수 방지)
+접속 **http://localhost:5190** → 회원가입 후 사용. DB · 인증 · RAG · 음성 · 화면을 함께 띄우며 개발용 서버 · DB 와 분리됩니다.
+처음에는 빌드 · 모델 다운로드 · 인덱스 생성에 시간이 걸립니다. 종료 `docker compose stop`, 재실행 `docker compose up -d`.
+상세(메모리 8GB 기준, 데이터 유지, 점검 명령): [frontend/deploy/README.md](frontend/deploy/README.md)
+
+### B. 개발용 실행
+
+터미널 두 개를 씁니다.
+
+```bash
+./dev.sh --voice                 # 터미널 1: DB · 인증(:8080) · RAG(:8001) · 음성(:8008). 음성이 필요 없으면 --voice 생략
+cd frontend && npm run dev       # 터미널 2: 화면(:5174)
+```
+
+- 접속 **http://localhost:5174** → 회원가입 · 로그인 → 작업 상황 선택 → 질문
+- API 만 확인: http://localhost:8001/docs (Swagger) → `POST /rag-query` → Try it out
+- 끌 때는 각 터미널에서 `Ctrl + C`. DB 컨테이너 `ai-mini-db` 와 `users` 테이블은 `dev.sh` 가 자동으로 만들고, 로그는 `logs/` 에 쌓입니다.
+- RAG 코드를 고치면 `dev.sh` 를 다시 켜야 반영됩니다 (화면은 자동 반영).
 
 ### 막히면
 
@@ -101,131 +99,184 @@ git push -u origin feat/내이름-작업내용
 |---|---|
 | `Address already in use` | 이미 서버가 켜져 있음 → 켜 둔 터미널에서 `Ctrl + C`, 또는 `lsof -iTCP:8080 -sTCP:LISTEN` 으로 PID 확인 후 `kill <PID>` |
 | `docker ... not running` | Docker Desktop 앱을 먼저 실행 |
-| `/rag-query` 가 401 | 로그인을 안 했거나, `127.0.0.1` 로 접속함 → 주소를 **`localhost`** 로 |
-| `/health` 가 503 | 법령 인덱스가 없음 → 2단계 5번 다시 |
+| `/rag-query` 가 401 | 로그인을 안 했거나 `127.0.0.1` 로 접속함 → 주소를 **`localhost`** 로 |
+| `/health` 가 503 | 인덱스가 없음 → `rag-service/ingest_all.sh` |
+| 화면이 `Cannot find package` 오류 | 새 패키지가 추가된 dev 를 받음 → `cd frontend && npm install` |
 | `OPENAI_API_KEY` 오류 | `rag-service/.env` 가 없거나 비어 있음 |
-| `pip install` 실패 | Python 버전 확인 `python3.11 --version` (3.14 등 다른 버전 금지) |
-| 테스트 ❌ | 에러 메시지를 통째로 AI 에 붙여 넣고 "이 테스트가 통과하게 고쳐 줘" |
-| 그래도 안 되면 | 에러 화면 캡처해서 김규빈에게 |
+| `pip install` 실패 | `python3.11 --version` 확인 (3.14 등 다른 버전 금지) |
 
 ---
 
-## 현재 상태 (2026-10-22, Day 1)
+## 평가 결과
 
-| 구분 | 상태 |
+평가셋 `rag-service/eval/questions.json` 70문항 (물질별 13 · 법령 13 · 다국어 24 · 공통 6 · 위험사고 5 · 제품 지정 5 · 장비 지정 4).
+교재 규칙대로 **한 번에 하나씩 바꾸고 같은 평가셋으로 다시 쟀습니다.** 상세 기록: [rag-service/eval/reports/](rag-service/eval/reports/README.md)
+
+### 검색 (hit@5: 기대 근거가 상위 5개 안에 든 비율)
+
+| 단계 | 바꾼 것 | hit@5 |
+|---|---|---|
+| 기준점 | ada-002 임베딩, 번역 없음 | 56% |
+| 1 | 외국어 질문을 한국어로 번역해 검색 | 80% |
+| 2 | 임베딩 4종 비교 → **bge-m3** 선택 (로컬, 비용 없음) | 98% |
+| 3 | 물질명으로 제품 자동 지정 · 제품 범위 검색 (평가셋 60 → 70문항) | 96% |
+| 4 | 변형 질문 순위 병합, 한국어 외 모두 번역, 동의어(이송 · 희석 · 보호구) | 97% |
+| 현재 | 장비 범위 검색 · MSDS 항목 단위 적재 | **100%** (5개 언어 모두), hit@1 84%, MRR 0.90 |
+
+### 답변 (답이 나와야 하는 한국어 32문항 중 실제로 답한 수)
+
+| 단계 | 바꾼 것 | 답변 |
+|---|---|---|
+| 기준점 | — | 10 |
+| 1 | 모델 교체(gpt-6-luna), 인용 비교에서 PDF 줄바꿈 무시 | 18~23 |
+| 2 | 원문 강도 유지, 서버가 MSDS 에서 제품 정보 직접 확인 | 20~25 |
+| 3 | MSDS 표 항목(9 · 14 · 15 · 16항)을 '잘린 경고' 판정에서 제외 | 25 |
+| 4 | 법령 '각 호' 의무 · 지침 요구 문체 · KOSHA 꼬리말 오탐 수정 | 29~30 |
+| 5 | 검증 실패 시 1회 재생성, 질문 관련 경고만 붙이기 | **30** |
+
+- 보류해야 하는 5문항(비상 · 법률 판단 요청)은 처음부터 끝까지 모두 보류. 37문항 전체로는 최근 **35/37**, 평균 응답 약 10초
+- 같은 질문도 검증 LLM 판정이 조금씩 달라 33~35/37 사이에서 오갑니다.
+- 점수는 검증을 느슨하게 해서가 아니라 **맞는 답을 틀렸다고 막던 오탐을 하나씩 찾아 고쳐서** 올렸습니다.
+
+### 외국어 (중국어 · 베트남어 · 영어 · 크메르어 48문항)
+
+| 단계 | 바꾼 것 | 기대대로 |
+|---|---|---|
+| 기준점 | — | 26/43 |
+| 1 | 금액 · 서수 · 조항 번호 비교, 질문한 언어로 답하기 | 30/46 |
+| 2 | 법령 PDF 쪽 머리글 제거, 독성표(11 · 12항) 경고 제외, 시간 단위 현지화, 코드 경고(P403+P233 …) 묶기 | 37/48 |
+| 3 | 외국어 자료집 (비상 표현 사전 · 안전 용어집) | **41/48 (85%)** |
+
+추천 질문 56개(4개 언어 × 14)는 29 → 47개가 답변됩니다.
+
+### 환각 점검
+
+일반 8문항 + 함정 9문항의 답변 문장을 인용 원문과 하나씩 대조했습니다. **지어낸 내용은 찾지 못했고**, 자료에 없는 물질(톨루엔) · 없는 항목(MSDS 17항) ·
+없는 정보(유통기한)는 모두 보류됐습니다. 수치(메탄올 인화점 9.7 °C, 불산 TWA 0.5 ppm 등)는 원문과 일치했습니다. 표본이 작아 환각이 없다고 보장하지는 않습니다.
+
+### 운영 지표
+
+| 항목 | 값 |
 |---|---|
-| 인증서버 (회원가입 · 로그인 · JWT) | ✅ 동작 |
-| RAG API `/health` · `/rag-query` | ✅ 끝까지 동작 — 검색·생성은 **임시 구현**, 각 담당이 다듬는 중 |
-| 법령 인덱스 (중대재해처벌법, 조문 단위) | ✅ `faiss_db/law` |
-| MSDS 인덱스 | ⬜ `ingest/ingest_msds.py` 뼈대만 |
-| 다국어 질문 → 한국어 변환 | ⬜ TODO (답변은 요청 언어로 나옴) |
-| 평가셋 · 검색 적중률 | ⬜ 형식 예시 1개 |
-| Vue 프론트 | ✅ 임시 데이터 기반 디자인 미리보기 — 실제 인증·RAG·음성 API 연동 전 |
-| Docker Compose | ⬜ 예정 |
-| 약속 확인 테스트 · CI | ✅ 10개 통과, PR 마다 자동 실행 |
+| 응답 시간 | 한국어 평균 약 10초 · 외국어 약 20초 · 비상 안내 0.1초 이내 · 검색만 약 0.5초 |
+| 질문당 LLM 비용 | 한국어 약 0.0026달러(약 4원), 외국어 약 0.005달러 — 입력 약 1.9만 · 출력 약 1.4천 토큰, 호출 2.6회 |
+| 임베딩 비용 | 0원 (로컬 bge-m3) |
+| 로그 | `logs/rag-latency-*.json` 경로별 요청 수 · 오류율 · 지연. 질문 원문은 저장하지 않음 |
 
-## 프론트 디자인 미리보기
+---
 
-```bash
-cd frontend
-npm ci
-npm run dev
-```
+## 데이터 출처
 
-http://localhost:5174 에서 로그인 → 작업 상황 선택 → 질문·답변을 확인합니다. 백엔드·DB·API 키 없이 실행되며 로그인은 입력 없이 가능합니다. 한국어·중국어·베트남어 화면과 임시 답변을 지원합니다. 음성 입력·재생은 실제 장치를 사용하지 않는 시뮬레이션입니다.
+`rag-service/ingest_all.sh` 가 아래 자료를 적재합니다. 원문 PDF 는 `rag-service/data/` 에 있습니다.
 
-빌드는 `npm run build`로 확인합니다. 파일 구조와 실제 API 연결 지점은 [frontend/README.md](frontend/README.md)를 참고하세요. `dev.sh`는 프론트 서버를 실행하지 않으므로 별도 터미널에서 실행합니다.
+| ID | 자료 | 출처 | 기준일 |
+|---|---|---|---|
+| L1 | 산업안전보건법 (제52 · 110~116조) | [국가법령정보센터](https://www.law.go.kr) | 2026-08-01 시행 |
+| L4 | 산업안전보건기준에 관한 규칙 (제31~34 · 299 · 420~511조) | 국가법령정보센터 | 2026-03-02 시행 |
+| L5 | 산업안전보건법 시행규칙 (제156~171조) | 국가법령정보센터 | 2026-08-01 시행 |
+| L2 | 중대재해 처벌 등에 관한 법률 | 국가법령정보센터 | 2022-01-27 시행본 (학습용, 현행 판단 불가) |
+| L3 | 화학물질관리법 | 국가법령정보센터 | 2026-10-08 시행 |
+| K1~K8 | KOSHA 가이드 — 유해화학물질 저장(K-1-2023) · 위험물 취급장소(G-9-2013) · 개인보호구(G-12-2013) · 경고표지(W-14-2020) · MSDS 작성(W-15-2020) · 유해성 분류(W-16-2020) · 리스크 관리(X-27-2012) · 불산 중독 예방(H-123-2013) | [안전보건공단](https://www.kosha.or.kr) | 각 지침 발행일 |
+| S1 | 가상 현장 안전지침 (DEMO-A, 시연용) | 팀 작성 | 2026-10-23 |
+| D1~D13 | MSDS — 황산 · 불산 · 과산화수소 · 암모니아수 · 염산 · 질산 · 인산 · TMAH · 아세톤 · 메탄올 · IPA · PGMEA · 수산화나트륨 | [Sigma-Aldrich Korea](https://www.sigmaaldrich.com/KR/ko) (과산화수소 · 인산은 Merck) | 2026-06~08 개정본 |
+| — | 가상 장비 10대 ↔ 사용 물질 연결 | 팀 작성 `data/equipment_map.json` | 시연용 |
+
+전체 목록(제품번호 · CAS · 개정일): [docs/데이터_출처표.xlsx](docs/데이터_출처표.xlsx) · `rag-service/ingest_all.sh`
+
+- 법령 원문은 안내용이며 공식 해석이 아닙니다. 답변에는 시행일과 "현행 여부 확인 필요"를 함께 표시합니다.
+- 원문 PDF 는 데모 · 학습용으로 함께 두었습니다. 다시 배포할 때는 각 원 출처의 이용 조건을 확인합니다.
+- MSDS 는 데모 제품 기준입니다. 실제 작업 제품 · 농도 · 개정본과 같다고 보지 말고 현장 공급자 MSDS 를 따릅니다.
+- 가상 장비 · 현장지침(S1)은 시연용으로 만든 자료입니다.
+
+---
+
+## 팀원별 담당
+
+| 이름 | 파트 | 주요 작업 · 산출물 | 주요 파일 |
+|---|---|---|---|
+| 윤서진 | 데이터 파이프라인 · 발표 | 자료 수집 · 법령/지침 장 단위 청크 · MSDS 적재 · 메타데이터 / 데이터 출처표 · 발표 자료 | `ingest_law.py` · `ingest/` · `data/` |
+| 김규빈 | 검색 · 평가 · 통합 | 질문 번역 · 동의어 · 제품/장비 범위 검색 · 임베딩 비교 / 평가셋 70문항 · 검색 · 답변 · 외국어 평가 / 평가 결과로 답변 생성 보완 (프롬프트 · 근거 · 번역 검사 오탐 수정, 비상 감지 확대, 소제목 · 목록 답변 형식) · 외국어 자료집 · 답변 화면 정리 · 자동 시험 · 브랜치 통합 | `rag/query.py` · `rag/retriever.py` · `rag/lexicon.py` · `eval/` (보완: `rag/prompt.py` · `rag/generator.py`) |
+| 박진근 | LLM 답변 생성 | 프롬프트 · 번역 · 주장별 근거 검증 · 보류 분기 · 보류 이유 진단 / 생성 평가 | `rag/prompt.py` · `rag/generator.py` · `rag/llm.py` · `rag/diagnostics.py` |
+| 정지우 | 인증 · API | Java 로그인 · JWT 발급/검증 · 401 처리 · 요청/응답 규격 · 로그 / API 명세서 · Swagger | `auth-server/` · `rag-service/app/` · `output/pdf/ChemBridge_API_명세서.pdf` |
+| 강지훈 | 화면 · 배포 | 5개 언어 화면 · 추천 질문 · 제품/장비 선택 · 출처 원문 보기 · 음성 모드 / 전체 Docker Compose | `frontend/` · `docker-compose.yml` · `frontend/deploy/` |
+
+`rag/chain.py`(검색 → 생성 연결)와 `rag/schema.py`(공통 이름)는 함께 관리합니다. 초기 작업 카드와 병합 · 검증 기록: [docs/archive/](docs/archive)
+
+---
 
 ## 폴더 구조
 
 ```
 ai-mini-project/
-├── frontend/             Vue 3 + Vite 디자인 미리보기 (임시 데이터)
-├── rag-service/          RAG API (FastAPI) — 아래 표 참고
+├── frontend/             Vue 3 + Vite 화면 (deploy/ : Docker 이미지 · nginx · 점검 스크립트)
+├── rag-service/          RAG API (FastAPI)
+│   ├── app/              /health · /rag-query · JWT 검증 · 오류 처리
+│   ├── rag/              검색 · 생성 · 검증 (아래 흐름)
+│   ├── ingest_law.py · ingest/   법령 · 지침 · MSDS 적재,  ingest_all.sh  전체 적재
+│   ├── data/             원문 PDF · 장비 연결표 · lexicon/(비상 표현 사전 · 안전 용어집)
+│   ├── eval/             평가셋 · 평가 스크립트 · reports/(발표용 기록)
+│   └── tests/            자동 시험
 ├── auth-server/          Java 인증서버 (Gradle · MariaDB · BCrypt · JWT)
-├── voice-service/        음성 서비스 (Whisper STT → GPT → TTS) — 확장 트랙
-├── consoles/             RAG 테스트용 HTML 콘솔 (기존 템플릿용)
-├── docs/tasks/           팀원별 작업 카드 (할 일 · 완료 기준 · AI 프롬프트)
-├── .github/workflows/    CI (약속 확인 테스트)
-├── AGENTS.md · CLAUDE.md AI 코딩 도구용 규칙
-├── dev.sh                DB · 인증 · RAG 한 번에 실행
-├── requirements.txt      Python 패키지 전체 (루트 .venv 하나)
-└── .env.example          환경변수 목록
+├── voice-service/        음성 서비스 (Whisper 음성 인식 · TTS) — 확장 트랙
+├── docker-compose.yml    전체 서비스 한 번에 실행
+├── dev.sh                개발용 DB · 인증 · RAG (· 음성) 실행
+├── docs/                 데이터 출처표 · archive/(초기 작업 카드 · 병합 · 검증 기록)
+└── .github/workflows/    자동 시험 (contract-test)
 ```
 
-### rag-service
-
-| 파일 | 담당 | 역할 |
-|---|---|---|
-| `rag/schema.py` | 전원 | **공통 이름** — 요청·응답 필드, 메타데이터 키, topic · language 값 |
-| `app/main.py` · `app/auth.py` | 정지우 | `/health`, `/rag-query`, JWT 쿠키 검증, 오류 처리 |
-| `rag/chain.py` | 김규빈 · 박진근 | 비상 질문 확인 → 검색 → 생성 → `latency_ms` |
-| `rag/stores.py` · `rag/query.py` · `rag/retriever.py` | 김규빈 | 인덱스 로드, 질문 다듬기(동의어 · 번역), 검색 |
-| `rag/prompt.py` · `rag/llm.py` · `rag/generator.py` | 박진근 | 프롬프트, LLM 호출, `sources` · `needs_review` · `handoff` |
-| `ingest_law.py` · `ingest/` · `data/` | 윤서진 | 법령 · MSDS 적재 |
-| `eval/` | 김규빈 · 박진근 | 평가셋, 검색 적중률 · 생성 판정 |
-| `tests/` | 전원 | 약속 확인 테스트 |
-| `rag_external-web_pdf_closed_llm.py` | — | 기존 템플릿 (참고용, `/upload-paper` 등) |
-
-흐름: `RagRequest` → `chain.answer()` → `query.normalize_question()` → `retriever.retrieve()` → `generator.generate()` → `RagResponse`
+RAG 흐름: `RagRequest` → `chain.answer()` → `preflight_result()`(비상 · 범위 밖) → `resolve_product_id()` → `retriever.retrieve()`
+→ `generator.generate()`(초안 → 인용 · 수치 · 번역 검사 → 검증 LLM) → `RagResponse`
 
 ## API 계약
 
 ```json
 POST /rag-query   (쿠키 ACCESS_TOKEN 필요)
-요청 {"question": "중대재해법의 기준은?", "topic": "serious_accident_law", "product_id": null, "language": "ko"}
-응답 {"answer": "...", "sources": [{"doc_id": "L2", "section": "제2조 제2호", "title": "...", "url": "..."}],
-      "needs_review": false, "handoff": false, "latency_ms": 1250}
+요청 {"question": "불산 취급 시 필요한 보호구는?", "topic": "chemical_safety", "product_id": null, "equipment_id": null, "language": "ko"}
+응답 {"answer": "...", "sources": [{"doc_id": "D2", "section": "8. 노출방지 및 개인보호구", "title": "...", "url": "..."}],
+      "needs_review": true, "handoff": false, "latency_ms": 9200}
 ```
 
-- `topic`: `chemical_safety` · `serious_accident_law` / `language`: `ko` · `zh` · `vi`
-- 401 토큰 없음·만료·위조 / 422 형식 오류 / 503 LLM·인덱스 문제
+- `topic`: `chemical_safety` · `serious_accident_law` / `language`: `ko` · `zh` · `vi` · `en` · `km`
+- `handoff: true` = 답변 보류 또는 비상 · 법률 판단 요청 → 담당자 연결. 보류 이유는 응답 머리글 `X-ChemBridge-Outcome` · `-Reason` · `-Request-Id`
+- 401 토큰 없음 · 만료 · 위조 / 422 형식 오류 / 503 LLM · 인덱스 문제
 - `GET /health` → 200 준비 · 503 미준비, topic 별 인덱스 상태 포함
-- Swagger: http://localhost:8001/docs
-
-## 실행 참고
-
-- 설치·실행 순서는 위 **"팀원은 여기부터"** 2~3단계를 따릅니다.
-- `./dev.sh --voice` → 음성 서비스(:8008)까지 실행 (ffmpeg, `voice-service/app/.env` 필요)
-- 기존 템플릿 서버로 띄우기: `RAG_APP=rag_external-web_pdf_closed_llm:app ./dev.sh`
-- DB 컨테이너 `ai-mini-db` 와 `users` 테이블은 `dev.sh` 가 자동으로 만듭니다. 로그는 `logs/` 에 쌓입니다.
-- 선택 환경변수 (`rag-service/.env`): `LLM_MODEL`(기본 gpt-4o), `EMBEDDING_MODEL` — 적재와 검색에 **같은 값**을 써야 합니다.
+- Swagger: http://localhost:8001/docs · 명세서: [output/pdf/ChemBridge_API_명세서.pdf](output/pdf/ChemBridge_API_명세서.pdf)
 
 ## 테스트 · CI
 
 ```bash
-cd rag-service && ../.venv/bin/python -m pytest -q tests
+cd rag-service && ../.venv/bin/python -m pytest -q tests      # RAG 900여 개, LLM · 검색은 가짜로 바꿔 돌림 (비용 · 키 불필요)
+cd frontend && npm test                                       # 화면 80여 개 (API 계약 · 음성 모드 · 다국어 문구 · 라우팅)
 ```
 
-- 검색·LLM 을 가짜로 바꿔 돌리므로 비용·키가 필요 없습니다 (1초 내외).
-- 확인하는 것: 401 · 422, 응답 필드 · 출처 형식, 근거 없으면 LLM 미호출 + handoff, 판단 요구 · 비상 질문 handoff, `/health` 형식
-- PR 을 올리거나 `main` 에 병합하면 GitHub Actions(`contract-test`)가 자동 실행합니다. **❌ 가 뜬 PR 은 병합하지 않습니다.**
-- 답의 **정확도**는 이 테스트가 아니라 `eval/` 평가셋으로 측정합니다.
+- push · PR 마다 GitHub Actions(`contract-test`)가 둘 다 실행합니다. **❌ 가 뜬 PR 은 병합하지 않습니다.**
+- 답의 **정확도**는 이 시험이 아니라 `eval/` 평가셋으로 잽니다.
+  - 검색: `cd rag-service && PYTHONPATH=. ../.venv/bin/python -m eval.run_eval`
+  - 답변: `cd rag-service && PYTHONPATH=. ../.venv/bin/python eval/answer_eval.py - <이름>` (LLM 비용 발생, 37문항 약 6분)
 
 ## 작업 규칙
 
-자세한 규칙은 [`AGENTS.md`](AGENTS.md), 각자 할 일은 [`docs/tasks/`](docs/tasks) 를 보세요.
+1. 자기 브랜치(`feat/이름-작업`)에서 작업하고 **dev** 에 합칩니다. 제출 전에 dev 를 main 으로 PR 합니다.
+2. `rag/schema.py` 의 이름은 바꾸지 않고 import 해서 씁니다. 바꿔야 하면 팀에 먼저 공유합니다.
+3. 비밀값은 `.env` 에만 둡니다. `git add .` 대신 고친 파일만 add 합니다.
+4. 법률 판단(처벌 · 책임 단정)과 작업 승인을 하지 않습니다 → `handoff: true`.
+5. 외국어 비상 표현 · 번역 용어는 코드가 아니라 `rag-service/data/lexicon/*.json` 에 추가하고 `tests/test_lexicon.py` 에 예문을 넣습니다.
 
-1. `rag/schema.py` 의 이름은 바꾸지 않고 import 해서 씁니다. 바꿔야 하면 팀에 먼저 공유합니다.
-2. 담당 파일만 고치고, 함수 이름·입출력은 그대로 둔 채 `TODO` 를 채웁니다.
-3. 비밀값은 `.env` 에만 둡니다.
-4. 법률 판단(처벌·책임 단정)을 하지 않습니다 → `handoff: true`.
-5. 자기 브랜치(`feat/이름-작업`)에서 작업하고 PR 로 `main` 에 합칩니다.
+## 한계와 다음 단계
 
-## 데이터 출처 (기획서 기준)
-
-| ID | 출처 | 상태 |
-|---|---|---|
-| L1 | 국가법령정보센터 — 산업안전보건법 114조, 안전보건규칙 422조 | 적재 전 |
-| L2 | 국가법령정보센터 — 중대재해 처벌 등에 관한 법률 (법률 제17907호, 시행 2022.1.27.) | ✅ 적재 (`faiss_db/law`) |
-| D1 | Sigma-Aldrich Korea — Sulfuric acid 339741 MSDS | 적재 전 |
-| K1 | 안전보건공단 화학물질정보 | 참고용 |
-
-법령 원문은 안내용이며 공식 해석이 아닙니다. MSDS 는 참고용이며 현장 공급자 MSDS 를 따릅니다.
+| 한계 | 다음 단계 |
+|---|---|
+| 응답 시간이 길다 (한국어 약 10초, 외국어 약 20초) | 검증 LLM · 번역 검사 병렬화, 자주 묻는 질문의 검토된 답변 저장 |
+| 같은 질문도 검증 판정이 조금씩 달라진다 | 판정이 흔들리는 문항을 모아 검증 규칙 보완 |
+| 자료 범위: 데모 MSDS 13종 · 가상 장비 · 가상 현장지침 | 고객사의 실제 MSDS · SOP 연동, 법령 개정 자동 반영 |
+| 외국어 자료집은 원어민 검수 전 초안 | 원어민 · GHS 공식 번역으로 검수 |
+| 효과(사고 감소 · 시간 절감)는 미측정 | 실제 작업자 대상 시범 적용 |
+| 사용 기록을 품질 개선에 쓰지 못한다 (지금은 경로 · 지연 · 오류율만 남기고 질문 원문은 저장하지 않음) | 동의를 받고 개인정보를 가린 질문 · 답변 · 보류 이유 로그를 남겨 ① 보류가 잦은 질문을 평가셋 · 자료 · 용어집 보강에 쓰고 ② 판정이 흔들리는 문항을 찾아 검증 규칙을 고친다 |
+| 신입 교육 자료가 따로 없다 | 로그에서 자주 묻는 질문을 작업 단계 · 물질별로 모아 신입 교육용 질문 모음 · 작업 전 확인 목록 · 언어별 용어 카드를 만들고, 담당자 확인으로 넘어간 질문은 선임 답변과 함께 교육 사례로 쌓는다 |
 
 ## 참고: 원본 골격(`ai-practice.zip`)에서 바뀐 점
 
-- 폴더 이름: `workplace` → `auth-server`, `rag-code-template_ext` → `rag-service`, `voice-ai_code` → `voice-service`, HTML → `consoles/`
+- 폴더 이름: `workplace` → `auth-server`, `rag-code-template_ext` → `rag-service`, `voice-ai_code` → `voice-service`
 - 실습 빈칸(TODO) 채움: 인증서버 ①~⑤, RAG Q01~Q05, 음성 Q01~Q05
 - `voice-service/requirements.txt`: UTF-16 → UTF-8, `requests` 를 `>=2.32.5,<3.0` 으로 (langchain-community 호환)
-- 새 구조: `rag-service/app`, `rag/`, `ingest/`, `eval/`, `tests/` (기존 템플릿 파일은 그대로 둠)
+- 새 구조: `rag-service/app`, `rag/`, `ingest/`, `eval/`, `tests/`. 실습용 템플릿 서버(`rag_external-web_pdf_closed_llm.py`)와 HTML 콘솔은 새 구조로 대체해 제외했습니다

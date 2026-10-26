@@ -1,7 +1,7 @@
 <script setup>
 defineProps({ name: String, size: { type: Number, default: 22 } })
 const paths = {
- bridge: 'M4 18V8l8-4 8 4v10l-8 4-8-4Z M4 8l8 4 8-4 M12 12v10 M8 10v7 M16 10v7',
+ bridge: 'M9 3h6 M10 3v6L5 19a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 19l-5-10V3 M7.5 15h9',
  arrow: 'M5 12h14 M13 6l6 6-6 6', back: 'M19 12H5 M11 6l-6 6 6 6',
  check: 'M9 12l2 2 4-4 M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z',
  flask: 'M9 3h6 M10 3v7L4 20h16l-6-10V3 M8 14h8',

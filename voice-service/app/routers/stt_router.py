@@ -1,55 +1,15 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, Cookie
-from jose import jwt, JWTError
 import shutil
 import os
+import uuid
 
 # Replace with local Whisper STT function (transcribe_audio_file_local)
 from app.services.stt_service import transcribe_audio_file_local, convert_webm_to_wav
 
 router = APIRouter()
 
-# Configuration that must match the Java server
-SECRET_KEY = "RANDOM_SECRET_KEY"   # Must be identical to Java JwtUtil.SECRET
-ALGORITHM = "HS256"
-ISSUER = "simple-auth-server"         # Must be identical to Java JwtUtil.ISSUER
-
-def get_current_user(
-    access_token: str | None = Cookie(default=None, alias="ACCESS_TOKEN")
-):
-    """
-    Reads the ACCESS_TOKEN(JWT) cookie issued by the Java server on port 8080
-    and returns the current logged-in user information as a dependency.
-    """
-    if access_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated (no ACCESS_TOKEN cookie)",
-        )
-
-    try:
-        payload = jwt.decode(
-            access_token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-            issuer=ISSUER,
-        )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-
-    user_id = payload.get("sub")
-    username = payload.get("username")
-
-    if user_id is None or username is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-
-    # If needed, query the DB here and return an actual User object
-    return {"id": user_id, "username": username}
+# JWT 검증은 app/auth.py 하나로 통일 (비밀키는 환경변수 JWT_SECRET, Bearer·쿠키 모두 허용)
+from app.auth import get_current_user
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -58,24 +18,20 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 async def stt(
     current_user: dict = Depends(get_current_user),
     audio: UploadFile = File(...)):
-    webm_path = os.path.join(UPLOAD_DIR, audio.filename)
-
+    # 업로드 파일명은 쓰지 않는다 (경로 조작·덮어쓰기 방지). 무작위 이름으로 저장하고 처리 뒤 지운다.
+    request_id = uuid.uuid4().hex
+    webm_path = os.path.join(UPLOAD_DIR, f"{request_id}.webm")
+    wav_path = os.path.join(UPLOAD_DIR, f"{request_id}.wav")
     with open(webm_path, "wb") as buffer:
         shutil.copyfileobj(audio.file, buffer)
-
     try:
-        # Convert webm → wav
-        wav_path = webm_path.replace(".webm", ".wav")
         convert_webm_to_wav(webm_path, wav_path)
-
-        # Whisper STT (using local version)
         text = transcribe_audio_file_local(wav_path)
-
-        os.remove(webm_path)
-        os.remove(wav_path)
-        return {
-            "text": text,
-            "user": current_user  # For debugging: verify user information
-        }
-    except Exception as e:
-        return {"error": str(e)}
+        return {"text": text, "user": current_user}
+    except Exception:
+        # 오류를 200 으로 돌려주지 않는다
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Speech recognition failed")
+    finally:
+        for path in (webm_path, wav_path):
+            if os.path.exists(path):
+                os.remove(path)
