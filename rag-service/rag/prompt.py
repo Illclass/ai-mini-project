@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
+from rag import lexicon
 from rag.schema import Hit, LANGUAGES, DOC_TYPE_MSDS, DOC_TYPE_GUIDE
 
 MODES = ("qa", "learn", "precheck")
@@ -77,7 +78,9 @@ _ADMIN_SENTENCE = re.compile(
 # MSDS 표 항목: 9 물리화학적 특성 · 14 운송 · 15 법적 규제 · 16 그 밖의 참고사항(약어·NFPA 표).
 # 값·라벨이 나열된 표라 문장 끝이 없어 전부 '잘린 경고'로 판정되던 것을 경고 추출·잘림 판정에서 뺀다.
 # 경고·조치 문장이 있는 항목(2 유해성 · 4 응급조치 · 7 취급저장 · 8 보호구 · 10 안정성 등)은 그대로 검사한다.
-MSDS_DATA_SECTIONS = frozenset({9, 14, 15, 16})
+# 11 독성 · 12 환경 정보도 시험 결과 표(시험 시스템·방법·결과)라 경고로 번역시키면 긴 표 번역이 검사에서 막혔다 (아세톤 MSDS, 2026-10-26).
+# 물질의 위험 경고는 2항 유해·위험 문구(H코드)로 계속 붙는다.
+MSDS_DATA_SECTIONS = frozenset({9, 11, 12, 14, 15, 16})
 
 
 def _scan_critical_passages(documents):
@@ -144,6 +147,11 @@ def _scan_critical_passages(documents):
                     start = None
                 if start is None:
                     start = position + len(line) - len(line.lstrip())
+                # H·P 코드 한 항목은 문장이 여럿이어도 한 경고다 ("P403 + P233 환기가 잘 되는 곳에 보관하시오. 용기를 단단히 밀폐하시오.").
+                # 첫 마침표에서 자르면 뒤 문장이 빠진 경고를 번역하게 되어 검증에서 막혔다. 다음 코드 줄·경계에서 끝난다 (김규빈 2026-10-26)
+                if re.match(r"(?::\s*)?[HP][0-9]{3}\b", raw[start:end]):
+                    position = end
+                    continue
                 for match in _SENTENCE_END.finditer(raw, position, end):
                     if re.fullmatch(r"[가-하]\.", raw[position:match.end()].strip()):
                         continue  # A list label is not a sentence terminator.
@@ -401,7 +409,7 @@ def translation_valid(original: str, translated: str, language: str, *, preserve
     if exclusion:
         if language == "km" and re.search(r"មិន\s*ត្រូវបានដកចេញ", translated):
             return False  # "not excluded" reverses an exclusion.
-        required = {"ko": r"제외|적용하지\s*않|적용되지\s*않", "zh": r"除外|不适用|不包括|不包含", "vi": r"khong ap dung|ngoai tru|loai tru|khong bao gom",
+        required = {"ko": r"제외|적용하지\s*않|적용되지\s*않", "zh": r"除外|不适用|不包括|不包含|除了|除[^。；]{1,30}外", "vi": r"khong ap dung|ngoai tru|loai tru|khong bao gom|\btru\b",
                     "en": r"except|exclud|not appl|does not apply", "km": r"លើកលែង|មិនអនុវត្ត|មិនរួមបញ្ចូល|មិន(?:ត្រូវបាន)?រាប់បញ្ចូល|ត្រូវបានដកចេញ"}
         if not re.search(required[language], _for_match(translated, language), re.I):
             return False
@@ -772,7 +780,8 @@ def build_document_messages(
                       + f"\n답변 언어: {language}. mode: {mode}."
                       + "\n출력 언어 이름: " + LANGUAGE_NAMES[language]
                       + "\n번역 용어집 (사실 근거 아님): "
-                      + json.dumps(TRANSLATION_TERMS[language], ensure_ascii=False)
+                      + json.dumps(TRANSLATION_TERMS[language] | lexicon.glossary_for(language, [doc.page_content for doc in documents]),
+                                   ensure_ascii=False)
                       + "\ncritical_translations에는 다음 경고 ID를 빠짐없이 각각 한 번씩 포함하세요: "
                       + json.dumps(list(critical_passages(documents)), ensure_ascii=False)
                       + ("\n한국어(ko)는 경고 원문을 서버가 직접 표시합니다. critical_translations는 []로 반환하세요."
@@ -840,6 +849,9 @@ MSDS의 신체보호 항목에 지정된 보호복을 문서상 요구로 설명
   일반화하거나 문서에 참조만 된 MSDS/SOP를 읽은 것처럼 설명하면 통과시키지 마세요.
 - 번역에서는 원문과 같은 뜻인지, 경고·금지·숫자·조건을 유지했는지 판단하세요.
   단어가 비슷하다는 이유만으로 통과시키지 마세요.
+- kind=translation 은 인용한 원문 구절을 그 언어로 충실히 옮겼는지만 판정합니다. 원문 구절 자체가
+  H·P 코드의 공식 문구와 다르거나 일부가 빠져 있어도, 번역이 그 구절과 같은 뜻이면 supported 입니다.
+  코드의 공식 문구를 외부 지식으로 대조해 번역을 거부하지 마세요.
 - 실제 현장 작업 승인, 안전시간 보장, 위험한 조작 절차를 지시하는 주장은 통과시키지 마세요.
 """
 

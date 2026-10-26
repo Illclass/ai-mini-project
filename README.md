@@ -9,6 +9,19 @@ Vue(:5174) ─로그인─▶ Java 인증서버(:8080) ─▶ MariaDB(:53301)
     └─/rag-query─▶ RAG FastAPI(:8001) ─▶ FAISS(law · msds) + OpenAI
 ```
 
+## 전체 Docker 실행 (음성 포함)
+
+환경 파일 3개를 준비하고 Docker Desktop을 켠 뒤 저장소 루트에서 실행합니다.
+
+```bash
+docker compose up -d --build
+```
+
+접속: **http://localhost:5190**. DB·인증·RAG·음성·프론트를 함께 실행하며 기존 개발 서버/DB와 분리됩니다. 처음에는 빌드·모델·인덱스 준비를 기다려야 합니다. 종료는 `docker compose stop`, 다시 실행은 `docker compose up -d`입니다.
+
+[환경 설정·데이터 유지·테스트 상세](frontend/deploy/README.md)
+
+
 ---
 
 ## 👋 팀원은 여기부터 — 순서대로 따라 하면 됩니다
@@ -121,10 +134,10 @@ git push -u origin feat/내이름-작업내용
 | 다국어 질문 → 한국어 변환 | ⬜ TODO (답변은 요청 언어로 나옴) |
 | 평가셋 · 검색 적중률 | ⬜ 형식 예시 1개 |
 | Vue 프론트 | ✅ 임시 데이터 기반 디자인 미리보기 — 실제 인증·RAG·음성 API 연동 전 |
-| Docker Compose | ⬜ 예정 |
+| Docker Compose | ✅ 전체 서비스·음성 포함 로컬 구성 추가 (아래 Day 1 표의 다른 항목은 당시 기록) |
 | 약속 확인 테스트 · CI | ✅ 10개 통과, PR 마다 자동 실행 |
 
-## 프론트 디자인 미리보기
+## 프론트 개발 서버
 
 ```bash
 cd frontend
@@ -132,7 +145,7 @@ npm ci
 npm run dev
 ```
 
-http://localhost:5174 에서 로그인 → 작업 상황 선택 → 질문·답변을 확인합니다. 백엔드·DB·API 키 없이 실행되며 로그인은 입력 없이 가능합니다. 한국어·중국어·베트남어 화면과 임시 답변을 지원합니다. 음성 입력·재생은 실제 장치를 사용하지 않는 시뮬레이션입니다.
+http://localhost:5174 에서 회원가입·로그인 → 작업 상황 선택 → 질문·답변을 확인합니다. 실제 인증·RAG 서버가 필요하며 음성은 `./dev.sh --voice`로 함께 실행합니다. ko·zh·vi·en·km 화면을 지원하고 km는 글 질문만 제공합니다. Docker 전체 실행은 위 안내를 사용하세요.
 
 빌드는 `npm run build`로 확인합니다. 파일 구조와 실제 API 연결 지점은 [frontend/README.md](frontend/README.md)를 참고하세요. `dev.sh`는 프론트 서버를 실행하지 않으므로 별도 터미널에서 실행합니다.
 

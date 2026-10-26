@@ -6,6 +6,7 @@ import re
 from functools import lru_cache
 from typing import List
 
+from rag import lexicon
 from rag.schema import TOPIC_LAW
 
 # 동의어 — 질문에 왼쪽 표현이 있으면 오른쪽 표준 표현으로 바꾼 질문도 함께 검색한다 (원문 질문도 유지)
@@ -53,9 +54,11 @@ TRANSLATE_PROMPT = (
 
 
 @lru_cache(maxsize=512)
-def _translate(question: str) -> str:
+def _translate(question: str, hints: tuple = ()) -> str:
     from rag.llm import call_llm  # 지연 import (테스트에서 LLM 을 부르지 않도록)
-    return call_llm([{"role": "system", "content": TRANSLATE_PROMPT},
+    # 질문에 나온 용어는 문서에 쓰인 한국어 용어로 옮기게 한다 (data/lexicon/glossary.json)
+    system = TRANSLATE_PROMPT + ("\n용어 대응 (이 한국어 용어로 옮겨라): " + "; ".join(hints) if hints else "")
+    return call_llm([{"role": "system", "content": system},
                      {"role": "user", "content": question}], timeout=15).strip()
 
 
@@ -91,7 +94,7 @@ def to_korean(question: str, language: str) -> str:
     if language not in TRANSLATE_LANGUAGES:
         return question
     try:
-        return _translate(question) or question
+        return _translate(question, lexicon.question_hints(question, language)) or question
     except Exception:
         return question
 

@@ -1,5 +1,7 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { chatLocation, loginDestination } from './router.js'
 import Icon from './components/Icon.vue'
 import LanguagePicker from './components/LanguagePicker.vue'
 import ScopePicker from './components/ScopePicker.vue'
@@ -27,6 +29,7 @@ import SourceLinks from './components/SourceLinks.vue'
 const SourceViewer = defineAsyncComponent(() => import('./components/SourceViewer.vue'))
 const sourceSelection=ref(null)
 import { apiCopy } from './locales/api'
+const router=useRouter(), route=useRoute()
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
 const topic=ref(api.contract.topics.chemical), a=computed(()=>apiCopy[language.value])
@@ -56,23 +59,18 @@ function errorKey(error){
 }
 function expire(message){
  resumeDraft={situation:message.situation||situation.value,topic:message.topic,question:message.question,equipmentId:message.equipment_id||'',productId:message.product_id||''}
- navigate('login');messages.value=[];loginError.value='expired'
+ navigate('login',{replace:true});messages.value=[];loginError.value='expired'
 }
-onMounted(async()=>{
- try{if(await api.checkSession())navigate('home')}
- catch(error){loginError.value=errorKey(error)}
- finally{checking.value=false}
-})
+onMounted(()=>{checking.value=false})
 try { const saved=localStorage.getItem('chembridge-language'); if(copy[saved])language.value=saved } catch {}
 const t=computed(()=>copy[language.value]),keys=['before','handling','storage','during','after','emergency']
 const index=computed(()=>keys.indexOf(situation.value)),title=computed(()=>topic.value===api.contract.topics.law?a.value.law:index.value<0?t.value.free:t.value.topicTitles[index.value]),busy=computed(()=>pending.value||['recording','processing'].includes(voice.value))
 const isLaw=computed(()=>topic.value===api.contract.topics.law)
 const guide=computed(()=>guideFor(situation.value,topic.value,productId.value))
 const guideUrl=computed(()=>guide.value?.url)
-// 대화가 시작되면 지침서를 접어 답변에 화면 폭을 준다. 머리의 버튼으로 다시 펼친다 (김규빈 2026-10-26)
-const guideOpen=ref(true), guideShown=computed(()=>guideUrl.value&&guideOpen.value)
-watch(()=>messages.value.length,(n,o)=>{if(n&&!o)guideOpen.value=false;if(!n)guideOpen.value=true})
-// 긴 목록은 앞 3개만 보이고 "N개 더 보기"로 펼친다. ⚠ 주의사항은 접지 않는다 (sources.js foldAnswer)
+const guideOpen=ref(false), suggestionsOpen=ref(false)
+watch(question,async()=>{await nextTick();if(input.value){input.value.style.height='auto';input.value.style.height=`${Math.min(112,Math.max(40,input.value.scrollHeight))}px`}})
+// Keep safety warnings visible while allowing long informational lists to fold.
 function answerView(message){const lines=foldAnswer(answerLines(message.response.answer));return {folds:lines.some(l=>l.extra),lines:message.expanded?lines:lines.filter(l=>!l.extra)}}
 const faq=computed(()=>{
  const list=(candidates[language.value]||candidates.ko)[isLaw.value?'law':'chemical']||[]
@@ -105,13 +103,23 @@ document.documentElement.lang=language.value
 document.title=`ChemBridge · ${copy[language.value].service}`
 function stop(){audio?.pause();audio=null;if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}playing.value=null;audioDone?.();audioDone=null}
 function cleanup(){clearTimeout(slowTimer);requestController?.abort();version++;pending.value=false;voice.value='idle';voiceError.value='';recorder?.cancel();recorder=null;voiceDraft=false;modal.value=null;report.value=null;contacts.value=false;sourceSelection.value=null;endConvo();stop()}
-function navigate(p){cleanup();page.value=p;window.scrollTo({top:0})}
-function open(key,selectedTopic=api.contract.topics.chemical){productRequired.value=false;navigate('chat');topic.value=selectedTopic;situation.value=key;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value=''}
+function navigate(p,{replace=false}={}){return router[replace?'replace':'push']({name:p})}
+watch(()=>route.fullPath,()=>{
+ cleanup()
+ if(route.name==='chat'){
+  const nextTopic=route.query.topic===api.contract.topics.law?api.contract.topics.law:api.contract.topics.chemical
+  if(situation.value!==route.params.situation||topic.value!==nextTopic){messages.value=[];question.value='';equipmentId.value='';productId.value='';guideOpen.value=false;suggestionsOpen.value=false;productRequired.value=false}
+  situation.value=route.params.situation;topic.value=nextTopic
+ }
+ page.value=route.name
+ window.scrollTo({top:0})
+},{immediate:true})
+function open(key,selectedTopic=api.contract.topics.chemical,{replace=false}={}){cleanup();guideOpen.value=false;suggestionsOpen.value=false;productRequired.value=false;question.value='';messages.value=[];globalError.value='';equipmentId.value='';productId.value='';return router[replace?'replace':'push'](chatLocation(key,selectedTopic))}
 function changeTopic(value){if(busy.value)return;open(situation.value,value)}
 async function logout(){
  if(signingOut.value)return
  signingOut.value=true;globalError.value=''
- try{await api.logout();navigate('login');messages.value=[];question.value='';resumeDraft=null;loginError.value=''}
+ try{await api.logout();await navigate('login',{replace:true});messages.value=[];question.value='';resumeDraft=null;loginError.value=''}
  catch(error){globalError.value='logoutFailed'}
  finally{signingOut.value=false}
 }
@@ -121,8 +129,8 @@ async function login(credentials){
  signingIn.value=true;loginError.value='';loginNotice.value=''
  try{
   await api.login(credentials)
-  if(resumeDraft){const draft=resumeDraft;resumeDraft=null;open(draft.situation,draft.topic);question.value=draft.question;equipmentId.value=draft.equipmentId;productId.value=draft.productId}
-  else navigate('home')
+  if(resumeDraft){const draft=resumeDraft;resumeDraft=null;await open(draft.situation,draft.topic,{replace:true});question.value=draft.question;equipmentId.value=draft.equipmentId;productId.value=draft.productId}
+  else await router.replace(loginDestination(router,route.query.redirect))
  }catch(error){loginError.value=error.status===401?'credentials':errorKey(error)}
  finally{signingIn.value=false}
 }
@@ -136,7 +144,7 @@ async function signup(credentials){
 }
 function fillFaq(item){if(busy.value)return;if(item.product_id){equipmentId.value=item.equipment_id||'';productId.value=item.product_id}fill(item.q)}
 function fill(text){if(busy.value)return;voice.value='idle';voiceDraft=false;question.value=text;nextTick(()=>input.value?.focus())}
-async function scroll(){await nextTick();thread.value?.lastElementChild?.scrollIntoView({behavior:'smooth',block:'start'})}   // 긴 답변도 질문부터 읽게 맨 위에 맞춘다
+async function scroll(){await nextTick();const pane=thread.value,last=pane?.lastElementChild;if(last)pane.scrollTo({top:last.offsetTop,behavior:'smooth'})}
 async function send(retryMessage){
  const retry=retryMessage?.error?retryMessage:null
  const text=retry?retry.question:question.value.trim()
@@ -144,7 +152,7 @@ async function send(retryMessage){
  if(busy.value||length<api.contract.question.minLength||length>api.contract.question.maxLength)return
  const scope=retry||requestScope(topic.value,equipmentId.value,productId.value)
  if(scope.equipment_id&&!scope.product_id){question.value=text;equipmentId.value=scope.equipment_id;productId.value='';productRequired.value=true;await nextTick();scopePanel.value?.scrollIntoView({behavior:'smooth',block:'center'});return}
- productRequired.value=false
+ productRequired.value=false;suggestionsOpen.value=false
  stop();voice.value='idle';voiceError.value=''
  const id=++version
  const message=retry||{id,situation:situation.value,question:text,response:null,error:null,spoken:voiceDraft,topic:topic.value,language:language.value,...requestScope(topic.value,equipmentId.value,productId.value)}
@@ -266,16 +274,18 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
 <Transition name="scene" mode="out-in">
 <LoginView key="login" v-if="page === 'login'" v-model:language="language" :loading="signingIn" :checking="checking" :error="loginError ? a[loginError] : ''" :notice="loginNotice ? a[loginNotice] : ''" @clear-error="loginError='';loginNotice=''" @submit="login" @signup="signup" />
 <HomeView key="home" v-else-if="page === 'home'" v-model:language="language" @open="open" @logout="logout" />
-<main v-else key="chat" class="clear-chat-main" :class="{'has-guide':guideShown}">
-  <GuideViewer v-if="guideShown" :src="guideUrl" :title="guide.title" :source="guide.source" :language="language" />
+<main v-else key="chat" class="clear-chat-main" :class="{'has-guide':guideUrl && guideOpen}">
+  <button v-if="guideUrl" class="guide-toggle" type="button" :aria-label="guideOpen ? c.guideHide : c.guideShow" :aria-expanded="guideOpen" aria-controls="chat-guide" @click="guideOpen=!guideOpen"><Icon name="back" :size="20" :style="{transform:guideOpen?'none':'rotate(180deg)'}" /></button>
+  <GuideViewer id="chat-guide" v-if="guideUrl && guideOpen" :src="guideUrl" :title="guide.title" :source="guide.source" :language="language" />
   <div class="chat-pane">
+  <div class="chat-controls">
   <div class="clear-chat-heading">
     <div class="clear-chat-title"><button v-spring class="chat-back" :aria-label="t.back" @click="navigate('home')"><Icon name="back" :size="22" /></button><h1>{{title}}</h1></div>
-    <div class="chat-heading-actions"><button v-if="situation==='emergency' && !isLaw" type="button" class="emergency-btn" @click="contacts=true"><Icon name="alert" :size="18" />{{c.emergency}}</button><button v-if="guideUrl" type="button" class="guide-btn guide-toggle" :aria-pressed="guideOpen" @click="guideOpen=!guideOpen">{{guideOpen?c.guideHide:c.guideShow}}</button><a v-if="guideUrl" class="guide-btn" :href="guideUrl" target="_blank" rel="noopener noreferrer">{{c.view}}</a><a v-if="guideUrl" class="guide-btn filled" :href="guideUrl" :download="`${title}.pdf`">{{c.download}}</a><button v-spring class="chat-new" :aria-label="t.newChat" @click="open(situation,topic)"><Icon name="plus" :size="18" /><span>{{t.newChat}}</span></button></div>
+    <div class="chat-heading-actions"><button v-if="situation==='emergency' && !isLaw" type="button" class="emergency-btn" @click="contacts=true"><Icon name="alert" :size="18" />{{c.emergency}}</button><a v-if="guideUrl" class="guide-btn" :href="guideUrl" target="_blank" rel="noopener noreferrer">{{c.view}}</a><a v-if="guideUrl" class="guide-btn filled" :href="guideUrl" :download="`${title}.pdf`">{{c.download}}</a><button v-spring class="chat-new" :aria-label="t.newChat" @click="open(situation,topic)"><Icon name="plus" :size="18" /><span>{{t.newChat}}</span></button></div>
   </div>
 
   <div class="chat-topic-picker" role="group" :aria-label="a.topics"><button v-for="(value,key) in api.contract.topics" :key="key" type="button" :aria-pressed="topic===value" :disabled="busy" @click="changeTopic(value)">{{a[key]}}</button></div>
-  <div v-if="topic===api.contract.topics.chemical" class="chat-scope" :class="{'is-compact':messages.length}" ref="scopePanel">
+  <div v-if="topic===api.contract.topics.chemical" class="chat-scope" ref="scopePanel">
     <div class="chat-scope-controls">
       <label><span>{{s.equipment}}</span><ScopePicker :model-value="equipmentId" :options="equipmentOptions" :label="s.equipment" :disabled="busy" @update:model-value="selectEquipment" /></label>
       <label><span>{{s.product}}</span><ScopePicker ref="productPicker" v-model="productId" :options="productOptions" :label="s.product" :disabled="busy||selectedEquipment?.coverage==='none'" /></label>
@@ -283,7 +293,8 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
     <div v-if="productRequired" class="chat-product-required" role="alert"><span>{{feedback.selectProduct}}</span><button type="button" @click="chooseProduct">{{feedback.chooseProduct}}</button></div>
     <p v-if="selectedEquipment && selectedEquipment.coverage!=='full'" class="chat-scope-warning" role="status"><Icon name="alert" :size="18" />{{s[selectedEquipment.coverage]}}</p>
   </div>
-  <section ref="thread" class="clear-conversation" :aria-label="t.assistant" aria-live="polite" :aria-busy="pending">
+  </div>
+  <section ref="thread" class="clear-conversation" tabindex="0" :aria-label="t.assistant" aria-live="polite" :aria-busy="pending">
     <div v-if="!messages.length" class="clear-chat-empty">
       <span class="clear-empty-icon"><Icon name="chat" :size="36" /></span>
       <h2>{{t.emptyTitle}}</h2>
@@ -291,7 +302,6 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
         <p class="faq-sub">{{c.faqTitle}} · {{c.faqSub}}</p>
         <section v-for="group in faq" :key="group.key" class="faq-group"><h3>{{c.g[group.key]}}</h3><div class="faq-items"><button v-for="item in group.items" :key="item.q" type="button" class="faq-item" @click="fillFaq(item)"><span>{{item.q}}</span><Icon name="arrow" :size="16" /></button></div></section>
       </div>
-      <div v-else class="clear-suggestions" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
     </div>
     <article v-for="message in messages" :key="message.id" class="clear-exchange">
       <div class="clear-question"><span v-if="scopeLabel(message)" class="chat-scope-context">{{scopeLabel(message)}}</span><p>{{message.question}}</p></div>
@@ -329,18 +339,21 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
     </article>
   </section>
 
-  <div v-if="messages.length&&!busy" class="clear-suggestions chat-followup" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
+  <div class="chat-input-dock">
+  <button v-if="messages.length && !busy" type="button" class="suggestions-toggle" :aria-expanded="suggestionsOpen" aria-controls="chat-suggestions" @click="suggestionsOpen=!suggestionsOpen">{{suggestionsOpen?c.hideSuggestions:c.showSuggestions}}<Icon name="back" :size="14" :style="{transform:suggestionsOpen?'rotate(90deg)':'rotate(-90deg)'}" /></button>
+  <div id="chat-suggestions" v-if="(!messages.length || suggestionsOpen) && !busy && !(situation==='free'&&!messages.length&&!equipmentId&&!productId)" class="clear-suggestions chat-followup" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
   <form class="clear-composer" @submit.prevent="send">
     <label class="sr-only" for="question">{{t.send}}</label>
-    <textarea id="question" ref="input" v-model="question" :disabled="busy" :maxlength="api.contract.question.maxLength" :placeholder="t.placeholder" :rows="messages.length?1:3" @keydown="onKey"></textarea>
+    <textarea id="question" ref="input" v-model="question" :disabled="busy" :maxlength="api.contract.question.maxLength" :placeholder="t.placeholder" rows="1" @keydown="onKey"></textarea>
     <div v-if="voice!=='idle'" class="clear-voice-state" role="status">
       <template v-if="voice==='recording'"><span class="clear-record-dot"></span><b>{{t.recording}}</b><span class="clear-wave" aria-hidden="true"><i v-for="n in 14" :key="n" :style="{animationDelay:`${n*.09}s`}"></i></span><button type="button" v-spring @click="finish">{{t.finish}}</button><button type="button" @click="cancel">{{t.cancel}}</button></template>
       <template v-else-if="voice==='processing'"><span class="clear-loading-dots"><i></i><i></i><i></i></span>{{t.converting}}</template>
       <template v-else><Icon name="check" :size="18" />{{t.reviewVoice}}</template>
     </div>
     <p v-if="voiceError" class="chat-voice-error" role="alert"><Icon name="alert" :size="18" />{{a[voiceError]}}</p>
-    <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy||!voiceReady" :title="voiceReady?'':a.voiceLanguage" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voiceInput}}</span></button><button v-spring type="button" class="clear-mic convo-start" :disabled="busy||!voiceReady" :title="voiceReady?a.convoHint:a.voiceLanguage" @click="startConvo"><Icon name="sound" :size="21" /><span>{{a.convoStart}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
+    <div class="clear-composer-controls"><button v-spring type="button" class="clear-mic" :disabled="busy||!voiceReady" :aria-label="a.voiceInput" :title="voiceReady?a.voiceInput:a.voiceLanguage" @click="startVoice"><Icon name="mic" :size="21" /><span>{{a.voiceInput}}</span></button><button v-spring type="button" class="clear-mic convo-start" :disabled="busy||!voiceReady" :aria-label="a.convoStart" :title="voiceReady?a.convoHint:a.voiceLanguage" @click="startConvo"><Icon name="sound" :size="21" /><span>{{a.convoStart}}</span></button><button v-spring type="submit" class="clear-send" :disabled="busy||Array.from(question.trim()).length<api.contract.question.minLength" :aria-label="t.send"><Icon name="send" :size="23" /></button></div>
   </form>
+  </div>
   </div>
 </main>
 </Transition>
