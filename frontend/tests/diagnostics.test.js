@@ -1,4 +1,4 @@
-import { answerLines, groupSources } from '../src/api/sources.js'
+import { answerLines, foldAnswer, groupSources } from '../src/api/sources.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -69,7 +69,7 @@ const ssrRender=new Function('require',compile(section.loc.source,{mode:'functio
 async function renderAnswer(message,language){
  const app=createSSRApp({ssrRender,data:()=>({message,a:apiCopy[language],failureKey,busy:false,playing:null,
   feedback:{failed:'fallback',edit:'edit'},t:{stop:'stop'},c:{makeReport:'report',emergency:'emergency'},sourceUrl:()=>null,
-  isEmergency:()=>false,contacts:false,api:{VOICE_LANGUAGES:[]},answerLines,groupSources})})   // dev 의 긴급 배지 판별 (이 테스트는 보류 이유만 확인)
+  isEmergency:()=>false,contacts:false,api:{VOICE_LANGUAGES:[]},answerLines,groupSources,answerView:m=>({folds:false,lines:foldAnswer(answerLines(m.response.answer))})})})   // dev 의 긴급 배지 판별 (이 테스트는 보류 이유만 확인)
  app.component('Icon',{render:()=>null})
  app.directive('spring',{getSSRProps:()=>({})})
  return renderToString(app)

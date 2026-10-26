@@ -48,3 +48,33 @@ export function answerLines(answer = '') {
     return { heading, original, parts }
   })
 }
+
+// 긴 답변 접기: 소제목 하나(또는 빈 줄까지의 문단) 안에서 목록 항목이 limit + 2 개 이상이면
+// 앞의 limit 개만 보이고 나머지는 extra 로 표시한다. 들여쓴 줄(적용 조건·원문)은 바로 위 항목을 따라간다.
+// ⚠ 주의사항 묶음은 안전 경고라 접지 않는다. 마지막으로 보이는 줄에 more = 숨긴 항목 수를 단다.
+export function foldAnswer(lines, limit = 3) {
+  const out = lines.map(line => ({ ...line, extra: false, more: 0 }))
+  let section = null
+  const close = () => {
+    if (!section || section.warn || section.items.length < limit + 2) return
+    section.items.slice(limit).flat().forEach(i => { out[i].extra = true })
+    out[section.items[limit - 1].at(-1)].more = section.items.length - limit
+  }
+  out.forEach((line, i) => {
+    const text = line.parts.map(p => p.text || '').join('')
+    if (line.heading || !text.trim()) {
+      close()
+      section = { warn: line.heading && text.trim().startsWith('⚠'), items: [] }
+    } else if (text.startsWith('- ')) {
+      if (!section) section = { warn: false, items: [] }
+      section.items.push([i])
+    } else if (/^\s/.test(text) && section?.items.length) {
+      section.items.at(-1).push(i)
+    } else {
+      close()
+      section = null
+    }
+  })
+  close()
+  return out
+}

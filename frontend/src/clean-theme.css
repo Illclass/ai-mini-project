@@ -334,3 +334,16 @@ body .scope-menu button { font-size:14px; min-height:40px; }
 #app .voice-convo-hint { margin:0; color:var(--c-muted); font-size:14px; }
 #app .voice-convo-end { height:52px; padding:0 24px; border-radius:14px; border:0; background:#B4412F; color:#fff; font-size:17px; font-weight:700; }
 #app .convo-start { background:var(--c-teal-soft); color:var(--c-teal); border-color:transparent; font-weight:700; }
+
+/* 답변이 잘 보이게 (김규빈 2026-10-26): 대화 중에는 지침서를 접고, 범위 선택·입력칸을 줄이고, 답변 글자를 조금 줄인다 */
+#app .clear-answer-text { font-size:16px; line-height:1.7; }
+#app .clear-more { display:inline-flex; margin:2px 0; padding:4px 12px; border:1px solid var(--c-line); border-radius:999px; background:var(--c-teal-soft); color:var(--c-teal); font-size:13px; font-weight:700; cursor:pointer; }
+#app .clear-more:hover { border-color:var(--c-teal); }
+#app .clear-exchange { scroll-margin-top:16px; }
+#app .chat-scope.is-compact { padding:8px 12px; }
+#app .chat-scope.is-compact .chat-scope-controls>label { display:flex; align-items:center; gap:8px; }
+#app .chat-scope.is-compact .chat-scope-controls>label>span { white-space:nowrap; }
+#app .chat-scope.is-compact .chat-scope-controls>label>:last-child { flex:1; min-width:0; }
+#app .clear-composer textarea { min-height:44px; }
+#app .clear-composer textarea[rows='1'] { min-height:28px; height:28px; }   /* 대화 중에는 한 줄 (늘려 쓸 수 있음) */
+#app .clear-exchange:last-child { scroll-margin-bottom:160px; }

@@ -29,3 +29,13 @@ const extra = {
  km: { retry: 'ព្យាយាមម្តងទៀត', originalKo: 'ឯកសារដើមភាសាកូរ៉េ · ឯកសារយោង', regeneration: 'ការប្តូរភាសានឹងបង្កើតចម្លើយថ្មី ដោយប្រើសំណួរ និងជម្រើសដដែល។', shareFailed: 'មិនអាចចែករំលែកបានទេ។ សូមព្យាយាមម្តងទៀត។' },
 }
 for (const code of Object.keys(extra)) Object.assign(clean[code], extra[code])
+
+// 긴 답변 접기 · 대화 중 지침서 접기 (김규빈 2026-10-26)
+const layout = {
+ ko: { more: '{n}개 더 보기', less: '접기', guideShow: '지침서 펼치기', guideHide: '지침서 접기' },
+ zh: { more: '展开其余 {n} 条', less: '收起', guideShow: '展开指南', guideHide: '收起指南' },
+ vi: { more: 'Xem thêm {n} mục', less: 'Thu gọn', guideShow: 'Mở tài liệu', guideHide: 'Thu gọn tài liệu' },
+ en: { more: 'Show {n} more', less: 'Show less', guideShow: 'Show guide', guideHide: 'Hide guide' },
+ km: { more: 'មើល {n} ចំណុចទៀត', less: 'បង្រួម', guideShow: 'បើកសៀវភៅណែនាំ', guideHide: 'បិទសៀវភៅណែនាំ' },
+}
+for (const code of Object.keys(layout)) Object.assign(clean[code], layout[code])

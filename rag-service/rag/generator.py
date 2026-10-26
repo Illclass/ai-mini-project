@@ -1120,17 +1120,34 @@ def generate_answer(
     if mode != "qa":
         parts.append(text[mode])
     headed = len(kind_order) > 1 or kind_order[:1] != ["information"] or bool(required)
+    # 같은 종류 안에서 잇달아 나오는 문장의 적용 조건이 똑같으면 조건은 마지막 문장 아래 한 번만 쓴다
+    # ("비상 대응 인원이 아닌 경우"가 다섯 번 반복되던 것 → "적용 조건(위 5개 공통): …") (김규빈 2026-10-26)
+    def condition_key(statement):
+        return tuple(re.sub(r"\s+", " ", c.text).strip() for c in statement.conditions)
+
+    def condition_line(statement, count):
+        label = text["conditions"] if count == 1 else text["conditions_shared"].format(n=count)
+        return "  " + label + " " + " / ".join(
+            f"{condition.text.strip()} {markers(condition.citations)}" for condition in statement.conditions)
+
     previous_kind = None
-    for statement in draft.statements:
+    run = 0
+    for index, statement in enumerate(draft.statements):
         if statement.kind != previous_kind:
             flush()
             if headed:
                 paragraph.append(labels[statement.kind])
         paragraph.append(f"- {statement.text.strip()} {markers(statement.citations)}")
         previous_kind = statement.kind
-        if statement.conditions:
-            paragraph.append("  " + text["conditions"] + " " + " / ".join(
-                f"{condition.text.strip()} {markers(condition.citations)}" for condition in statement.conditions))
+        if not statement.conditions:
+            run = 0
+            continue
+        run += 1
+        following = draft.statements[index + 1] if index + 1 < len(draft.statements) else None
+        if following is not None and following.kind == statement.kind and condition_key(following) == condition_key(statement):
+            continue
+        paragraph.append(condition_line(statement, run))
+        run = 0
     flush()
     if required:
         # 한국어는 본문이 이미 인용한 경고 문장은 다시 싣지 않는다 (같은 내용 반복 방지). 번역 답변은 번역 확인을 위해 모두 싣는다.

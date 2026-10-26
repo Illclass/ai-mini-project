@@ -21,7 +21,7 @@ import './chat-glass.css'
 import { copy } from './locales'
 import * as api from './api'
 import { failureKey } from './api/client.js'
-import { answerLines, groupSources } from './api/sources.js'
+import { answerLines, foldAnswer, groupSources } from './api/sources.js'
 import { apiCopy } from './locales/api'
 const page=ref('login'), language=ref('ko'), situation=ref('free'), question=ref(''), messages=ref([]), pending=ref(false), voice=ref('idle'), modal=ref(null), playing=ref(null), input=ref(null), thread=ref(null)
 const signingIn=ref(false), checking=ref(true), signingOut=ref(false), loginError=ref(''), loginNotice=ref(''), globalError=ref('')
@@ -65,6 +65,11 @@ const index=computed(()=>keys.indexOf(situation.value)),title=computed(()=>topic
 const isLaw=computed(()=>topic.value===api.contract.topics.law)
 const guide=computed(()=>guideFor(situation.value,topic.value,productId.value))
 const guideUrl=computed(()=>guide.value?.url)
+// 대화가 시작되면 지침서를 접어 답변에 화면 폭을 준다. 머리의 버튼으로 다시 펼친다 (김규빈 2026-10-26)
+const guideOpen=ref(true), guideShown=computed(()=>guideUrl.value&&guideOpen.value)
+watch(()=>messages.value.length,(n,o)=>{if(n&&!o)guideOpen.value=false;if(!n)guideOpen.value=true})
+// 긴 목록은 앞 3개만 보이고 "N개 더 보기"로 펼친다. ⚠ 주의사항은 접지 않는다 (sources.js foldAnswer)
+function answerView(message){const lines=foldAnswer(answerLines(message.response.answer));return {folds:lines.some(l=>l.extra),lines:message.expanded?lines:lines.filter(l=>!l.extra)}}
 const faq=computed(()=>{
  const list=(candidates[language.value]||candidates.ko)[isLaw.value?'law':'chemical']||[]
  const groups=[]
@@ -126,7 +131,7 @@ async function signup(credentials){
  finally{signingIn.value=false}
 }
 function fill(text){if(busy.value)return;voice.value='idle';voiceDraft=false;question.value=text;nextTick(()=>input.value?.focus())}
-async function scroll(){await nextTick();thread.value?.lastElementChild?.scrollIntoView({behavior:'smooth',block:'nearest'})}
+async function scroll(){await nextTick();thread.value?.lastElementChild?.scrollIntoView({behavior:'smooth',block:'start'})}   // 긴 답변도 질문부터 읽게 맨 위에 맞춘다
 async function send(retryMessage){
  const retry=retryMessage?.error?retryMessage:null
  const text=retry?retry.question:question.value.trim()
@@ -256,16 +261,16 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
 <Transition name="scene" mode="out-in">
 <LoginView key="login" v-if="page === 'login'" v-model:language="language" :loading="signingIn" :checking="checking" :error="loginError ? a[loginError] : ''" :notice="loginNotice ? a[loginNotice] : ''" @clear-error="loginError='';loginNotice=''" @submit="login" @signup="signup" />
 <HomeView key="home" v-else-if="page === 'home'" v-model:language="language" @open="open" @logout="logout" />
-<main v-else key="chat" class="clear-chat-main" :class="{'has-guide':guideUrl}">
-  <GuideViewer v-if="guideUrl" :src="guideUrl" :title="guide.title" :source="guide.source" :language="language" />
+<main v-else key="chat" class="clear-chat-main" :class="{'has-guide':guideShown}">
+  <GuideViewer v-if="guideShown" :src="guideUrl" :title="guide.title" :source="guide.source" :language="language" />
   <div class="chat-pane">
   <div class="clear-chat-heading">
     <div class="clear-chat-title"><button v-spring class="chat-back" :aria-label="t.back" @click="navigate('home')"><Icon name="back" :size="22" /></button><h1>{{title}}</h1></div>
-    <div class="chat-heading-actions"><button v-if="situation==='emergency' && !isLaw" type="button" class="emergency-btn" @click="contacts=true"><Icon name="alert" :size="18" />{{c.emergency}}</button><a v-if="guideUrl" class="guide-btn" :href="guideUrl" target="_blank" rel="noopener noreferrer">{{c.view}}</a><a v-if="guideUrl" class="guide-btn filled" :href="guideUrl" :download="`${title}.pdf`">{{c.download}}</a><button v-spring class="chat-new" :aria-label="t.newChat" @click="open(situation,topic)"><Icon name="plus" :size="18" /><span>{{t.newChat}}</span></button></div>
+    <div class="chat-heading-actions"><button v-if="situation==='emergency' && !isLaw" type="button" class="emergency-btn" @click="contacts=true"><Icon name="alert" :size="18" />{{c.emergency}}</button><button v-if="guideUrl" type="button" class="guide-btn guide-toggle" :aria-pressed="guideOpen" @click="guideOpen=!guideOpen">{{guideOpen?c.guideHide:c.guideShow}}</button><a v-if="guideUrl" class="guide-btn" :href="guideUrl" target="_blank" rel="noopener noreferrer">{{c.view}}</a><a v-if="guideUrl" class="guide-btn filled" :href="guideUrl" :download="`${title}.pdf`">{{c.download}}</a><button v-spring class="chat-new" :aria-label="t.newChat" @click="open(situation,topic)"><Icon name="plus" :size="18" /><span>{{t.newChat}}</span></button></div>
   </div>
 
   <div class="chat-topic-picker" role="group" :aria-label="a.topics"><button v-for="(value,key) in api.contract.topics" :key="key" type="button" :aria-pressed="topic===value" :disabled="busy" @click="changeTopic(value)">{{a[key]}}</button></div>
-  <div v-if="topic===api.contract.topics.chemical" class="chat-scope" ref="scopePanel">
+  <div v-if="topic===api.contract.topics.chemical" class="chat-scope" :class="{'is-compact':messages.length}" ref="scopePanel">
     <div class="chat-scope-controls">
       <label><span>{{s.equipment}}</span><ScopePicker :model-value="equipmentId" :options="equipmentOptions" :label="s.equipment" :disabled="busy" @update:model-value="selectEquipment" /></label>
       <label><span>{{s.product}}</span><ScopePicker ref="productPicker" v-model="productId" :options="productOptions" :label="s.product" :disabled="busy||selectedEquipment?.coverage==='none'" /></label>
@@ -308,7 +313,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
           <p v-if="message.response.handoff&&message.response.diagnostic?.requestId&&['providerError','providerLimited','generationError'].includes(failureKey(message.response))" class="clear-review-note">{{a.errorReference}}: {{message.response.diagnostic.requestId}}</p>
           <!-- 소제목은 굵게, 출처 번호 [n] 은 작고 흐리게 (줄바꿈은 pre-wrap 이 살리므로 한 줄로 쓴다).
                보류 이유를 위에서 보여 줬으면 서버의 일반 보류 문구는 같은 말이라 숨긴다. 오류 번호는 연결·생성 오류일 때만. -->
-          <p v-if="!(message.response.handoff&&!isEmergency(message.response)&&failureKey(message.response))" class="clear-answer-text"><template v-for="(line,li) in answerLines(message.response.answer)" :key="li"><template v-if="li">{{'\n'}}</template><span :class="{'clear-answer-subhead':line.heading,'clear-original':line.original}"><template v-for="(part,pi) in line.parts" :key="pi"><sup v-if="part.mark" class="clear-mark">{{part.mark}}</sup><template v-else>{{part.text}}</template></template></span></template></p>
+          <p v-if="!(message.response.handoff&&!isEmergency(message.response)&&failureKey(message.response))" class="clear-answer-text"><template v-for="view in [answerView(message)]" :key="'view'"><template v-for="(line,li) in view.lines" :key="li"><template v-if="li">{{'\n'}}</template><span :class="{'clear-answer-subhead':line.heading,'clear-original':line.original}"><template v-for="(part,pi) in line.parts" :key="pi"><sup v-if="part.mark" class="clear-mark">{{part.mark}}</sup><template v-else>{{part.text}}</template></template></span><template v-if="line.more&&!message.expanded">{{'\n'}}<button type="button" class="clear-more" @click="message.expanded=true">{{c.more.replace('{n}',line.more)}}</button></template></template><template v-if="view.folds&&message.expanded">{{'\n'}}<button type="button" class="clear-more" @click="message.expanded=false">{{c.less}}</button></template></template></p>
           <div class="clear-answer-tools">
             <!-- 같은 문서의 출처는 한 줄로 묶는다 (번호는 본문과 같음) --><template v-for="group in groupSources(message.response.sources)" :key="group.key"><a v-if="sourceUrl(group.url)" v-spring class="clear-source" :href="sourceUrl(group.url)" target="_blank" rel="noopener noreferrer"><span class="clear-source-number">[{{group.label}}]</span><span>{{group.title}}<template v-if="group.sections.length"> · {{group.sections.join(' · ')}}</template></span><Icon name="arrow" :size="16" /></a><span v-else class="clear-source" :title="a.noLink"><span class="clear-source-number">[{{group.label}}]</span><span>{{group.title}}<template v-if="group.sections.length"> · {{group.sections.join(' · ')}}</template></span></span></template>
             <button v-if="api.VOICE_LANGUAGES.includes(message.language)" v-spring class="clear-listen" :disabled="busy" :aria-pressed="playing===message.id" @click="play(message)"><Icon :name="playing===message.id?'stop':'sound'" :size="19" />{{playing===message.id?t.stop:a.listenAnswer}}</button>
@@ -322,7 +327,7 @@ onBeforeUnmount(()=>{cleanup();window.removeEventListener('keydown',escape)})
   <div v-if="messages.length&&!busy" class="clear-suggestions chat-followup" :aria-label="t.suggestions"><button v-for="suggestion in suggestions" :key="suggestion" v-spring @click="fill(suggestion)"><span>{{suggestion}}</span><Icon name="arrow" :size="18" /></button></div>
   <form class="clear-composer" @submit.prevent="send">
     <label class="sr-only" for="question">{{t.send}}</label>
-    <textarea id="question" ref="input" v-model="question" :disabled="busy" :maxlength="api.contract.question.maxLength" :placeholder="t.placeholder" rows="3" @keydown="onKey"></textarea>
+    <textarea id="question" ref="input" v-model="question" :disabled="busy" :maxlength="api.contract.question.maxLength" :placeholder="t.placeholder" :rows="messages.length?1:3" @keydown="onKey"></textarea>
     <div v-if="voice!=='idle'" class="clear-voice-state" role="status">
       <template v-if="voice==='recording'"><span class="clear-record-dot"></span><b>{{t.recording}}</b><span class="clear-wave" aria-hidden="true"><i v-for="n in 14" :key="n" :style="{animationDelay:`${n*.09}s`}"></i></span><button type="button" v-spring @click="finish">{{t.finish}}</button><button type="button" @click="cancel">{{t.cancel}}</button></template>
       <template v-else-if="voice==='processing'"><span class="clear-loading-dots"><i></i><i></i><i></i></span>{{t.converting}}</template>
